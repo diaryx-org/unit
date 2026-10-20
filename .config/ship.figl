@@ -1,0 +1,50 @@
+# What ship needs to know about unit: its release, and its CI. Everything not
+# stated here is ship's default — the manifest, the changelog path, the cliff
+# config, and that this is a Cargo workspace.
+name = unit
+url = https://github.com/diaryx-org/unit
+release_branch = main
+
+# No `verify`: before cutting, a release runs the jobs below.
+
+# Not on crates.io: unit is consumed from git, `branch = "main"`, so a tag is
+# a name for a commit and sets nothing off.
+publishes = false
+
+# CI. `.github/workflows/ci.yml` asks `ship ci --matrix` for these and runs one
+# per runner, as `ship ci <id>`; `ship ci` runs them all here, in this order,
+# and stops at the first that fails. Changing CI is an edit here and nowhere
+# else. Cheapest and most likely to fail first.
+job
+> *
+> > id = fmt
+> > name = Format
+> > run = cargo fmt --all --check
+> > runner
+> > > components = rustfmt
+> > > builds = false
+> *
+> > id = clippy
+> > name = Clippy
+> > run = cargo clippy --workspace --all-targets -- -D warnings
+> > runner
+> > > components = clippy
+> *
+> > # The gallery for the web, the other renderer unit is built for: the
+> > # library and the page compile to wasm32 with no Blitz in them.
+> > id = web
+> > name = Web
+> > run = cargo clippy -p unit-gallery --target wasm32-unknown-unknown --no-default-features --features web -- -D warnings
+> > runner
+> > > components = clippy
+> *
+> > # The library's tests, and the gallery's: every component laid out by
+> > # Blitz with no window, pressed and tapped, its accessibility tree read.
+> > id = test
+> > name = Tests
+> > run = cargo test --workspace
+> *
+> > # A broken intra-doc link is a broken promise to a reader of the docs.
+> > id = docs
+> > name = Docs
+> > run = RUSTDOCFLAGS='-D warnings' cargo doc -p unit --no-deps

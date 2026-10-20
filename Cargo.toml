@@ -3,13 +3,9 @@
 # assistive tech on each: no JavaScript, no DOM focus moved from code, every
 # overlay mounted from the first frame. See src/lib.rs for why each of those.
 #
-# Laid out as a repository of its own (diaryx-org/unit, once it exists): the
-# library at the root, and `gallery/`, every component on one page, which runs
-# on Blitz, on the web, and headless under test.
-#
-# While it lives in leaf it is a workspace of its own, `exclude`d from leaf's
-# root one like the editor widget's: it is on Dioxus 0.8's alpha, which
-# nothing in leaf's root workspace resolves.
+# The library at the root, and `gallery/`, every component on one page, which
+# runs on Blitz, on the web, and headless under test. It began in leaf's
+# crates/unit.
 #
 #     cargo test                                  # the library
 #     cargo test -p unit-gallery                  # every component, laid out by Blitz

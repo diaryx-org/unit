@@ -11,8 +11,13 @@ dx serve -p unit-gallery --platform web --no-default-features --features web
 UNIT_APPEARANCE=dark UNIT_DENSITY=touch cargo run -p unit-gallery
 ```
 
-It is in leaf for now, laid out as the repository it is to become
-(`diaryx-org/unit`): the library at the root, the gallery in `gallery/`.
+The library is at the root, the gallery in `gallery/`. It began in
+diaryx-org/leaf, as `crates/unit`, and grew out of leaf's `leaf-dioxus-ui`.
+A consumer takes it by git:
+
+```toml
+unit = { git = "https://github.com/diaryx-org/unit", branch = "main" }
+```
 
 ## What is in it
 
@@ -76,7 +81,8 @@ same attributes, for VoiceOver, TalkBack and UI automation.
 ## Blitz
 
 The gallery builds Blitz from diaryx-org's fork, its `unit` branch: the fork's
-`leaf` branch and three changes the gallery's tests found it needed.
+`leaf` branch and three changes the gallery's tests found it needed
+(diaryx-org/blitz#1).
 
 - **ARIA's states.** Blitz read roles but not states: a checkbox's tick, a
   toggle's pressed state, a slider's value, a dialog's modality.
