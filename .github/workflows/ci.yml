@@ -63,5 +63,9 @@ jobs:
       # A missing `builds` is null, and GitHub compares loosely, so `null != false`
       # is false: the test is for null itself.
       if: matrix.job.builds == null || matrix.job.builds
+    # Blitz's system fonts read fontconfig on Linux, which the runner's image
+    # has as a library but not as a package to build against.
+    - run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
+      if: matrix.job.builds == null || matrix.job.builds
     - run: cargo install --locked --git https://github.com/diaryx-org/ship ship
     - run: ship ci ${{ matrix.job.id }}
