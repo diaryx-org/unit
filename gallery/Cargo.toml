@@ -1,0 +1,43 @@
+# The gallery: every unit component on one page, in a window drawn by Blitz
+# (`native`, the default), in a browser (`web`), and laid out headless by
+# Blitz under test (tests/blitz.rs), which is where a component that breaks
+# Blitz's layout or its accessibility tree is caught.
+#
+#     cargo run -p unit-gallery                                   # a window
+#     cargo test -p unit-gallery                                  # headless
+#     dx serve -p unit-gallery --platform web --no-default-features --features web
+[package]
+name = "unit-gallery"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[features]
+default = ["native"]
+native = ["dep:dioxus-native"]
+web = ["dep:dioxus-web"]
+
+[dependencies]
+unit = { path = ".." }
+dioxus = { version = "0.8.0-alpha.3", default-features = false, features = [
+    "macro",
+    "html",
+    "signals",
+    "hooks",
+] }
+# Blitz on wgpu, with the accessibility tree: the versions dioxus-native
+# 0.8.0-alpha.3 pins, Blitz itself from the fork (the [patch] below).
+dioxus-native = { version = "0.8.0-alpha.3", optional = true, default-features = false, features = [
+    "net", "svg", "system-fonts", "vello", "accessibility",
+] }
+dioxus-web = { version = "=0.8.0-alpha.3", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# A page built and laid out with no window, and its accessibility tree.
+dioxus-core = "=0.8.0-alpha.3"
+blitz-dom = { version = "=0.3.0-beta.4", default-features = false, features = ["accessibility", "system-fonts"] }
+blitz-traits = "=0.3.0-beta.4"
+accesskit = "0.25"
+atomic_refcell = "0.1"
+keyboard-types = "0.8"

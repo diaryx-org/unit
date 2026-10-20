@@ -1,0 +1,67 @@
+# unit — a component library for Dioxus that draws the same on the web and
+# on dioxus-native (Blitz), on a desktop and on a phone, and is read by
+# assistive tech on each: no JavaScript, no DOM focus moved from code, every
+# overlay mounted from the first frame. See src/lib.rs for why each of those.
+#
+# Laid out as a repository of its own (diaryx-org/unit, once it exists): the
+# library at the root, and `gallery/`, every component on one page, which runs
+# on Blitz, on the web, and headless under test.
+#
+# While it lives in leaf it is a workspace of its own, `exclude`d from leaf's
+# root one like the editor widget's: it is on Dioxus 0.8's alpha, which
+# nothing in leaf's root workspace resolves.
+#
+#     cargo test                                  # the library
+#     cargo test -p unit-gallery                  # every component, laid out by Blitz
+#     cargo run -p unit-gallery                   # the gallery, in a window
+[workspace]
+members = ["gallery"]
+default-members = [".", "gallery"]
+
+[package]
+name = "unit"
+version = "0.0.0"
+edition = "2024"
+description = "Components for Dioxus that work the same on the web and on dioxus-native, with accessibility on both."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/diaryx-org/unit"
+publish = false
+
+[dependencies]
+# Only Dioxus itself: no renderer, so a web page and a Blitz window use the
+# crate as it is, and it builds in seconds.
+dioxus = { version = "0.8.0-alpha.3", default-features = false, features = [
+    "macro",
+    "html",
+    "signals",
+    "hooks",
+] }
+
+[dev-dependencies]
+dioxus-ssr = "=0.8.0-alpha.3"
+
+# Blitz from diaryx-org's fork at the version dioxus-native pins (FORK.md
+# there): its accessibility tree gives every node its bounds and reads
+# ARIA's roles and states. Its `unit` branch is `leaf` and three changes the
+# gallery's tests need: ARIA's states read, a removed node forgotten by its
+# layout parent, and a press that focuses what it lands on and clicks only
+# where it began. Back to `leaf` once those are merged there. Every Blitz
+# crate in the graph comes from it, as the fork's crates depend on each
+# other by path. Only the gallery reaches Blitz; the library does not.
+[patch.crates-io]
+blitz-dom = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
+blitz-traits = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
+blitz-shell = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
+blitz-paint = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
+blitz-net = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
+stylo_taffy = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
+debug_timer = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
+accesskit_xplat = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
+
+[profile.dev]
+debug = "line-tables-only"
+
+# Stylo, parley and Vello optimised even in a debug build, or a frame takes
+# ten times as long to draw.
+[profile.dev.package."*"]
+opt-level = 3
