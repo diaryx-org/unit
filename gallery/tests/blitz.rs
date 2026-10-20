@@ -390,6 +390,56 @@ fn the_arrows_move_a_list_after_it_is_pressed() {
     assert_eq!(selected.as_deref(), Some("true"));
 }
 
+/// A toolbar's button that refuses the keys is pressed, and the keys stay
+/// with the control that had them, as a host's editor keeps its own.
+#[test]
+fn a_button_that_refuses_the_keys_leaves_them_where_they_were() {
+    let mut doc = page(1200, 800);
+    let cherry = find(&doc, "[role=option]", "Cherry");
+    click(&mut doc, cherry);
+    let italic = find(&doc, "button", "I");
+    click(&mut doc, italic);
+    assert_eq!(said(&doc), "Italic on.");
+    assert!(!class_of(&doc, italic).contains("unit-focused"));
+    key(&mut doc, Key::Named(NamedKey::ArrowDown));
+    let damson = find(&doc, "[role=option]", "Damson");
+    assert_eq!(attr(&doc, damson, "aria-selected").as_deref(), Some("true"));
+    assert_eq!(
+        said(&doc),
+        "Italic on.",
+        "the list had the arrow, not the button"
+    );
+}
+
+/// An element of the page's own keeps the box model the page gave it:
+/// unit sets `border-box` on its own elements, not on the host's.
+#[test]
+fn the_pages_own_elements_keep_their_box() {
+    let doc = page(1200, 800);
+    let own = doc
+        .inner
+        .borrow()
+        .query_selector(".gallery-own")
+        .unwrap()
+        .unwrap();
+    let (_, _, w, _) = rect(&doc, own);
+    assert_eq!(w, 120.0, "a width of 100 and padding of 10 each side");
+}
+
+fn attr(doc: &DioxusDocument, node: NodeId, name: &str) -> Option<String> {
+    let inner = doc.inner.borrow();
+    inner.get_node(node)?.element_data().and_then(|e| {
+        e.attrs()
+            .iter()
+            .find(|a| &*a.name.local == name)
+            .map(|a| a.value.to_string())
+    })
+}
+
+fn class_of(doc: &DioxusDocument, node: NodeId) -> String {
+    attr(doc, node, "class").unwrap_or_default()
+}
+
 /// The accessibility tree Blitz builds for the page, by node.
 fn tree(doc: &DioxusDocument) -> Vec<(AxId, Node)> {
     doc.inner.borrow().build_accessibility_tree().nodes

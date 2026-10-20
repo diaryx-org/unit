@@ -57,7 +57,11 @@ and draws the overlay that menus, dialogs and toasts appear in. A browser and
 dioxus-native's `launch` need nothing more. A host that reads keys itself, as
 an editor reading them from winit does, passes `keys: Keys::Host`, calls
 `Unit::key` and `Unit::text` before it uses a key, and gives keys to the
-renderer while `Unit::typing()`.
+renderer while `Unit::typing()`. A toolbar over the host's editor gives
+its buttons `refuses_keys: true`: pressed, they leave the keys with the
+editor, as a Mac's toolbar buttons do. unit's styles set `box-sizing` on its
+own elements only, so the host's under `UnitRoot` keep the box model they
+chose.
 
 ## Why it is built the way it is
 

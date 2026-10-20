@@ -11,7 +11,10 @@ pub const CSS: &str = r#"
 .unit-root { font-family: var(--unit-font); font-size: var(--unit-font-size);
              color: var(--unit-text); background: var(--unit-bg); outline: none;
              line-height: 1.35; }
-.unit-root *, .unit-root *::before, .unit-root *::after { box-sizing: border-box; }
+/* unit's own elements and what is in them, not the page's: a host's editor
+   under the root lays out by the box model it chose. */
+.unit-root [class*="unit-"], .unit-root [class*="unit-"] *,
+.unit-root [class*="unit-"]::before, .unit-root [class*="unit-"]::after { box-sizing: border-box; }
 .unit-focused { outline: 2px solid var(--unit-focus); outline-offset: 1px; }
 
 /* The overlay */
