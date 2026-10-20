@@ -333,6 +333,12 @@ impl Focus {
         self.unit.take_focus(self.focused(dom));
     }
 
+    /// The control was pressed, and refuses the keys: they stay with
+    /// whatever had them, which may be the host's own.
+    pub fn press_refused(&self) {
+        self.unit.claim();
+    }
+
     /// The renderer focused the control.
     pub fn dom_focus(&self) {
         self.unit.take_focus(self.focused(true));

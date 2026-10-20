@@ -101,6 +101,10 @@ pub fn MenuButton(
     top: Option<f64>,
     label: Option<String>,
     #[props(default)] disabled: bool,
+    /// Takes no keys, as [`crate::Button`]'s `refuses_keys`: the menu
+    /// still opens on a press, and its keys are the menu's while it is open.
+    #[props(default)]
+    refuses_keys: bool,
     children: Element,
 ) -> Element {
     let unit = use_unit();
@@ -125,10 +129,17 @@ pub fn MenuButton(
             "aria-haspopup": "menu",
             "aria-expanded": if expanded { "true" } else { "false" },
             "aria-label": label,
+            tabindex: refuses_keys.then_some("-1"),
             onpointerenter: move |e: PointerEvent| opener.seen(&e),
             onpointermove: move |e: PointerEvent| opener.seen(&e),
+            // Focus left where it was, as `Button`'s `refuses_keys` leaves it.
+            onmousedown: move |e: MouseEvent| if refuses_keys { e.prevent_default() },
             onpointerdown: move |e: PointerEvent| {
-                focus.press();
+                if refuses_keys {
+                    focus.press_refused();
+                } else {
+                    focus.press();
+                }
                 if disabled {
                     return;
                 }
@@ -139,10 +150,15 @@ pub fn MenuButton(
                 opener.pressed.clone().set(true);
                 opener.open(entries.clone(), height, top, false, onpick);
             },
-            onfocus: move |_| focus.dom_focus(),
+            onfocus: move |_| if !refuses_keys { focus.dom_focus() },
             onblur: move |_| focus.dom_blur(),
             onclick: move |e: MouseEvent| {
                 e.stop_propagation();
+                if refuses_keys {
+                    // Blitz focuses what a click lands on as the click's
+                    // default action.
+                    e.prevent_default();
+                }
                 if std::mem::take(&mut *opener.pressed.clone().write()) || disabled {
                     return;
                 }

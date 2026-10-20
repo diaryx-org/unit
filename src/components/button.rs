@@ -46,6 +46,11 @@ pub fn Button(
     onpress: EventHandler<()>,
     #[props(default)] variant: Variant,
     #[props(default)] disabled: bool,
+    /// Takes no keys: a press leaves them where they were, and Tab passes
+    /// it by, as a Mac's toolbar buttons do. For a bar over a host's own
+    /// editor, whose keys a pressed Bold must not take.
+    #[props(default)]
+    refuses_keys: bool,
     /// What assistive tech reads, where the children are not words: an
     /// icon's button.
     label: Option<String>,
@@ -65,11 +70,21 @@ pub fn Button(
             r#type: "button",
             disabled,
             "aria-label": label,
-            onpointerdown: move |_| focus.press(),
-            onfocus: move |_| focus.dom_focus(),
+            tabindex: refuses_keys.then_some("-1"),
+            // A browser focuses a pressed button on `mousedown`, Blitz on
+            // the click: cancelling both leaves the focus where it was, and
+            // a negative `tabindex` keeps the button out of Tab's order.
+            onmousedown: move |e: MouseEvent| if refuses_keys { e.prevent_default() },
+            onpointerdown: move |_| if refuses_keys { focus.press_refused() } else { focus.press() },
+            onfocus: move |_| if !refuses_keys { focus.dom_focus() },
             onblur: move |_| focus.dom_blur(),
             onclick: move |e: MouseEvent| {
                 e.stop_propagation();
+                if refuses_keys {
+                    // Blitz focuses what a click lands on as the click's
+                    // default action.
+                    e.prevent_default();
+                }
                 if !disabled {
                     onpress.call(());
                 }
@@ -86,6 +101,11 @@ pub fn ToggleButton(
     pressed: bool,
     onchange: EventHandler<bool>,
     #[props(default)] disabled: bool,
+    /// Takes no keys: a press leaves them where they were, and Tab passes
+    /// it by, as a Mac's toolbar buttons do. For a bar over a host's own
+    /// editor, whose keys a pressed Bold must not take.
+    #[props(default)]
+    refuses_keys: bool,
     label: Option<String>,
     #[props(default)] class: String,
     children: Element,
@@ -105,11 +125,21 @@ pub fn ToggleButton(
             disabled,
             "aria-pressed": if pressed { "true" } else { "false" },
             "aria-label": label,
-            onpointerdown: move |_| focus.press(),
-            onfocus: move |_| focus.dom_focus(),
+            tabindex: refuses_keys.then_some("-1"),
+            // A browser focuses a pressed button on `mousedown`, Blitz on
+            // the click: cancelling both leaves the focus where it was, and
+            // a negative `tabindex` keeps the button out of Tab's order.
+            onmousedown: move |e: MouseEvent| if refuses_keys { e.prevent_default() },
+            onpointerdown: move |_| if refuses_keys { focus.press_refused() } else { focus.press() },
+            onfocus: move |_| if !refuses_keys { focus.dom_focus() },
             onblur: move |_| focus.dom_blur(),
             onclick: move |e: MouseEvent| {
                 e.stop_propagation();
+                if refuses_keys {
+                    // Blitz focuses what a click lands on as the click's
+                    // default action.
+                    e.prevent_default();
+                }
                 if !disabled {
                     onchange.call(!pressed);
                 }

@@ -36,6 +36,9 @@ pub fn Gallery() -> Element {
         UnitRoot { appearance: appearance(), density: density(), class: "gallery",
             style { {GALLERY_CSS} }
             Page { appearance, density }
+            // The page's own element, outside any component, as a host's
+            // editor is: unit's styles leave its box as the page drew it.
+            div { class: "gallery-own" }
         }
     }
 }
@@ -46,6 +49,7 @@ html, body { margin: 0; }
 .gallery-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
 .gallery-grid > .unit-card { width: 340px; }
 .gallery-said { color: var(--unit-dim); margin-top: 8px; }
+.gallery-own { width: 100px; height: 1px; padding: 0 10px; }
 "#;
 
 #[component]
@@ -53,6 +57,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let unit = use_unit();
     let mut said = use_signal(|| String::from("Nothing yet."));
     let mut bold = use_signal(|| false);
+    let mut italic = use_signal(|| false);
     let mut spelling = use_signal(|| true);
     let mut wrap = use_signal(|| false);
     let mut size = use_signal(|| Some(1usize));
@@ -131,6 +136,13 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         Button { variant: Variant::Danger, onpress: move |_| said.set("Delete pressed.".into()), "Delete" }
                         Button { disabled: true, onpress: move |_| said.set("Disabled pressed!".into()), "Disabled" }
                         ToggleButton { pressed: bold(), label: "Bold", onchange: move |v| bold.set(v), b { "B" } }
+                        // A toolbar's: pressed, it leaves the keys where they were.
+                        ToggleButton { pressed: italic(), label: "Italic", refuses_keys: true,
+                                       onchange: move |v| {
+                                           italic.set(v);
+                                           said.set(format!("Italic {}.", if v { "on" } else { "off" }));
+                                       },
+                                       i { "I" } }
                     }
                 }
                 Card { title: "Choices",
