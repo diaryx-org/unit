@@ -36,23 +36,22 @@ dioxus = { version = "0.8.0-alpha.3", default-features = false, features = [
 [dev-dependencies]
 dioxus-ssr = "=0.8.0-alpha.3"
 
-# Blitz from diaryx-org's fork at the version dioxus-native pins (FORK.md
-# there): its accessibility tree gives every node its bounds and reads
-# ARIA's roles and states. Its `unit` branch is `leaf` and three changes the
-# gallery's tests need: ARIA's states read, a removed node forgotten by its
-# layout parent, and a press that focuses what it lands on and clicks only
-# where it began. Back to `leaf` once those are merged there. Every Blitz
-# crate in the graph comes from it, as the fork's crates depend on each
-# other by path. Only the gallery reaches Blitz; the library does not.
+# Blitz from diaryx-org's fork, its `leaf` branch, at the version
+# dioxus-native pins (FORK.md there): its accessibility tree reads ARIA's
+# roles and states, a removed node is forgotten by its layout parent, a
+# press focuses what it lands on, and assistive tech's click is carried out.
+# Every Blitz crate in the graph comes from it, as the fork's crates depend
+# on each other by path. Only the gallery reaches Blitz; the library does
+# not.
 [patch.crates-io]
-blitz-dom = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
-blitz-traits = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
-blitz-shell = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
-blitz-paint = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
-blitz-net = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
-stylo_taffy = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
-debug_timer = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
-accesskit_xplat = { git = "https://github.com/diaryx-org/blitz", branch = "unit" }
+blitz-dom = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+blitz-traits = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+blitz-shell = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+blitz-paint = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+blitz-net = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+stylo_taffy = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+debug_timer = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+accesskit_xplat = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
 
 [profile.dev]
 debug = "line-tables-only"

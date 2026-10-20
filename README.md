@@ -80,18 +80,17 @@ same attributes, for VoiceOver, TalkBack and UI automation.
 
 ## Blitz
 
-The gallery builds Blitz from diaryx-org's fork, its `unit` branch: the fork's
-`leaf` branch and three changes the gallery's tests found it needed
-(diaryx-org/blitz#1).
+The gallery builds Blitz from diaryx-org's fork, its `leaf` branch, which
+carries what the gallery's tests found Blitz needed (diaryx-org/blitz#1):
 
 - **ARIA's states.** Blitz read roles but not states: a checkbox's tick, a
   toggle's pressed state, a slider's value, a dialog's modality.
 - **A node removed under `display: none`** stayed in its layout parent's
   children, and showing the parent again laid out a freed node: the "layout
-  child … is not in the slab" panic that kept `leaf-dioxus-ui`'s overlay
-  always displayed.
+  child … is not in the slab" panic.
 - **A press** focused only text fields, so keys never reached a pressed list
   or tab row; and a click went to whatever the release landed on, so a press
   that closed a menu also clicked what lay under it.
 
-The gallery goes back to the `leaf` branch once those are merged there.
+and blitz-shell carrying out assistive tech's click, so VoiceOver and an
+agent's `AXPress` press a control in the gallery's window.
