@@ -425,6 +425,10 @@ mod tests {
         let cell = |rule: &str| format!(".unit-root[data-density=\"cell\"] {rule}");
         assert!(CSS.contains(&cell(&format!(".unit-item {{ height: {}px", c.item))));
         assert!(CSS.contains(&cell(&format!(".unit-sep {{ height: {}px", c.separator))));
-        assert!(CSS.contains(&cell(&format!(".unit-menu {{ padding: {}px 0", c.pad))));
+        // The cell density's pad is its padding and its 1px border.
+        assert!(CSS.contains(&cell(&format!(
+            ".unit-menu {{ padding: {}px 0",
+            c.pad - 1.0
+        ))));
     }
 }
