@@ -169,15 +169,15 @@ pub const CSS: &str = r#"
 .unit-root[data-density="touch"] .unit-segment { border-radius: 8px; }
 
 /* Swatches: colour circles, the chosen one ringed off from its neighbours */
-.unit-swatches { display: flex; flex-wrap: wrap; gap: var(--unit-gap); align-items: center;
+.unit-swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
                  border-radius: var(--unit-radius); }
 .unit-swatch { width: 24px; height: 24px; border-radius: 12px; border: 2px solid;
                box-sizing: border-box; flex: none; }
-.unit-swatch.on { outline: 2px solid var(--unit-text); outline-offset: 2px; }
+.unit-swatch.on { outline: 2px solid var(--unit-accent); outline-offset: 2px; }
 .unit-swatch-action { display: flex; align-items: center; justify-content: center;
                       background: transparent; border: 1px solid var(--unit-border);
                       color: var(--unit-dim); font-size: 12px; font-weight: 600; }
-.unit-root[data-density="touch"] .unit-swatch { width: 32px; height: 32px; border-radius: 16px; border-width: 3px; }
+.unit-root[data-density="touch"] .unit-swatch { width: 28px; height: 28px; border-radius: 14px; border-width: 3px; }
 .unit-root[data-density="touch"] .unit-swatch-action { border-width: 1px; font-size: 14px; }
 
 /* Stepper: − and + joined in one groove, as a segmented control's */
