@@ -120,6 +120,9 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     // What a phone would set: its safe area, and the keyboard up.
     let mut edges = use_signal(|| 0usize);
     let mut tip = use_signal(|| true);
+    let mut place = use_signal(|| 0usize);
+    let mut journal = use_signal(|| false);
+    let mut folder = use_signal(|| String::from("Archive"));
 
     let edit = vec![
         Item::new(CUT, "Cut").shortcut("⌘X").into(),
@@ -299,6 +302,32 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                                   accessory: Accessory::Check(markup() == i),
                                   onpress: move |_| markup.set(i) }
                         }
+                    }
+                }
+                Card { title: "Bars",
+                    NavBar { title: "Entries", back: "Library",
+                             onback: move |_| said.set("Back to Library pressed.".into()),
+                             trailing: rsx! {
+                                 Button { icon: paths::PLUS, label: "New", variant: Variant::Ghost, class: "unit-icon",
+                                          onpress: move |_| said.set("New pressed.".into()) }
+                             } }
+                    TabBar { label: "Places", selected: place(), onchange: move |i| place.set(i),
+                             items: vec![
+                                 BarItem::new("Shelf", paths::MORE),
+                                 BarItem::new("Search", paths::SEARCH),
+                                 BarItem::new("Share", paths::SHARE),
+                             ] }
+                    Tree { label: "Folders",
+                        TreeRow { label: "Journal", expanded: journal(), selected: folder() == "Journal",
+                                  ontoggle: move |v| journal.set(v), onpress: move |_| folder.set("Journal".into()) }
+                        if journal() {
+                            for f in ["2026", "Drafts"] {
+                                TreeRow { key: "{f}", label: f, depth: 1, selected: folder() == f,
+                                          onpress: move |_| folder.set(f.into()) }
+                            }
+                        }
+                        TreeRow { label: "Archive", selected: folder() == "Archive",
+                                  onpress: move |_| folder.set("Archive".into()) }
                     }
                 }
                 Card { title: "Overlays",

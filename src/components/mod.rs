@@ -1,6 +1,7 @@
 //! The components, each a Dioxus component that goes under
 //! [`UnitRoot`](crate::UnitRoot).
 
+pub mod bars;
 pub mod button;
 pub mod choice;
 pub mod hold;

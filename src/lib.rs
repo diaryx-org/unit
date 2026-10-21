@@ -64,6 +64,7 @@ pub mod theme;
 mod unit;
 
 pub use actions::{ActionSheet, SheetAction};
+pub use components::bars::{BarItem, NavBar, TabBar, Tree, TreeRow};
 pub use components::button::{Button, ToggleButton, Variant};
 pub use components::choice::{Checkbox, Orientation, RadioGroup, Segmented, Switch};
 pub use components::hold::{Hold, LongPress, use_hold};
@@ -90,12 +91,12 @@ pub use unit::{
 /// Everything a page uses, at once.
 pub mod prelude {
     pub use crate::{
-        Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, Button, Callout, Card,
-        Checkbox, Chips, Choice, ContextMenu, Density, Dialog, Disclosure, Divider, Entry, Field,
-        Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal,
-        Orientation, Placement, Progress, RadioGroup, Row, Section, Segmented, Select, SheetAction,
-        Slider, Spacer, Stack, Switch, Tabs, Text, TextArea, TextField, Theme, Toast, ToggleButton,
-        Tone, Unit, UnitRoot, Variant, use_unit,
+        Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem, Button, Callout,
+        Card, Checkbox, Chips, Choice, ContextMenu, Density, Dialog, Disclosure, Divider, Entry,
+        Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal,
+        NavBar, Orientation, Placement, Progress, RadioGroup, Row, Section, Segmented, Select,
+        SheetAction, Slider, Spacer, Stack, Switch, TabBar, Tabs, Text, TextArea, TextField, Theme,
+        Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
     };
 }
 

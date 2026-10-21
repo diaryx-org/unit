@@ -485,7 +485,13 @@ fn assistive_tech_reads_every_control_as_what_it_is() {
         .into_iter()
         .find(|n| n.label() == Some("Bold"));
     assert!(bold.is_some(), "the toggle is named by its label");
-    let tabs = with_role(&nodes, Role::Tab);
+    // The Navigation card's tabs, read by their text; the tab bar's are
+    // named by their labels.
+    let bar = ["Shelf", "Search", "Share"];
+    let tabs: Vec<_> = with_role(&nodes, Role::Tab)
+        .into_iter()
+        .filter(|n| n.label().is_none_or(|l| !bar.contains(&l)))
+        .collect();
     assert_eq!(
         tabs.iter()
             .filter(|n| n.is_selected() == Some(true))
@@ -973,4 +979,109 @@ fn a_callout_is_acted_on_and_put_away() {
         .map(|&id| doc.inner.borrow().get_node(id).unwrap().text_content())
         .collect();
     assert!(!titles.iter().any(|t| t == "A tip"), "{titles:?}");
+}
+
+#[test]
+fn a_nav_bar_goes_back_and_keeps_below_the_status_bar() {
+    let mut doc = page(390, 844);
+    let back = labelled(&doc, "button", "Back to Library");
+    tap(&mut doc, back);
+    assert_eq!(said(&doc), "Back to Library pressed.");
+    let bar = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-navbar")
+        .unwrap()
+        .unwrap();
+    let row = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-navbar-row")
+        .unwrap()
+        .unwrap();
+    let (_, top, _, _) = rect(&doc, bar);
+    let (_, row_top, _, _) = rect(&doc, row);
+    assert_eq!(row_top, top, "no status bar, no room for one");
+    let phone = find(&doc, ".unit-segment", "Phone");
+    tap(&mut doc, phone);
+    let (_, top, _, _) = rect(&doc, bar);
+    let (_, row_top, _, _) = rect(&doc, row);
+    assert_eq!(row_top - top, 47.0, "the bar's row clears the status bar");
+    let nodes = tree(&doc);
+    assert!(
+        with_role(&nodes, Role::Toolbar)
+            .iter()
+            .any(|n| n.label() == Some("Entries"))
+    );
+}
+
+#[test]
+fn a_tab_bar_picks_a_place_by_a_tap_and_the_arrows() {
+    let mut doc = page(390, 844);
+    let search = labelled(&doc, ".unit-tabbar-item", "Search");
+    tap(&mut doc, search);
+    let search = labelled(&doc, ".unit-tabbar-item", "Search");
+    assert_eq!(attr(&doc, search, "aria-selected").as_deref(), Some("true"));
+    key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    let share = labelled(&doc, ".unit-tabbar-item", "Share");
+    assert_eq!(attr(&doc, share, "aria-selected").as_deref(), Some("true"));
+    let nodes = tree(&doc);
+    let tabs: Vec<_> = with_role(&nodes, Role::Tab)
+        .into_iter()
+        .filter(|n| n.label() == Some("Share"))
+        .collect();
+    assert_eq!(tabs.len(), 1);
+    assert_eq!(tabs[0].is_selected(), Some(true));
+}
+
+#[test]
+fn a_tree_opens_by_its_arrow_and_the_keys_and_reads_its_levels() {
+    let mut doc = page(1200, 800);
+    let count = |doc: &DioxusDocument| {
+        doc.inner
+            .borrow()
+            .query_selector_all(".unit-tree-row")
+            .unwrap()
+            .len()
+    };
+    assert_eq!(count(&doc), 2);
+    let arrow = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-tree-row .unit-tree-arrow")
+        .unwrap()
+        .unwrap();
+    click(&mut doc, arrow);
+    assert_eq!(count(&doc), 4, "Journal open, its two rows under it");
+    let journal = labelled(&doc, ".unit-tree-row", "Journal");
+    assert_eq!(
+        attr(&doc, journal, "aria-selected").as_deref(),
+        Some("false"),
+        "opening is not choosing"
+    );
+    let drafts = labelled(&doc, ".unit-tree-row", "Drafts");
+    let (jx, _, _, _) = rect(&doc, journal);
+    let (dx, _, _, _) = rect(&doc, drafts);
+    assert_eq!(dx, jx, "a row's indent is inside its box");
+    click(&mut doc, drafts);
+    let drafts = labelled(&doc, ".unit-tree-row", "Drafts");
+    assert_eq!(attr(&doc, drafts, "aria-selected").as_deref(), Some("true"));
+    let nodes = tree(&doc);
+    let items = with_role(&nodes, Role::TreeItem);
+    let d = items
+        .iter()
+        .find(|n| n.label() == Some("Drafts"))
+        .expect("Drafts in the tree");
+    // AccessKit counts levels from 0: aria-level 2.
+    assert_eq!(d.level(), Some(1));
+    let j = items
+        .iter()
+        .find(|n| n.label() == Some("Journal"))
+        .expect("Journal in the tree");
+    assert_eq!(j.is_expanded(), Some(true));
+    // The Left arrow closes Journal once it has the keys.
+    let journal = labelled(&doc, ".unit-tree-row", "Journal");
+    click(&mut doc, journal);
+    key(&mut doc, Key::Named(NamedKey::ArrowLeft));
+    assert_eq!(count(&doc), 2);
 }
