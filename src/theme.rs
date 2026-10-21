@@ -21,10 +21,18 @@ pub struct Palette {
     pub control: &'static str,
     /// A control's face under the pointer.
     pub control_hover: &'static str,
+    /// A groove a control sits in: a segmented control's, a switch's when
+    /// off, a slider's rail, a progress bar's.
+    pub track: &'static str,
+    /// What stands up from a groove: the chosen segment.
+    pub raised: &'static str,
     pub text: &'static str,
     /// Secondary text, and anything that cannot be chosen.
     pub dim: &'static str,
+    /// A control's edge, and a raised surface's.
     pub border: &'static str,
+    /// A rule between rows or sections, lighter than an edge.
+    pub separator: &'static str,
     /// What is chosen, on, or the default: and its text.
     pub accent: &'static str,
     pub accent_text: &'static str,
@@ -40,36 +48,45 @@ pub struct Palette {
     pub selection: &'static str,
     /// A shadow under what floats.
     pub shadow: &'static str,
+    /// The faint shadow that lifts a control or a card off what it is on.
+    pub shadow_soft: &'static str,
 }
 
 impl Palette {
     pub const LIGHT: Palette = Palette {
-        bg: "#ffffff",
-        surface: "#f6f6f6",
+        bg: "#f5f5f7",
+        surface: "#ffffff",
         control: "#ffffff",
-        control_hover: "#eeeeee",
-        text: "#1f1f1f",
-        dim: "#8a8a8e",
-        border: "#c9c9cc",
+        control_hover: "#f2f2f4",
+        track: "#e6e6ea",
+        raised: "#ffffff",
+        text: "#1d1d1f",
+        dim: "#86868b",
+        border: "#d4d4d8",
+        separator: "#e8e8ec",
         accent: "#2f6fde",
         accent_text: "#ffffff",
-        danger: "#d93025",
+        danger: "#d93a30",
         success: "#1e8e3e",
         warning: "#c77700",
-        focus: "#2f6fde",
+        focus: "#6d9cf0",
         scrim: "rgba(0, 0, 0, 0.25)",
-        selection: "#b9d2f7",
-        shadow: "rgba(0, 0, 0, 0.18)",
+        selection: "#cfe0fb",
+        shadow: "rgba(0, 0, 0, 0.16)",
+        shadow_soft: "rgba(0, 0, 0, 0.07)",
     };
 
     pub const DARK: Palette = Palette {
-        bg: "#1e1e1e",
-        surface: "#2c2c2e",
+        bg: "#1c1c1e",
+        surface: "#2a2a2c",
         control: "#3a3a3c",
-        control_hover: "#48484a",
-        text: "#e8e8e8",
-        dim: "#8e8e93",
-        border: "#4a4a4d",
+        control_hover: "#444446",
+        track: "#3a3a3c",
+        raised: "#636366",
+        text: "#ececee",
+        dim: "#98989d",
+        border: "#454548",
+        separator: "#38383b",
         accent: "#3b7ff0",
         accent_text: "#ffffff",
         danger: "#ff5f57",
@@ -79,17 +96,21 @@ impl Palette {
         scrim: "rgba(0, 0, 0, 0.45)",
         selection: "#2b4a7a",
         shadow: "rgba(0, 0, 0, 0.5)",
+        shadow_soft: "rgba(0, 0, 0, 0.3)",
     };
 
-    fn entries(&self) -> [(&'static str, &'static str); 16] {
+    fn entries(&self) -> [(&'static str, &'static str); 20] {
         [
             ("bg", self.bg),
             ("surface", self.surface),
             ("control", self.control),
             ("control-hover", self.control_hover),
+            ("track", self.track),
+            ("raised", self.raised),
             ("text", self.text),
             ("dim", self.dim),
             ("border", self.border),
+            ("separator", self.separator),
             ("accent", self.accent),
             ("accent-text", self.accent_text),
             ("danger", self.danger),
@@ -99,6 +120,7 @@ impl Palette {
             ("scrim", self.scrim),
             ("selection", self.selection),
             ("shadow", self.shadow),
+            ("shadow-soft", self.shadow_soft),
         ]
     }
 }
