@@ -228,7 +228,10 @@ pub const CSS: &str = r#"
                      border-radius: var(--unit-radius-large); }
 .unit-section-body > * { border-top: 1px solid var(--unit-border); }
 .unit-section-body > *:first-child { border-top: none; }
-.unit-section-body > *:not(.unit-row) { padding: 6px 14px; }
+.unit-section-body > *:not(.unit-row):not(.unit-row-pair) { padding: 6px 14px; }
+.unit-row-pair { display: flex; align-items: center; }
+.unit-row-pair > .unit-row { flex: 1; min-width: 0; }
+.unit-row-beside { display: flex; flex: none; padding-right: 10px; }
 .unit-row { display: flex; align-items: center; gap: 10px; min-height: var(--unit-control);
             padding: 6px 14px; }
 .unit-row.press:hover { background: var(--unit-control-hover); }

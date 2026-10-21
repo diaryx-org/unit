@@ -88,6 +88,7 @@ html, body { margin: 0; }
 .gallery-grid > .unit-card { width: 340px; }
 .gallery-said { color: var(--unit-dim); margin-top: 8px; }
 .gallery-own { width: 100px; height: 1px; padding: 0 10px; }
+.gallery-dot { width: 10px; height: 10px; border-radius: 5px; background: #b4541a; }
 "#;
 
 #[component]
@@ -295,6 +296,15 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
                         Row { title: "Sign Out", destructive: true,
                               onpress: move |_| said.set("Signed out.".into()) }
+                    }
+                    Section { title: "Libraries",
+                        Row { title: "Journal", accessory: Accessory::Check(true),
+                              onpress: move |_| said.set("Journal opened.".into()) }
+                        Row { title: "Archive", onpress: move |_| said.set("Archive opened.".into()),
+                              leading: rsx! { div { class: "gallery-dot" } },
+                              trailing: rsx! {
+                                  Button { variant: Variant::Ghost, onpress: move |_| said.set("Archive removed.".into()), "Remove" }
+                              } }
                     }
                     Section { title: "Markup",
                         for (i, m) in ["Markdown", "Plain text", "Org"].into_iter().enumerate() {

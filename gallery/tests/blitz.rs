@@ -1092,3 +1092,26 @@ fn a_tree_opens_by_its_arrow_and_the_keys_and_reads_its_levels() {
     key(&mut doc, Key::Named(NamedKey::ArrowLeft));
     assert_eq!(count(&doc), 2);
 }
+
+#[test]
+fn a_pressed_row_holds_a_control_beside_it_that_is_pressed_on_its_own() {
+    let mut doc = page(390, 844);
+    let remove = find(&doc, ".unit-row-pair button", "Remove");
+    tap(&mut doc, remove);
+    assert_eq!(said(&doc), "Archive removed.", "Remove, not the row");
+    let row = labelled(&doc, ".unit-row", "Archive");
+    tap(&mut doc, row);
+    assert_eq!(said(&doc), "Archive opened.");
+    let (rx, _, rw, _) = rect(&doc, row);
+    let (bx, _, _, _) = rect(&doc, remove);
+    assert!(bx >= rx + rw, "Remove sits beside the row, not in it");
+    let dot = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-row .gallery-dot")
+        .unwrap();
+    assert!(dot.is_some(), "the row's own leading element is in it");
+    let nodes = tree(&doc);
+    let buttons = with_role(&nodes, Role::Button);
+    assert!(buttons.iter().any(|n| n.label() == Some("Archive")));
+}

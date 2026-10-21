@@ -365,6 +365,9 @@ pub fn use_focus(kind: Kind, keys: impl Fn(&Key, Modifiers) -> bool + 'static) -
         keys: CopyValue::new(None),
     });
     f.keys.clone().set(Some(Rc::new(keys)));
+    // A control taken out of the page gives up the keys: its handler is
+    // dropped with it, and a key for it would find nothing to call.
+    use_drop(move || f.unit.blurred(f.id));
     f
 }
 

@@ -50,8 +50,10 @@ pub fn Section(
 
 /// One row: an icon, a title and a line under it, text at the right (a
 /// setting's value), and an [`Accessory`]. With `onpress` the row is
-/// pressed; with `trailing` it holds a control at the right instead of
-/// `detail`, and is not.
+/// pressed. `trailing` is a control at the right in place of `detail`: in
+/// a row that is not pressed, inside it; beside a row that is, so the
+/// control is pressed on its own and not inside the row's button (a
+/// recent library's Remove beside the library).
 #[component]
 pub fn Row(
     title: String,
@@ -60,6 +62,9 @@ pub fn Row(
     detail: Option<String>,
     /// An icon at the left: a path for [`Icon`].
     icon: Option<&'static str>,
+    /// Something of the page's own at the left, before the icon: a colour's
+    /// dot, a picture.
+    leading: Option<Element>,
     #[props(default)] accessory: Accessory,
     /// Destroys something: drawn in the danger colour.
     #[props(default)]
@@ -70,7 +75,7 @@ pub fn Row(
     trailing: Option<Element>,
     #[props(default)] class: String,
 ) -> Element {
-    let pressable = onpress.is_some() && trailing.is_none();
+    let pressable = onpress.is_some();
     let press = move || {
         if !disabled && let Some(p) = onpress {
             p.call(());
@@ -98,8 +103,12 @@ pub fn Row(
         (None, false) => None,
     };
     // Read as its title and what it is set to, as a settings row is.
+    let (inside, beside) = match trailing {
+        Some(t) if pressable => (None, Some(t)),
+        t => (t, None),
+    };
     let name = match &detail {
-        Some(d) if trailing.is_none() => format!("{title}, {d}"),
+        Some(d) if inside.is_none() => format!("{title}, {d}"),
         _ => title.clone(),
     };
     let state = format!(
@@ -109,9 +118,9 @@ pub fn Row(
         if disabled { " off" } else { "" },
         focus.class(),
     );
-    rsx! {
+    let row = rsx! {
         div {
-            class: "unit-row{state} {class}",
+            class: if beside.is_some() { "unit-row{state}" } else { "unit-row{state} {class}" },
             role,
             tabindex: (pressable && !disabled).then_some("0"),
             "aria-checked": checked.map(|c| c.to_string()),
@@ -126,6 +135,7 @@ pub fn Row(
                     press();
                 }
             },
+            {leading}
             if let Some(d) = icon {
                 Icon { d, ink }
             }
@@ -135,7 +145,7 @@ pub fn Row(
                     span { class: "unit-row-subtitle", "{s}" }
                 }
             }
-            if let Some(t) = trailing {
+            if let Some(t) = inside {
                 div { class: "unit-row-trailing", {t} }
             } else if let Some(d) = detail {
                 span { class: "unit-row-detail", "{d}" }
@@ -147,5 +157,14 @@ pub fn Row(
                 Accessory::Check(false) => rsx! { span { class: "unit-row-blank" } },
             }
         }
+    };
+    match beside {
+        Some(t) => rsx! {
+            div { class: "unit-row-pair {class}",
+                {row}
+                div { class: "unit-row-beside", {t} }
+            }
+        },
+        None => row,
     }
 }
