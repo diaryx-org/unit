@@ -205,11 +205,14 @@ mod tests {
                 UnitRoot { appearance: Appearance::Dark,
                     Icon { d: crate::icon::paths::PLUS }
                     Icon { d: crate::icon::paths::TRASH, ink: Ink::Danger }
+                    Icon { d: crate::icon::paths::BOOKMARK, ink: Ink::Accent, filled: true }
                 }
             }
         }
         let html = render(Page);
-        assert_eq!(html.matches("stroke=\"currentColor\"").count(), 2, "{html}");
+        assert_eq!(html.matches("stroke=\"currentColor\"").count(), 3, "{html}");
+        // Only the filled one is filled.
+        assert_eq!(html.matches("fill=\"currentColor\"").count(), 1, "{html}");
         assert!(
             html.contains("class=\"unit-svg unit-ink-danger\""),
             "{html}"
