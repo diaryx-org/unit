@@ -26,10 +26,11 @@ dioxus = { version = "0.8.0-alpha.3", default-features = false, features = [
     "signals",
     "hooks",
 ] }
-# Blitz on wgpu, with the accessibility tree: the versions dioxus-native
-# 0.8.0-alpha.3 pins, Blitz itself from the fork (the [patch] below).
+# Blitz on wgpu with its default renderer, vello-hybrid, and the
+# accessibility tree: the versions dioxus-native 0.8.0-alpha.3 pins, Blitz and
+# the renderer patched from the fork (the root manifest's [patch]).
 dioxus-native = { version = "0.8.0-alpha.3", optional = true, default-features = false, features = [
-    "net", "svg", "system-fonts", "vello", "accessibility",
+    "net", "svg", "system-fonts", "vello-hybrid", "accessibility",
 ] }
 dioxus-web = { version = "=0.8.0-alpha.3", optional = true }
 

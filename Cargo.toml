@@ -52,6 +52,13 @@ blitz-net = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
 stylo_taffy = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
 debug_timer = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
 accesskit_xplat = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+# Blitz's default renderer, vello-hybrid, which the gallery draws with: the
+# fork's patches make it draw emoji, backdrop-filter, color matrices and a
+# blur with one after it (FORK.md there).
+anyrender_vello_hybrid = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+glifo = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+vello_gpu = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+vello_gpu_shaders = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
 
 [profile.dev]
 debug = "line-tables-only"
