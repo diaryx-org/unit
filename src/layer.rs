@@ -173,8 +173,9 @@ impl Unit {
         w.owner = (owner != 0).then_some(owner);
     }
 
-    /// Highlight the open menu's first item, as a menu opened by a key does.
-    pub(crate) fn hot_first(&self) {
+    /// Highlight the open menu's first item, as a menu opened by a key does:
+    /// for a host that opens [`Unit::open_menu`] from a key of its own.
+    pub fn hot_first(&self) {
         let mut l = self.layer;
         if let Some((m, _)) = l.write().menu.as_mut() {
             m.hot_first();
