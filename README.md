@@ -30,7 +30,7 @@ unit = { git = "https://github.com/diaryx-org/unit", branch = "main" }
 | Menus | `MenuButton`, `Select`, `ContextMenu` (the secondary button, or a finger held); items with shortcuts, ticks, icons, separators, submenus, and destructive ones |
 | Lists | `Section` (rows under a caption), `Row` (icon, title, subtitle, a note under it, value, a chevron or a tick, a control at the right, set in by a `depth`) |
 | Navigation | `Tabs`, `ListBox` (arrows, Home, End, typeahead), `Disclosure`, `NavBar`, `TabBar`, `Tree` and `TreeRow` |
-| Overlays | `Unit::open_dialog` (alerts, confirmations, a prompt), `Unit::open_actions` (an action sheet), `Modal` and its `Sheet` placement (Cancel and Done, dragged down to close), `Unit::toast` (until dismissed, or for as long as it `lasts`) |
+| Overlays | `Unit::open_dialog` (alerts, confirmations, a prompt), `Unit::open_actions` (an action sheet), `Modal` and its `Sheet` placement (Cancel and Done, dragged down to close, along the bottom or floating off the edges over a bar of the page's own), `Unit::toast` (until dismissed, or for as long as it `lasts`) |
 | Gestures | `LongPress` and `use_hold`: a finger held still, timed by the host's sleep (`Unit::set_timer`) |
 | Layout | `Stack`, `Spacer`, `Card`, `Divider`, `Field` (a form's row), `Heading`, `Text`, `Badge`, `Progress`, `Callout` |
 | Theme | `Theme`: a light and a dark `Palette`, a pointer's and a finger's `Metrics`, and a text and a heading font, written as CSS custom properties; `Appearance` and `Density` on the root |

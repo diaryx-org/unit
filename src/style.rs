@@ -284,6 +284,7 @@ pub const CSS: &str = r#"
               box-shadow: 0 12px 40px var(--unit-shadow); }
 .unit-modal.unit-sheet { width: 100%; border-bottom-left-radius: 0; border-bottom-right-radius: 0;
                          padding-bottom: 28px; }
+.unit-modal.unit-sheet.unit-floating { border-radius: var(--unit-radius-large); padding-bottom: 14px; }
 .unit-modal-head { display: flex; align-items: center; justify-content: space-between;
                    gap: 8px; margin-bottom: 8px; }
 .unit-modal-head .unit-dialog-title { margin: 0; }

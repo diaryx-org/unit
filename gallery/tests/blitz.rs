@@ -1226,3 +1226,51 @@ fn a_brief_toast_goes_by_itself() {
     settle(&mut doc);
     assert!(!shown(&doc), "gone after its two seconds");
 }
+
+#[test]
+fn a_floating_sheet_is_held_off_the_edges_over_the_pages_bar_and_on_the_keyboard() {
+    let mut doc = page(390, 844);
+    let phone = find(&doc, ".unit-segment", "Phone");
+    tap(&mut doc, phone);
+    let open = find(&doc, "button", "Floating sheet…");
+    tap(&mut doc, open);
+    let (x, y, w, h) = rect(&doc, floating_panel(&doc));
+    assert_eq!((x, w), (8.0, 374.0), "held 8px off each side");
+    let style = attr(&doc, floating_panel(&doc), "style").unwrap();
+    assert!(style.contains("max-height: 70%"), "{style}");
+    assert_eq!(
+        y + h,
+        844.0 - 66.0 - 8.0,
+        "over the page's bar, not the home indicator"
+    );
+    assert!(
+        doc.inner
+            .borrow()
+            .query_selector(".unit-floating [aria-label=Close]")
+            .unwrap()
+            .is_none(),
+        "no close button"
+    );
+    key(&mut doc, Key::Named(NamedKey::Escape));
+    let place = doc
+        .inner
+        .borrow()
+        .query_selector(".gallery-floating")
+        .unwrap()
+        .unwrap();
+    assert!(!displayed(&doc, place), "Escape still closes it");
+    let keyboard = find(&doc, ".unit-segment", "Keyboard");
+    tap(&mut doc, keyboard);
+    let open = find(&doc, "button", "Floating sheet…");
+    tap(&mut doc, open);
+    let (_, y, _, h) = rect(&doc, floating_panel(&doc));
+    assert_eq!(y + h, 844.0 - 336.0 - 8.0, "on the keyboard");
+}
+
+fn floating_panel(doc: &DioxusDocument) -> NodeId {
+    doc.inner
+        .borrow()
+        .query_selector(".unit-floating")
+        .unwrap()
+        .unwrap()
+}

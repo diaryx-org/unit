@@ -118,6 +118,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut picked = use_signal(|| Some(2usize));
     let mut modal = use_signal(|| false);
     let mut sheet = use_signal(|| false);
+    let mut floating = use_signal(|| false);
     // A sheet put in the page only while it is open, as an app that
     // mounts each of its sheets on demand does.
     let mut mounted = use_signal(|| false);
@@ -384,6 +385,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         }, "Actions…" }
                         Button { onpress: move |_| modal.set(true), "Modal…" }
                         Button { onpress: move |_| sheet.set(true), "Sheet…" }
+                        Button { onpress: move |_| floating.set(true), "Floating sheet…" }
                         Button { onpress: move |_| mounted.set(true), "Mounted sheet…" }
                         Button { onpress: move |_| {
                             unit.toast_with(Toast::new("Saved.").tone(Tone::Success).action("Undo"),
@@ -430,6 +432,14 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                 ondone: move |_| { sheet.set(false); said.set("Sheet done.".into()); },
             Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
             Slider { label: "Volume", value: volume(), onchange: move |v| volume.set(v) }
+        }
+        // A card held off the edges and over a bar of the page's own along
+        // the bottom, with no close button: it goes by a drag, the scrim or
+        // Escape.
+        Modal { open: floating(), title: "A floating sheet", placement: Placement::Sheet,
+                inset: 8.0, clear: 66.0, max_height: 0.7, close_button: false, class: "gallery-floating",
+                onclose: move |_| floating.set(false),
+            Text { "Held off the window's edges, above the page's own bar." }
         }
     }
 }
