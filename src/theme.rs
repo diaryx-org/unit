@@ -138,7 +138,7 @@ impl Metrics {
 
     fn entries(&self) -> [(&'static str, f64); 5] {
         [
-            ("control", self.control),
+            ("control-height", self.control),
             ("font-size", self.font_size),
             ("gap", self.gap),
             ("radius", self.radius),
@@ -266,6 +266,17 @@ mod tests {
         for used in crate::style::CSS.split("var(").skip(1) {
             let name = &used[..used.find([')', ',']).unwrap()];
             assert!(theme.contains(&format!("{name}:")), "{name} is not set");
+        }
+    }
+
+    /// A colour and a size never share a name: the root writes both in one
+    /// block, so the later would replace the earlier, and every control
+    /// would lose its face or its height.
+    #[test]
+    fn no_colour_and_size_share_a_name() {
+        let palette = Palette::LIGHT.entries().map(|(name, _)| name);
+        for (name, _) in Metrics::REGULAR.entries() {
+            assert!(!palette.contains(&name), "--unit-{name} is both");
         }
     }
 
