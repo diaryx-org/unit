@@ -165,6 +165,7 @@ impl Unit {
         let sizes = match *self.density.peek() {
             crate::Density::Regular => Sizes::REGULAR,
             crate::Density::Touch => Sizes::TOUCH,
+            crate::Density::Cell => Sizes::CELL,
         };
         let menu = Menu::open(entries, at, above, viewport, sizes);
         let mut w = l.write();

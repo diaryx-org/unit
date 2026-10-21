@@ -43,6 +43,17 @@ impl Sizes {
         char: 9.0,
         min_width: 200.0,
     };
+
+    /// For a terminal's cells: an item and a separator a row each, and a
+    /// padding that with the 1px border makes a row above and below, where
+    /// the border is drawn. `char` is a 16px monospace face's advance.
+    pub const CELL: Sizes = Sizes {
+        item: 24.0,
+        separator: 24.0,
+        pad: 23.0,
+        char: 9.7,
+        min_width: 160.0,
+    };
 }
 
 const MAX_WIDTH: f64 = 380.0;
