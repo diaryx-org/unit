@@ -111,3 +111,9 @@ carries what the gallery's tests found Blitz needed (diaryx-org/blitz#1):
 
 and blitz-shell carrying out assistive tech's click, so VoiceOver and an
 agent's `AXPress` press a control in the gallery's window.
+
+## Licence
+
+unit is MIT or Apache-2.0, at your choice (`LICENSE-MIT`, `LICENSE-APACHE`).
+Its icon paths (`icon::paths`) are [Lucide](https://lucide.dev)'s, under the
+ISC licence in `LICENSE-LUCIDE`.
