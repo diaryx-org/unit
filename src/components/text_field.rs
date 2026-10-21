@@ -44,6 +44,11 @@ impl InputKind {
 /// unless the field has an `onsubmit` of its own. `action_disabled` greys
 /// it while the text would not do: an empty name, an address not yet
 /// whole.
+///
+/// `name`, `autocomplete`, `required`, `minlength` and `maxlength` are the
+/// input's own attributes: a browser keeps to the length, and fills and
+/// saves the field from a password manager by its `autocomplete`. Blitz does
+/// neither yet; `required` is read by assistive tech on both.
 #[component]
 pub fn TextField(
     value: String,
@@ -63,6 +68,13 @@ pub fn TextField(
     /// The action pressed, or Return in the field, given the text.
     onaction: Option<EventHandler<String>>,
     #[props(default)] action_disabled: bool,
+    /// The field's name in a form.
+    name: Option<String>,
+    /// What a browser may fill it with: `email`, `current-password`.
+    autocomplete: Option<String>,
+    #[props(default)] required: bool,
+    minlength: Option<u32>,
+    maxlength: Option<u32>,
 ) -> Element {
     let focus = use_focus(Kind::Text, |_, _| false);
     let id = use_hook(next_id);
@@ -79,6 +91,12 @@ pub fn TextField(
             value: "{value}",
             placeholder: "{placeholder}",
             disabled,
+            name,
+            autocomplete,
+            required,
+            "aria-required": required.then_some("true"),
+            minlength: minlength.map(|n| n.to_string()),
+            maxlength: maxlength.map(|n| n.to_string()),
             "aria-label": label.clone(),
             onpointerdown: move |_| focus.press(),
             onfocus: move |_| focus.dom_focus(),
@@ -125,6 +143,10 @@ pub fn TextArea(
     #[props(default)] placeholder: String,
     #[props(default = 4)] rows: u32,
     #[props(default)] disabled: bool,
+    /// The field's name in a form.
+    name: Option<String>,
+    #[props(default)] required: bool,
+    maxlength: Option<u32>,
 ) -> Element {
     let focus = use_focus(Kind::Text, |_, _| false);
     let id = use_hook(next_id);
@@ -140,6 +162,10 @@ pub fn TextArea(
                 value: "{value}",
                 placeholder: "{placeholder}",
                 disabled,
+                name,
+                required,
+                "aria-required": required.then_some("true"),
+                maxlength: maxlength.map(|n| n.to_string()),
                 "aria-label": label.clone(),
                 onpointerdown: move |_| focus.press(),
                 onfocus: move |_| focus.dom_focus(),
