@@ -116,6 +116,10 @@ pub const CSS: &str = r#"
 .unit-button.unit-ghost:hover { background: var(--unit-control-hover); }
 .unit-button.unit-icon { width: var(--unit-control); padding: 0; }
 .unit-svg { flex: none; }
+.unit-ink-dim { color: var(--unit-dim); }
+.unit-ink-accent { color: var(--unit-accent); }
+.unit-ink-accent-text { color: var(--unit-accent-text); }
+.unit-ink-danger { color: var(--unit-danger); }
 .unit-button[disabled] { color: var(--unit-dim); }
 .unit-toggle.on { background: var(--unit-selection); border-color: var(--unit-accent); }
 .unit-select { justify-content: space-between; padding: 0 8px 0 10px; min-width: 120px; }

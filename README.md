@@ -24,7 +24,7 @@ unit = { git = "https://github.com/diaryx-org/unit", branch = "main" }
 | | |
 |---|---|
 | Buttons | `Button` (default, primary, ghost, danger), `ToggleButton`, each with an `icon` |
-| Icons | `Icon`: a path on a 24-unit grid stroked in the theme's colours (`Ink`), as Blitz's SVG needs; `icon::paths` |
+| Icons | `Icon`: a path on a 24-unit grid stroked in `currentColor`, the text's or an `Ink` of the theme's; `icon::paths` |
 | Choices | `Checkbox`, `Switch`, `RadioGroup`, `Segmented`, `Slider`, `Chips` |
 | Text | `TextField` (text, search, email, URL, password, number), `TextArea` |
 | Menus | `MenuButton`, `Select`, `ContextMenu` (the secondary button, or a finger held); items with shortcuts, ticks, icons, separators, submenus, and destructive ones |

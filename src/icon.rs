@@ -1,13 +1,10 @@
 //! Icons: a path on a 24-unit grid, stroked in one of the theme's colours.
 //!
-//! Blitz draws SVG through usvg, which takes `stroke` from the element's
-//! attribute and not from CSS, so an icon under Blitz cannot inherit its
-//! colour from the text round it. Its colour is chosen here instead, from
-//! the page's [`Theme`](crate::Theme) and appearance, as the [`Ink`] its
-//! place asks for: a menu's highlighted row draws its icon in the accent's
-//! text colour, a destructive one in the danger colour. A browser does read
-//! CSS, and there an icon is stroked in `currentColor`, so it follows the
-//! text it sits in, `:hover` included.
+//! An icon is stroked in `currentColor`, which Blitz's SVG and a browser's
+//! both take from the CSS `color` round it: it follows the text it sits in
+//! (a highlighted menu row's, a primary button's) and the appearance,
+//! the system's included, as text does. An [`Ink`] other than the text's
+//! sets the icon's own `color` from the theme: an accent, a danger.
 //!
 //! An icon is decoration beside a label, or the whole of a control's face
 //! with the control's `label` naming it: either way it is hidden from
@@ -16,7 +13,7 @@
 use dioxus::prelude::*;
 
 use crate::theme::{Appearance, Palette};
-use crate::unit::{Unit, use_unit};
+use crate::unit::Unit;
 
 /// Which of the theme's colours an icon is stroked in.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -35,6 +32,17 @@ pub enum Ink {
 }
 
 impl Ink {
+    /// The class that sets the icon's colour; the text's needs none.
+    fn class(self) -> &'static str {
+        match self {
+            Ink::Text => "unit-svg",
+            Ink::Dim => "unit-svg unit-ink-dim",
+            Ink::Accent => "unit-svg unit-ink-accent",
+            Ink::AccentText => "unit-svg unit-ink-accent-text",
+            Ink::Danger => "unit-svg unit-ink-danger",
+        }
+    }
+
     fn of(self, p: &Palette) -> &'static str {
         match self {
             Ink::Text => p.text,
@@ -47,10 +55,9 @@ impl Ink {
 }
 
 impl Unit {
-    /// The colour `ink` is in the page's theme and appearance. The system's
-    /// appearance is read as light: Blitz does not report the system's
-    /// scheme on every platform, so a host there passes
-    /// [`Appearance::Light`] or [`Appearance::Dark`] itself.
+    /// The colour `ink` is in the page's theme and appearance, for what a
+    /// page draws in Rust rather than CSS. The system's appearance is read
+    /// as light, as Rust cannot see `prefers-color-scheme`.
     pub fn ink(&self, ink: Ink) -> &'static str {
         let theme = self.theme.peek();
         let palette = match *self.appearance.read() {
@@ -69,20 +76,14 @@ pub fn Icon(
     #[props(default)] ink: Ink,
     #[props(default = 18.0)] size: f64,
 ) -> Element {
-    let unit = use_unit();
-    let stroke = if cfg!(target_arch = "wasm32") {
-        "currentColor"
-    } else {
-        unit.ink(ink)
-    };
     rsx! {
         svg {
-            class: "unit-svg",
+            class: ink.class(),
             width: "{size}",
             height: "{size}",
             view_box: "0 0 24 24",
             fill: "none",
-            stroke,
+            stroke: "currentColor",
             stroke_width: "1.8",
             stroke_linecap: "round",
             stroke_linejoin: "round",

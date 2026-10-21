@@ -199,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn an_icon_takes_its_colour_from_the_appearance() {
+    fn an_icon_is_stroked_in_the_text_colour_or_its_ink() {
         fn Page() -> Element {
             rsx! {
                 UnitRoot { appearance: Appearance::Dark,
@@ -209,15 +209,22 @@ mod tests {
             }
         }
         let html = render(Page);
-        let dark = crate::Palette::DARK;
+        assert_eq!(html.matches("stroke=\"currentColor\"").count(), 2, "{html}");
         assert!(
-            html.contains(&format!("stroke=\"{}\"", dark.text)),
-            "{html}"
-        );
-        assert!(
-            html.contains(&format!("stroke=\"{}\"", dark.danger)),
+            html.contains("class=\"unit-svg unit-ink-danger\""),
             "{html}"
         );
         assert!(html.contains("aria-hidden=\"true\""), "{html}");
+        // What a page draws in Rust has the appearance's colours.
+        fn Probe() -> Element {
+            rsx! { UnitRoot { appearance: Appearance::Dark, Read {} } }
+        }
+        #[component]
+        fn Read() -> Element {
+            let u = use_unit();
+            rsx! { "{u.ink(Ink::Danger)}" }
+        }
+        let html = render(Probe);
+        assert!(html.contains(crate::Palette::DARK.danger), "{html}");
     }
 }

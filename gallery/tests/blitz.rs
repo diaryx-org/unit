@@ -538,8 +538,8 @@ fn labelled(doc: &DioxusDocument, selector: &str, label: &str) -> NodeId {
         .unwrap_or_else(|| panic!("no {selector} labelled {label:?}"))
 }
 
-/// The `stroke` of the first icon under `node`.
-fn stroke_under(doc: &DioxusDocument, node: NodeId) -> String {
+/// The first icon under `node`: its stroke and its class.
+fn icon_under(doc: &DioxusDocument, node: NodeId) -> (String, String) {
     let svg = {
         let inner = doc.inner.borrow();
         let all = inner.query_selector_all(".unit-svg").unwrap();
@@ -556,14 +556,18 @@ fn stroke_under(doc: &DioxusDocument, node: NodeId) -> String {
             })
             .expect("an icon under the node")
     };
-    attr(doc, svg, "stroke").unwrap()
+    (attr(doc, svg, "stroke").unwrap(), class_of(doc, svg))
 }
 
 #[test]
-fn an_icon_is_stroked_in_the_themes_colour_and_its_button_named_by_its_label() {
+fn an_icon_is_stroked_in_its_buttons_colour_and_the_button_named_by_its_label() {
     let mut doc = page(1200, 800);
     let share = labelled(&doc, "button", "Share");
-    assert_eq!(stroke_under(&doc, share), unit::Palette::LIGHT.text);
+    assert_eq!(
+        icon_under(&doc, share),
+        ("currentColor".into(), "unit-svg".into()),
+        "in the button's text colour"
+    );
     let (_, _, w, h) = rect(&doc, share);
     assert_eq!(w, h, "an icon alone draws its button square");
     tap(&mut doc, share);
@@ -576,7 +580,7 @@ fn an_icon_is_stroked_in_the_themes_colour_and_its_button_named_by_its_label() {
         "the icon's button is read by its label"
     );
     let add = find(&doc, "button", "Add");
-    assert_eq!(stroke_under(&doc, add), unit::Palette::LIGHT.text);
+    assert_eq!(icon_under(&doc, add).0, "currentColor");
 }
 
 #[test]
@@ -586,7 +590,10 @@ fn a_destructive_menu_item_is_drawn_in_the_danger_colour_with_its_icon() {
     click(&mut doc, edit);
     let delete = labelled(&doc, ".unit-item", "Delete");
     assert!(class_of(&doc, delete).contains("danger"));
-    assert_eq!(stroke_under(&doc, delete), unit::Palette::LIGHT.danger);
+    assert_eq!(
+        icon_under(&doc, delete),
+        ("currentColor".into(), "unit-svg unit-ink-danger".into())
+    );
     let (_, _, w, _) = rect(&doc, delete);
     let level = doc
         .inner
