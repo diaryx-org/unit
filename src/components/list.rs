@@ -14,6 +14,10 @@ use crate::components::button::is_press;
 use crate::icon::{Icon, Ink, paths};
 use crate::unit::{Kind, use_focus};
 
+/// How far a row is set in for each level of its `depth`, as a
+/// [`TreeRow`](crate::TreeRow) is.
+const INDENT: usize = 16;
+
 /// What a row shows at its right edge.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Accessory {
@@ -49,7 +53,9 @@ pub fn Section(
 }
 
 /// One row: an icon, a title and a line under it, text at the right (a
-/// setting's value), and an [`Accessory`]. With `onpress` the row is
+/// setting's value), and an [`Accessory`]. `depth` sets it in that many
+/// levels, as a [`TreeRow`](crate::TreeRow) is: a nested list's rows, a
+/// map's keys under the key that holds them. With `onpress` the row is
 /// pressed. `trailing` is a control at the right in place of `detail`: in
 /// a row that is not pressed, inside it; beside a row that is, so the
 /// control is pressed on its own and not inside the row's button (a
@@ -58,6 +64,9 @@ pub fn Section(
 pub fn Row(
     title: String,
     subtitle: Option<String>,
+    /// A third line, under the subtitle: what a finding's fix would do, a
+    /// remark's words under who sent it.
+    note: Option<String>,
     /// Text at the right: what a setting is set to.
     detail: Option<String>,
     /// An icon at the left: a path for [`Icon`].
@@ -66,6 +75,9 @@ pub fn Row(
     /// dot, a picture.
     leading: Option<Element>,
     #[props(default)] accessory: Accessory,
+    /// How many levels in it is set.
+    #[props(default)]
+    depth: usize,
     /// Destroys something: drawn in the danger colour.
     #[props(default)]
     destructive: bool,
@@ -135,6 +147,11 @@ pub fn Row(
                     press();
                 }
             },
+            // A box of its own rather than the row's padding, which a host's
+            // stylesheet sets for every row.
+            if depth > 0 {
+                span { class: "unit-row-indent", style: "width: {depth * INDENT}px" }
+            }
             {leading}
             if let Some(d) = icon {
                 Icon { d, ink }
@@ -143,6 +160,9 @@ pub fn Row(
                 span { class: "unit-row-title", "{title}" }
                 if let Some(s) = subtitle {
                     span { class: "unit-row-subtitle", "{s}" }
+                }
+                if let Some(n) = note {
+                    span { class: "unit-row-note", "{n}" }
                 }
             }
             if let Some(t) = inside {

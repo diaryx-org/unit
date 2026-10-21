@@ -110,13 +110,16 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut volume = use_signal(|| 0.4f64);
     let mut stepped = use_signal(|| 3.0f64);
     let mut name = use_signal(String::new);
+    let mut reader = use_signal(String::new);
     let mut notes = use_signal(String::new);
     let mut font = use_signal(|| Some(0usize));
+    let mut circle = use_signal(|| 0usize);
     let mut faces = use_signal(|| vec![true, false, false]);
     let mut tab = use_signal(|| 0usize);
     let mut picked = use_signal(|| Some(2usize));
     let mut modal = use_signal(|| false);
     let mut sheet = use_signal(|| false);
+    let mut floating = use_signal(|| false);
     // A sheet put in the page only while it is open, as an app that
     // mounts each of its sheets on demand does.
     let mut mounted = use_signal(|| false);
@@ -270,6 +273,11 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                     }
                     Chips { label: "Faces", choices: face_choices, on: faces(),
                             onpick: move |i: usize| faces.with_mut(|f: &mut Vec<bool>| f[i] = !f[i]) }
+                    Chips { label: "Circle", on: (0..3).map(|i| circle() == i).collect::<Vec<_>>(),
+                            choices: vec![Choice::new("Only You"),
+                                          Choice::new("Family").dot("#b4541a").badge("4"),
+                                          Choice::new("Friends").dot("#3a7bd5").badge("12")],
+                            onpick: move |i: usize| circle.set(i) }
                 }
                 Card { title: "Navigation",
                     Tabs { label: "Sections", tabs: vec!["General".into(), "Editor".into(), "About".into()],
@@ -297,6 +305,10 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                               accessory: Accessory::Chevron,
                               onpress: move |_| said.set("Appearance opened.".into()) }
                         Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
+                        TextField { inline: true, label: "Add a reader", placeholder: "Add a reader…",
+                                    value: reader(), oninput: move |v| reader.set(v),
+                                    action: "Add", action_disabled: reader().trim().is_empty(),
+                                    onaction: move |v: String| { said.set(format!("Added {v}.")); reader.set(String::new()); } }
                         Row { title: "Sign Out", destructive: true,
                               onpress: move |_| said.set("Signed out.".into()) }
                     }
@@ -308,6 +320,14 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                               trailing: rsx! {
                                   Button { variant: Variant::Ghost, onpress: move |_| said.set("Archive removed.".into()), "Remove" }
                               } }
+                    }
+                    Section { title: "Contents", footer: "Rows set in by their depth, as a nested list's are.",
+                        Row { title: "Part One", onpress: move |_| said.set("Part One opened.".into()) }
+                        Row { title: "The Harbour", depth: 1, subtitle: "Chapter 1",
+                              onpress: move |_| said.set("The Harbour opened.".into()) }
+                        Row { title: "Low tide", depth: 2, subtitle: "From Ana",
+                              note: "\u{201c}The boats lean over on the mud.\u{201d}",
+                              onpress: move |_| said.set("Low tide opened.".into()) }
                     }
                     Section { title: "Markup",
                         for (i, m) in ["Markdown", "Plain text", "Org"].into_iter().enumerate() {
@@ -371,11 +391,16 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         }, "Actions…" }
                         Button { onpress: move |_| modal.set(true), "Modal…" }
                         Button { onpress: move |_| sheet.set(true), "Sheet…" }
+                        Button { onpress: move |_| floating.set(true), "Floating sheet…" }
                         Button { onpress: move |_| mounted.set(true), "Mounted sheet…" }
                         Button { onpress: move |_| {
                             unit.toast_with(Toast::new("Saved.").tone(Tone::Success).action("Undo"),
                                 move || said.set("Undone.".into()));
                         }, "Toast" }
+                        Button { onpress: move |_| {
+                            unit.toast_with(Toast::new("Moved.").action("Undo").lasts(std::time::Duration::from_secs(2)),
+                                move || said.set("Move undone.".into()));
+                        }, "Brief toast" }
                     }
                     Stack { axis: Axis::Horizontal, wrap: true,
                         Badge { "3" }
@@ -413,6 +438,14 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                 ondone: move |_| { sheet.set(false); said.set("Sheet done.".into()); },
             Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
             Slider { label: "Volume", value: volume(), onchange: move |v| volume.set(v) }
+        }
+        // A card held off the edges and over a bar of the page's own along
+        // the bottom, with no close button: it goes by a drag, the scrim or
+        // Escape.
+        Modal { open: floating(), title: "A floating sheet", placement: Placement::Sheet,
+                inset: 8.0, clear: 66.0, max_height: 0.7, close_button: false, class: "gallery-floating",
+                onclose: move |_| floating.set(false),
+            Text { "Held off the window's edges, above the page's own bar." }
         }
     }
 }

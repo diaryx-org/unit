@@ -44,7 +44,14 @@ pub const DISMISS: f64 = 90.0;
 ///
 /// With `cancel` or `done` its title bar is a phone's: Cancel at the left,
 /// the title in the middle, Done at the right, which calls `ondone`. With
-/// neither, a close button at the right.
+/// neither, a close button at the right, unless `close_button` is false:
+/// while something it started runs, and is not to be closed by a press.
+///
+/// A sheet with an `inset` floats that far off the window's sides and
+/// bottom, a card with every corner rounded, rather than along the bottom
+/// edge; `clear` is what it keeps clear of under it while the keyboard is
+/// down, a host's own bar, and `max_height` how much of the height it may
+/// take, as a fraction.
 #[component]
 pub fn Modal(
     open: bool,
@@ -62,6 +69,20 @@ pub fn Modal(
     /// Whether a sheet closes when dragged down.
     #[props(default = true)]
     draggable: bool,
+    /// Whether its title bar has a close button, with no `cancel` or `done`.
+    #[props(default = true)]
+    close_button: bool,
+    /// How far a sheet floats off the window's sides and bottom, in CSS
+    /// pixels: 0 along the bottom edge.
+    #[props(default)]
+    inset: f64,
+    /// What a floating sheet keeps clear of below it while the keyboard is
+    /// down, in CSS pixels: a host's bar along the bottom.
+    #[props(default)]
+    clear: f64,
+    /// How much of the height it may take, as a fraction.
+    #[props(default = 1.0)]
+    max_height: f64,
     /// Buttons along its bottom.
     actions: Option<Element>,
     /// A class of the page's own on the layer it sits in, which covers the
@@ -84,18 +105,38 @@ pub fn Modal(
     }
 
     let sheet = placement == Placement::Sheet;
+    let floats = sheet && inset > 0.0;
     let drags = sheet && draggable;
     let (safe, keyboard) = unit.edges();
     let display = if open { "flex" } else { "none" };
-    let (place, panel) = if sheet {
-        ("unit-modal-place unit-sheet-place", "unit-modal unit-sheet")
-    } else {
-        ("unit-modal-place", "unit-modal")
+    let (place, panel) = match (sheet, floats) {
+        (true, true) => (
+            "unit-modal-place unit-sheet-place",
+            "unit-modal unit-sheet unit-floating",
+        ),
+        (true, false) => ("unit-modal-place unit-sheet-place", "unit-modal unit-sheet"),
+        _ => ("unit-modal-place", "unit-modal"),
     };
+    let tall = format!("max-height: {}%", max_height * 100.0);
     // The place keeps the panel off the status bar, and a sheet on the
     // keyboard's top edge; a sheet's own padding keeps its content off the
     // home indicator, which the keyboard covers while it is up.
-    let place_style = if sheet {
+    // A floating sheet is held off the edges by its place, and off the
+    // home indicator and the host's bar, or the keyboard while it is up.
+    let place_style = if floats {
+        let below = if keyboard > 0.0 {
+            keyboard
+        } else {
+            safe.bottom.max(clear)
+        };
+        format!(
+            "display: {display}; padding: {}px {}px {}px {}px",
+            safe.top + 16.0,
+            safe.right + inset,
+            below + inset,
+            safe.left + inset
+        )
+    } else if sheet {
         format!(
             "display: {display}; padding-top: {}px; padding-bottom: {keyboard}px",
             safe.top + 16.0
@@ -110,16 +151,18 @@ pub fn Modal(
         )
     };
     let dy = drag().map_or(0.0, |(_, dy)| dy);
-    let panel_style = if sheet {
+    let panel_style = if floats {
+        format!("{tall}; transform: translateY({dy}px)")
+    } else if sheet {
         let bottom = if keyboard > 0.0 { 0.0 } else { safe.bottom };
         format!(
-            "padding-bottom: {}px; padding-left: {}px; padding-right: {}px; transform: translateY({dy}px)",
+            "{tall}; padding-bottom: {}px; padding-left: {}px; padding-right: {}px; transform: translateY({dy}px)",
             bottom + 16.0,
             safe.left + 16.0,
             safe.right + 16.0
         )
     } else {
-        format!("width: {width}px")
+        format!("{tall}; width: {width}px")
     };
     let phone_bar = cancel.is_some() || done.is_some();
     let start = move |e: PointerEvent| {
@@ -191,7 +234,7 @@ pub fn Modal(
                         }
                     } else {
                         div { class: "unit-dialog-title", id: "unit-{id}", "{title}" }
-                        button { class: "unit-button unit-ghost unit-icon", r#type: "button",
+                        if close_button { button { class: "unit-button unit-ghost unit-icon", r#type: "button",
                             "aria-label": "Close",
                             onpointerdown: move |e: PointerEvent| e.stop_propagation(),
                             onclick: move |e: MouseEvent| {
@@ -199,7 +242,7 @@ pub fn Modal(
                                 onclose.call(());
                             },
                             Icon { d: paths::CLOSE, ink: Ink::Dim, size: 14.0 }
-                        }
+                        } }
                     }
                 }
                 div { class: "unit-modal-body", {children} }
