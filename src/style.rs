@@ -58,7 +58,7 @@ pub const CSS: &str = r#"
 .unit-dialog-message { margin-bottom: 10px; }
 .unit-dialog .unit-input { margin: 4px 0 14px; }
 .unit-dialog-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
-.unit-field { line-height: var(--unit-control); white-space: pre; overflow: hidden; }
+.unit-field { line-height: var(--unit-control-height); white-space: pre; overflow: hidden; }
 .unit-field.all { background: var(--unit-selection); }
 .unit-caret { display: inline-block; width: 1px; height: 16px; vertical-align: middle;
               background: var(--unit-text); }
@@ -103,7 +103,7 @@ pub const CSS: &str = r#"
 
 /* Buttons */
 .unit-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-               height: var(--unit-control); padding: 0 12px; margin: 0;
+               height: var(--unit-control-height); padding: 0 12px; margin: 0;
                font-family: inherit; font-size: inherit; line-height: 1; white-space: nowrap;
                color: var(--unit-text); background: var(--unit-control);
                border: 1px solid var(--unit-border); border-radius: var(--unit-radius); }
@@ -114,7 +114,7 @@ pub const CSS: &str = r#"
                            border-color: var(--unit-danger); }
 .unit-button.unit-ghost { background: transparent; border-color: transparent; }
 .unit-button.unit-ghost:hover { background: var(--unit-control-hover); }
-.unit-button.unit-icon { width: var(--unit-control); padding: 0; }
+.unit-button.unit-icon { width: var(--unit-control-height); padding: 0; }
 .unit-svg { flex: none; }
 .unit-ink-dim { color: var(--unit-dim); }
 .unit-ink-accent { color: var(--unit-accent); }
@@ -128,7 +128,7 @@ pub const CSS: &str = r#"
 
 /* Checkbox, switch, radios, segments */
 .unit-check, .unit-switch { display: flex; align-items: center; gap: 8px;
-                            min-height: var(--unit-control); }
+                            min-height: var(--unit-control-height); }
 .unit-check-box { display: flex; align-items: center; justify-content: center; flex: none;
                   width: 16px; height: 16px; font-size: 12px; line-height: 1;
                   color: var(--unit-accent-text); background: var(--unit-control);
@@ -143,7 +143,7 @@ pub const CSS: &str = r#"
                     box-shadow: 0 1px 2px var(--unit-shadow); }
 .unit-radios { display: flex; flex-direction: column; gap: 4px; }
 .unit-radios.unit-row { flex-direction: row; gap: 14px; }
-.unit-radio { display: flex; align-items: center; gap: 8px; min-height: var(--unit-control); }
+.unit-radio { display: flex; align-items: center; gap: 8px; min-height: var(--unit-control-height); }
 .unit-radio-ring { display: flex; align-items: center; justify-content: center; flex: none;
                    width: 16px; height: 16px; border-radius: 8px;
                    background: var(--unit-control); border: 1px solid var(--unit-border); }
@@ -156,7 +156,7 @@ pub const CSS: &str = r#"
 .unit-root[data-density="touch"] .unit-radio-dot { width: 10px; height: 10px; border-radius: 5px; }
 .unit-root[data-density="touch"] .unit-switch-track { width: 51px; height: 31px; border-radius: 16px; }
 .unit-root[data-density="touch"] .unit-switch-knob { width: 27px; height: 27px; border-radius: 14px; }
-.unit-segmented { display: inline-flex; align-self: flex-start; height: var(--unit-control); overflow: hidden;
+.unit-segmented { display: inline-flex; align-self: flex-start; height: var(--unit-control-height); overflow: hidden;
                   background: var(--unit-control); border: 1px solid var(--unit-border);
                   border-radius: var(--unit-radius); }
 .unit-segment { display: flex; align-items: center; padding: 0 12px;
@@ -165,7 +165,7 @@ pub const CSS: &str = r#"
 .unit-segment.on { background: var(--unit-accent); color: var(--unit-accent-text); }
 
 /* Slider: the thumb's and the stops' room inside its own box */
-.unit-slider { position: relative; height: var(--unit-control); min-width: 120px; width: 100%; }
+.unit-slider { position: relative; height: var(--unit-control-height); min-width: 120px; width: 100%; }
 .unit-slider-rail { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; }
 .unit-slider-line { position: absolute; left: 0; right: 0; top: 50%;
                     height: 4px; margin-top: -2px; border-radius: 2px;
@@ -183,7 +183,7 @@ pub const CSS: &str = r#"
 /* Text */
 .unit-text-field { display: flex; flex-direction: column; gap: 4px; }
 .unit-field-label { font-weight: 600; }
-.unit-input { display: block; width: 100%; height: var(--unit-control); padding: 0 8px; margin: 0;
+.unit-input { display: block; width: 100%; height: var(--unit-control-height); padding: 0 8px; margin: 0;
               font-family: inherit; font-size: inherit; color: var(--unit-text);
               background: var(--unit-control); border: 1px solid var(--unit-border);
               border-radius: var(--unit-radius); }
@@ -202,18 +202,18 @@ pub const CSS: &str = r#"
                 border-color: var(--unit-accent); }
 .unit-root[data-density="touch"] .unit-chip { padding: 8px 14px; }
 .unit-tablist { display: flex; gap: 4px; border-bottom: 1px solid var(--unit-border); }
-.unit-tab { display: flex; align-items: center; height: var(--unit-control); padding: 0 12px;
+.unit-tab { display: flex; align-items: center; height: var(--unit-control-height); padding: 0 12px;
             color: var(--unit-dim); border-bottom: 2px solid transparent; }
 .unit-tab.on { color: var(--unit-text); border-bottom-color: var(--unit-accent); }
 .unit-tabpanel { padding-top: 12px; }
 .unit-listbox { display: flex; flex-direction: column; padding: 4px; overflow: auto;
                 background: var(--unit-control); border: 1px solid var(--unit-border);
                 border-radius: var(--unit-radius); }
-.unit-option { display: flex; align-items: center; min-height: var(--unit-control);
+.unit-option { display: flex; align-items: center; min-height: var(--unit-control-height);
                padding: 0 8px; border-radius: 4px; }
 .unit-option.on { background: var(--unit-accent); color: var(--unit-accent-text); }
 .unit-disclosure-title { display: flex; align-items: center; gap: 6px; width: 100%;
-                         height: var(--unit-control); padding: 0; margin: 0; text-align: left;
+                         height: var(--unit-control-height); padding: 0; margin: 0; text-align: left;
                          font-family: inherit; font-size: inherit; font-weight: 600;
                          color: var(--unit-text); background: transparent; border: none; }
 .unit-disclosure-arrow { width: 12px; color: var(--unit-dim); }
@@ -232,7 +232,7 @@ pub const CSS: &str = r#"
 .unit-row-pair { display: flex; align-items: center; }
 .unit-row-pair > .unit-row { flex: 1; min-width: 0; }
 .unit-row-beside { display: flex; flex: none; padding-right: 10px; }
-.unit-row { display: flex; align-items: center; gap: 10px; min-height: var(--unit-control);
+.unit-row { display: flex; align-items: center; gap: 10px; min-height: var(--unit-control-height);
             padding: 6px 14px; }
 .unit-row.press:hover { background: var(--unit-control-hover); }
 .unit-row.danger { color: var(--unit-danger); }
@@ -260,7 +260,7 @@ pub const CSS: &str = r#"
 .unit-tabbar-item.on { color: var(--unit-accent); }
 .unit-tabbar-label { font-size: 10px; }
 .unit-tree { display: flex; flex-direction: column; }
-.unit-tree-row { display: flex; align-items: center; gap: 6px; min-height: var(--unit-control);
+.unit-tree-row { display: flex; align-items: center; gap: 6px; min-height: var(--unit-control-height);
                  padding-right: 8px; border-radius: var(--unit-radius); white-space: nowrap; }
 .unit-tree-row:hover { background: var(--unit-control-hover); }
 .unit-tree-row.on { background: var(--unit-accent); color: var(--unit-accent-text); }
