@@ -48,6 +48,8 @@ impl Sizes {
 const MAX_WIDTH: f64 = 380.0;
 /// Room for the tick on the left and the submenu arrow on the right.
 const GUTTERS: f64 = 44.0;
+/// An item's icon and the gap after it: `.unit-item .unit-svg`.
+const ICON: f64 = 22.0;
 /// How far a submenu overlaps its parent, as the system's do.
 const OVERLAP: f64 = 4.0;
 /// A level kept this far off the viewport's edges.
@@ -79,6 +81,10 @@ pub struct Item {
     /// checkbox. Set by [`Item::checked`].
     pub checkable: bool,
     pub enabled: bool,
+    /// An icon before the label: a path for [`crate::Icon`].
+    pub icon: Option<&'static str>,
+    /// Destroys something: drawn in the danger colour.
+    pub destructive: bool,
 }
 
 impl Item {
@@ -90,7 +96,19 @@ impl Item {
             checked: false,
             checkable: false,
             enabled: true,
+            icon: None,
+            destructive: false,
         }
+    }
+
+    pub fn icon(mut self, d: &'static str) -> Self {
+        self.icon = Some(d);
+        self
+    }
+
+    pub fn destructive(mut self) -> Self {
+        self.destructive = true;
+        self
     }
 
     pub fn shortcut(mut self, s: impl Into<String>) -> Self {
@@ -147,7 +165,8 @@ impl Entry {
         let chars = |s: &str| s.chars().count() as f64;
         match self {
             Entry::Item(i) => {
-                chars(&i.label) * z.char
+                i.icon.map_or(0.0, |_| ICON)
+                    + chars(&i.label) * z.char
                     + i.shortcut
                         .as_deref()
                         .map_or(0.0, |s| chars(s) * z.char + 24.0)

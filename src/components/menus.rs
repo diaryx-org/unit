@@ -11,7 +11,8 @@
 use dioxus::html::{Key, NamedKey};
 use dioxus::prelude::*;
 
-use crate::components::button::is_press;
+use crate::components::button::{Variant, is_press};
+use crate::icon::Icon;
 use crate::menu::{Entry, Item};
 use crate::unit::{Kind, Unit, use_focus, use_unit};
 
@@ -100,6 +101,8 @@ pub fn MenuButton(
     height: f64,
     top: Option<f64>,
     label: Option<String>,
+    /// An icon before the children, as [`crate::Button`]'s.
+    icon: Option<&'static str>,
     #[props(default)] disabled: bool,
     /// Takes no keys, as [`crate::Button`]'s `refuses_keys`: the menu
     /// still opens on a press, and its keys are the menu's while it is open.
@@ -164,6 +167,9 @@ pub fn MenuButton(
                 }
                 opener.open(entries2.clone(), height, top, true, onpick);
             },
+            if let Some(d) = icon {
+                Icon { d, ink: Variant::Default.ink(disabled) }
+            }
             {children}
         }
     }

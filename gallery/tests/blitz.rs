@@ -523,3 +523,71 @@ fn assistive_tech_reads_each_controls_state() {
     assert_eq!(dialogs.len(), 1, "only the open dialog is in the tree");
     assert!(dialogs[0].is_modal());
 }
+
+/// The first element matching `selector` named `label` by `aria-label`.
+fn labelled(doc: &DioxusDocument, selector: &str, label: &str) -> NodeId {
+    let all = doc.inner.borrow().query_selector_all(selector).unwrap();
+    *all.iter()
+        .find(|&&id| attr(doc, id, "aria-label").as_deref() == Some(label))
+        .unwrap_or_else(|| panic!("no {selector} labelled {label:?}"))
+}
+
+/// The `stroke` of the first icon under `node`.
+fn stroke_under(doc: &DioxusDocument, node: NodeId) -> String {
+    let svg = {
+        let inner = doc.inner.borrow();
+        let all = inner.query_selector_all(".unit-svg").unwrap();
+        *all.iter()
+            .find(|&&id| {
+                let mut n = inner.get_node(id).unwrap().parent;
+                while let Some(p) = n {
+                    if p == node {
+                        return true;
+                    }
+                    n = inner.get_node(p).unwrap().parent;
+                }
+                false
+            })
+            .expect("an icon under the node")
+    };
+    attr(doc, svg, "stroke").unwrap()
+}
+
+#[test]
+fn an_icon_is_stroked_in_the_themes_colour_and_its_button_named_by_its_label() {
+    let mut doc = page(1200, 800);
+    let share = labelled(&doc, "button", "Share");
+    assert_eq!(stroke_under(&doc, share), unit::Palette::LIGHT.text);
+    let (_, _, w, h) = rect(&doc, share);
+    assert_eq!(w, h, "an icon alone draws its button square");
+    tap(&mut doc, share);
+    assert_eq!(said(&doc), "Share pressed.");
+    let nodes = tree(&doc);
+    assert!(
+        with_role(&nodes, Role::Button)
+            .iter()
+            .any(|n| n.label() == Some("Share")),
+        "the icon's button is read by its label"
+    );
+    let add = find(&doc, "button", "Add");
+    assert_eq!(stroke_under(&doc, add), unit::Palette::LIGHT.text);
+}
+
+#[test]
+fn a_destructive_menu_item_is_drawn_in_the_danger_colour_with_its_icon() {
+    let mut doc = page(1200, 800);
+    let edit = find(&doc, "button", "Edit ▾");
+    click(&mut doc, edit);
+    let delete = labelled(&doc, ".unit-item", "Delete");
+    assert!(class_of(&doc, delete).contains("danger"));
+    assert_eq!(stroke_under(&doc, delete), unit::Palette::LIGHT.danger);
+    let (_, _, w, _) = rect(&doc, delete);
+    let level = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-menu")
+        .unwrap()
+        .unwrap();
+    let (_, _, lw, _) = rect(&doc, level);
+    assert!(w < lw, "the item and its icon fit in the level");
+}

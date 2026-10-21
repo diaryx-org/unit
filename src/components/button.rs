@@ -8,6 +8,7 @@
 use dioxus::html::{Key, NamedKey};
 use dioxus::prelude::*;
 
+use crate::icon::{Icon, Ink};
 use crate::unit::{Kind, use_focus};
 
 /// How a button is drawn.
@@ -25,6 +26,15 @@ pub enum Variant {
 }
 
 impl Variant {
+    /// The colour of an icon on a face of this variant.
+    pub(crate) fn ink(self, disabled: bool) -> Ink {
+        match self {
+            _ if disabled => Ink::Dim,
+            Variant::Primary | Variant::Danger => Ink::AccentText,
+            Variant::Default | Variant::Ghost => Ink::Text,
+        }
+    }
+
     fn class(self) -> &'static str {
         match self {
             Variant::Default => "",
@@ -54,6 +64,10 @@ pub fn Button(
     /// What assistive tech reads, where the children are not words: an
     /// icon's button.
     label: Option<String>,
+    /// An icon before the children: a path for [`Icon`]. An icon alone,
+    /// with no children, is drawn square with `class: "unit-icon"`, and
+    /// named by `label`.
+    icon: Option<&'static str>,
     #[props(default)] class: String,
     children: Element,
 ) -> Element {
@@ -89,6 +103,9 @@ pub fn Button(
                     onpress.call(());
                 }
             },
+            if let Some(d) = icon {
+                Icon { d, ink: variant.ink(disabled) }
+            }
             {children}
         }
     }
@@ -107,6 +124,10 @@ pub fn ToggleButton(
     #[props(default)]
     refuses_keys: bool,
     label: Option<String>,
+    /// An icon before the children: a path for [`Icon`]. An icon alone,
+    /// with no children, is drawn square with `class: "unit-icon"`, and
+    /// named by `label`.
+    icon: Option<&'static str>,
     #[props(default)] class: String,
     children: Element,
 ) -> Element {
@@ -144,6 +165,9 @@ pub fn ToggleButton(
                     onchange.call(!pressed);
                 }
             },
+            if let Some(d) = icon {
+                Icon { d, ink: if disabled { Ink::Dim } else if pressed { Ink::Accent } else { Ink::Text } }
+            }
             {children}
         }
     }

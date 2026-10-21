@@ -87,6 +87,10 @@ pub struct Unit {
     pub(crate) density: CopyValue<Density>,
     /// The modals open, by id, and what closes each: the last opened first.
     modals: CopyValue<Vec<(u64, Close)>>,
+    /// The page's theme and appearance, which an icon's colour is chosen
+    /// from (`icon.rs`).
+    pub(crate) theme: CopyValue<Theme>,
+    pub(crate) appearance: Signal<Appearance>,
 }
 
 impl PartialEq for Unit {
@@ -127,6 +131,8 @@ pub fn use_unit_provider(keys: Keys, activates: bool) -> Unit {
         activates: CopyValue::new(activates),
         density: CopyValue::new(Density::Regular),
         modals: CopyValue::new(Vec::new()),
+        theme: CopyValue::new(Theme::default()),
+        appearance: Signal::new(Appearance::System),
     });
     unit.keys.clone().set(keys);
     unit.activates.clone().set(activates);
@@ -274,6 +280,18 @@ impl Unit {
         }
     }
 
+    /// The theme and appearance the page is drawn in, for what is coloured
+    /// from Rust rather than CSS: an icon. [`UnitRoot`] sets them; a page
+    /// that lays out its own root calls it.
+    pub fn set_theme(&self, theme: &Theme, appearance: Appearance) {
+        if *self.theme.peek() != *theme {
+            self.theme.clone().set(theme.clone());
+        }
+        if *self.appearance.peek() != appearance {
+            self.appearance.clone().set(appearance);
+        }
+    }
+
     /// The page's stylesheet: `theme`'s properties and every component's
     /// styles. [`UnitRoot`] puts it in the page.
     pub fn stylesheet(theme: &Theme) -> String {
@@ -380,7 +398,9 @@ pub fn UnitRoot(
 ) -> Element {
     let unit = use_unit_provider(keys, activates);
     unit.density.clone().set(density);
-    let css = use_memo(move || Unit::stylesheet(&theme.clone().unwrap_or_default()));
+    let theme = theme.unwrap_or_default();
+    unit.set_theme(&theme, appearance);
+    let css = use_memo(use_reactive!(|theme| Unit::stylesheet(&theme)));
     let page_keys = keys == Keys::Page;
     rsx! {
         style { {css()} }

@@ -25,6 +25,7 @@ use dioxus::html::{Key, Modifiers, NamedKey};
 use dioxus::prelude::*;
 
 use crate::dialog::{Answer, Dialog, Field, FieldKey};
+use crate::icon::{Icon, Ink};
 use crate::menu::{Entry, Level, Menu, Outcome, Sizes};
 use crate::unit::{Keys, Unit, next_id};
 
@@ -427,11 +428,12 @@ fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, hot: bool) -> E
             .map_or(Outcome::Ignored, |(m, _)| m.release(depth, i));
         unit.settle(outcome);
     };
-    let class = |enabled: bool| {
+    let class = |enabled: bool, destructive: bool| {
         format!(
-            "unit-item{}{}",
+            "unit-item{}{}{}",
             if hot { " hot" } else { "" },
-            if enabled { "" } else { " off" }
+            if enabled { "" } else { " off" },
+            if destructive { " danger" } else { "" }
         )
     };
     match entry {
@@ -446,20 +448,29 @@ fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, hot: bool) -> E
             } else {
                 "menuitem"
             };
+            let ink = match () {
+                _ if !item.enabled => Ink::Dim,
+                _ if hot => Ink::AccentText,
+                _ if item.destructive => Ink::Danger,
+                _ => Ink::Text,
+            };
             rsx! {
-                div { class: class(item.enabled), role,
+                div { class: class(item.enabled, item.destructive), role,
                     "aria-checked": item.checkable.then(|| item.checked.to_string()),
                     "aria-disabled": (!item.enabled).then_some("true"),
                     "aria-label": "{item.label}",
                     onpointermove: hover, onpointerup: release,
                     span { class: "unit-tick", "aria-hidden": "true", "{tick}" }
+                    if let Some(d) = item.icon {
+                        Icon { d, ink, size: 16.0 }
+                    }
                     span { class: "unit-label", "{item.label}" }
                     span { class: "unit-key", "aria-hidden": "true", "{shortcut}" }
                 }
             }
         }
         Entry::Submenu { label, enabled, .. } => rsx! {
-            div { class: class(*enabled), role: "menuitem", "aria-haspopup": "menu",
+            div { class: class(*enabled, false), role: "menuitem", "aria-haspopup": "menu",
                 "aria-disabled": (!enabled).then_some("true"),
                 "aria-label": "{label}",
                 onpointermove: hover, onpointerup: release,

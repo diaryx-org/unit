@@ -33,6 +33,9 @@ pub const CSS: &str = r#"
              border-radius: 4px; }
 .unit-item.hot { background: var(--unit-accent); color: var(--unit-accent-text); }
 .unit-item.off { color: var(--unit-dim); }
+.unit-item.danger { color: var(--unit-danger); }
+.unit-item.danger.hot { background: var(--unit-danger); color: var(--unit-accent-text); }
+.unit-item .unit-svg { flex: none; align-self: center; margin-right: 6px; }
 .unit-tick { width: 20px; flex: none; text-align: center; }
 .unit-label { flex: 1; }
 .unit-key { flex: none; padding-left: 18px; color: var(--unit-dim); }
@@ -89,6 +92,7 @@ pub const CSS: &str = r#"
 .unit-button.unit-ghost { background: transparent; border-color: transparent; }
 .unit-button.unit-ghost:hover { background: var(--unit-control-hover); }
 .unit-button.unit-icon { width: var(--unit-control); padding: 0; }
+.unit-svg { flex: none; }
 .unit-button[disabled] { color: var(--unit-dim); }
 .unit-toggle.on { background: var(--unit-selection); border-color: var(--unit-accent); }
 .unit-select { justify-content: space-between; padding: 0 8px 0 10px; min-width: 120px; }

@@ -55,6 +55,7 @@
 
 pub mod components;
 pub mod dialog;
+pub mod icon;
 pub mod layer;
 pub mod menu;
 mod style;
@@ -72,6 +73,7 @@ pub use components::navigation::{Disclosure, ListBox, Tabs};
 pub use components::slider::Slider;
 pub use components::text_field::{InputKind, TextArea, TextField};
 pub use dialog::{Answer, Dialog};
+pub use icon::{Icon, Ink};
 pub use layer::{Toast, Tone};
 pub use menu::{Entry, Item};
 pub use style::CSS;
@@ -84,10 +86,10 @@ pub use unit::{
 pub mod prelude {
     pub use crate::{
         Align, Answer, Appearance, Axis, Badge, Button, Callout, Card, Checkbox, Chips, Choice,
-        ContextMenu, Density, Dialog, Disclosure, Divider, Entry, Field, Heading, InputKind, Item,
-        Keys, ListBox, MenuButton, Modal, Orientation, Placement, Progress, RadioGroup, Segmented,
-        Select, Slider, Spacer, Stack, Switch, Tabs, Text, TextArea, TextField, Theme, Toast,
-        ToggleButton, Tone, Unit, UnitRoot, Variant, use_unit,
+        ContextMenu, Density, Dialog, Disclosure, Divider, Entry, Field, Heading, Icon, Ink,
+        InputKind, Item, Keys, ListBox, MenuButton, Modal, Orientation, Placement, Progress,
+        RadioGroup, Segmented, Select, Slider, Spacer, Stack, Switch, Tabs, Text, TextArea,
+        TextField, Theme, Toast, ToggleButton, Tone, Unit, UnitRoot, Variant, use_unit,
     };
 }
 
@@ -185,5 +187,28 @@ mod tests {
         let html = render(Page);
         assert!(html.contains("data-appearance=\"dark\""), "{html}");
         assert!(html.contains("data-density=\"touch\""), "{html}");
+    }
+
+    #[test]
+    fn an_icon_takes_its_colour_from_the_appearance() {
+        fn Page() -> Element {
+            rsx! {
+                UnitRoot { appearance: Appearance::Dark,
+                    Icon { d: crate::icon::paths::PLUS }
+                    Icon { d: crate::icon::paths::TRASH, ink: Ink::Danger }
+                }
+            }
+        }
+        let html = render(Page);
+        let dark = crate::Palette::DARK;
+        assert!(
+            html.contains(&format!("stroke=\"{}\"", dark.text)),
+            "{html}"
+        );
+        assert!(
+            html.contains(&format!("stroke=\"{}\"", dark.danger)),
+            "{html}"
+        );
+        assert!(html.contains("aria-hidden=\"true\""), "{html}");
     }
 }

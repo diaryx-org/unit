@@ -2,6 +2,7 @@
 //! binary shows it in a window or a browser; the tests lay it out headless.
 
 use dioxus::prelude::*;
+use unit::icon::paths;
 use unit::prelude::*;
 
 /// Ids of the menus' items.
@@ -11,6 +12,7 @@ const PASTE: usize = 3;
 const WRAP: usize = 4;
 const H1: usize = 10;
 const H2: usize = 11;
+const DELETE: usize = 12;
 
 /// The page, at the appearance and density the page itself chooses.
 #[allow(non_snake_case)]
@@ -82,6 +84,10 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
             .into(),
         Entry::Separator,
         Item::new(WRAP, "Wrap Lines").checked(wrap()).into(),
+        Item::new(DELETE, "Delete")
+            .icon(paths::TRASH)
+            .destructive()
+            .into(),
         Entry::submenu(
             "Heading",
             vec![
@@ -135,6 +141,9 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         Button { variant: Variant::Ghost, onpress: move |_| said.set("Ghost pressed.".into()), "Ghost" }
                         Button { variant: Variant::Danger, onpress: move |_| said.set("Delete pressed.".into()), "Delete" }
                         Button { disabled: true, onpress: move |_| said.set("Disabled pressed!".into()), "Disabled" }
+                        Button { icon: paths::PLUS, onpress: move |_| said.set("Add pressed.".into()), "Add" }
+                        Button { icon: paths::SHARE, label: "Share", variant: Variant::Ghost, class: "unit-icon",
+                                 onpress: move |_| said.set("Share pressed.".into()) }
                         ToggleButton { pressed: bold(), label: "Bold", onchange: move |v| bold.set(v), b { "B" } }
                         // A toolbar's: pressed, it leaves the keys where they were.
                         ToggleButton { pressed: italic(), label: "Italic", refuses_keys: true,
