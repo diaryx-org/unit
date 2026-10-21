@@ -3,6 +3,7 @@ title: Tasks
 contents:
 - '[unit on iOS](/docs/tasks/unit-on-ios.md)'
 - '[Overlays on a scrolled page](/docs/tasks/overlays-on-a-scrolled-page.md)'
+- '[A gooey look](/docs/tasks/a-gooey-look.md)'
 ---
 
 # Tasks
