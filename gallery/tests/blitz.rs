@@ -347,6 +347,45 @@ fn checkboxes_switches_and_radios_change_on_a_tap() {
 }
 
 #[test]
+fn a_swatch_and_a_step_change_on_a_tap() {
+    let mut doc = page(1200, 800);
+    let only = |doc: &DioxusDocument, selector: &str| {
+        doc.inner
+            .borrow()
+            .query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("no {selector}"))
+    };
+    let sky = only(&doc, "[role=radio][aria-label=Sky]");
+    assert_eq!(attr(&doc, sky, "aria-checked").as_deref(), Some("false"));
+    tap(&mut doc, sky);
+    assert_eq!(attr(&doc, sky, "aria-checked").as_deref(), Some("true"));
+    // Random moves the choice on from Sky to Ink.
+    let random = only(&doc, ".unit-swatch-action");
+    tap(&mut doc, random);
+    let ink = only(&doc, "[role=radio][aria-label=Ink]");
+    assert_eq!(attr(&doc, ink, "aria-checked").as_deref(), Some("true"));
+    // The stepper's second half is +.
+    let stepper = only(&doc, "[role=spinbutton]");
+    assert_eq!(
+        attr(&doc, stepper, "aria-valuetext").as_deref(),
+        Some("9:00")
+    );
+    let plus = doc.inner.borrow().query_selector_all(".unit-step").unwrap()[1];
+    tap(&mut doc, plus);
+    assert_eq!(
+        attr(&doc, stepper, "aria-valuetext").as_deref(),
+        Some("10:00")
+    );
+    // Its keys, once it is pressed: Down steps back.
+    key(&mut doc, Key::Named(NamedKey::ArrowDown));
+    assert_eq!(
+        attr(&doc, stepper, "aria-valuetext").as_deref(),
+        Some("9:00")
+    );
+}
+
+#[test]
 fn touch_density_draws_menu_rows_the_height_their_geometry_assumes() {
     let mut doc = page(390, 844);
     let touch = find(&doc, ".unit-segment", "Touch");

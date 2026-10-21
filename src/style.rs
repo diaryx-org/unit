@@ -168,6 +168,30 @@ pub const CSS: &str = r#"
 .unit-segment.on { background: var(--unit-raised); box-shadow: 0 1px 3px var(--unit-shadow); }
 .unit-root[data-density="touch"] .unit-segment { border-radius: 8px; }
 
+/* Swatches: colour circles, the chosen one ringed off from its neighbours */
+.unit-swatches { display: flex; flex-wrap: wrap; gap: var(--unit-gap); align-items: center;
+                 border-radius: var(--unit-radius); }
+.unit-swatch { width: 24px; height: 24px; border-radius: 12px; border: 2px solid;
+               box-sizing: border-box; flex: none; }
+.unit-swatch.on { outline: 2px solid var(--unit-text); outline-offset: 2px; }
+.unit-swatch-action { display: flex; align-items: center; justify-content: center;
+                      background: transparent; border: 1px solid var(--unit-border);
+                      color: var(--unit-dim); font-size: 12px; font-weight: 600; }
+.unit-root[data-density="touch"] .unit-swatch { width: 32px; height: 32px; border-radius: 16px; border-width: 3px; }
+.unit-root[data-density="touch"] .unit-swatch-action { border-width: 1px; font-size: 14px; }
+
+/* Stepper: − and + joined in one groove, as a segmented control's */
+.unit-stepper { display: inline-flex; align-items: center; flex: none;
+                height: var(--unit-control-height); padding: 2px; background: var(--unit-track);
+                border-radius: var(--unit-radius); }
+.unit-step { display: flex; align-items: center; justify-content: center; width: 32px;
+             align-self: stretch; border-radius: 4px; }
+.unit-step:hover { background: var(--unit-control-hover); }
+.unit-step.off { color: var(--unit-dim); opacity: 0.5; }
+.unit-stepper-rule { width: 1px; align-self: stretch; margin: 6px 0; background: var(--unit-border); }
+.unit-root[data-density="touch"] .unit-stepper { height: 32px; }
+.unit-root[data-density="touch"] .unit-step { width: 46px; border-radius: 8px; }
+
 /* Slider: the thumb's and the stops' room inside its own box */
 .unit-slider { position: relative; height: var(--unit-control-height); min-width: 120px; width: 100%; }
 .unit-slider-rail { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; }
