@@ -65,6 +65,29 @@ pub const CSS: &str = r#"
 .unit-field.all .unit-caret { width: 0; }
 .unit-placeholder { color: var(--unit-dim); }
 
+/* The overlay's action sheet */
+.unit-actions-place { position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+                      flex-direction: column; justify-content: flex-end; align-items: center;
+                      padding: 16px 8px 8px; pointer-events: none; }
+.unit-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 480px;
+                white-space: normal; pointer-events: auto; }
+.unit-actions-group { display: flex; flex-direction: column; overflow: hidden;
+                      background: var(--unit-surface); border-radius: var(--unit-radius-large);
+                      border: 1px solid var(--unit-border); }
+.unit-actions-head { padding: 12px 16px; text-align: center; color: var(--unit-dim);
+                     font-size: 0.85em; border-bottom: 1px solid var(--unit-border); }
+.unit-actions-title { font-weight: 700; }
+.unit-action, .unit-actions-cancel { display: flex; align-items: center; justify-content: center;
+                gap: 8px; min-height: 44px; padding: 0 16px; margin: 0; width: 100%;
+                font-family: inherit; font-size: inherit; color: var(--unit-accent);
+                background: transparent; border: none; border-top: 1px solid var(--unit-border); }
+.unit-actions-head + .unit-action, .unit-actions-group > .unit-action:first-child { border-top: none; }
+.unit-action.danger { color: var(--unit-danger); }
+.unit-action.off { color: var(--unit-dim); }
+.unit-action:hover, .unit-actions-cancel:hover { background: var(--unit-control-hover); }
+.unit-actions-cancel { font-weight: 700; background: var(--unit-surface);
+                       border: 1px solid var(--unit-border); border-radius: var(--unit-radius-large); }
+
 /* Toasts */
 .unit-toasts { position: absolute; left: 0; right: 0; bottom: 16px; display: flex;
                flex-direction: column; align-items: center; gap: 8px; }

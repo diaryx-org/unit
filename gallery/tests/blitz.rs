@@ -880,3 +880,78 @@ fn the_mouse_held_down_is_not_a_long_press() {
     settle(&mut doc);
     assert_eq!(said(&doc), "Tapped, not held.");
 }
+
+fn actions_open(doc: &DioxusDocument) -> bool {
+    let place = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-actions-place")
+        .unwrap()
+        .unwrap();
+    displayed(doc, place)
+}
+
+#[test]
+fn an_action_sheet_rises_from_the_bottom_and_picks_or_cancels() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    assert!(actions_open(&doc));
+    let cancel = find(&doc, ".unit-actions-cancel", "Cancel");
+    let (_, y, _, h) = rect(&doc, cancel);
+    assert_eq!(y + h, 844.0 - 8.0, "Cancel sits at the bottom");
+    let delete = find(&doc, ".unit-action", "Delete");
+    assert!(class_of(&doc, delete).contains("danger"));
+    tap(&mut doc, delete);
+    assert!(!actions_open(&doc));
+    assert_eq!(said(&doc), "Action Some(3) chosen.");
+
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    tap(&mut doc, cancel);
+    assert_eq!(said(&doc), "Action None chosen.");
+
+    // A press on the scrim cancels it, and Escape does.
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    let backdrop = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-backdrop")
+        .unwrap()
+        .unwrap();
+    doc.handle_ui_event(UiEvent::PointerDown(pointer(
+        BlitzPointerId::Finger(1),
+        195.0,
+        40.0,
+        MouseEventButtons::Primary,
+    )));
+    settle(&mut doc);
+    let _ = backdrop;
+    assert!(!actions_open(&doc), "a press above the sheet cancels it");
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    key(&mut doc, Key::Named(NamedKey::Escape));
+    assert!(!actions_open(&doc));
+}
+
+#[test]
+fn assistive_tech_reads_an_action_sheet_as_a_modal_menu() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    let nodes = tree(&doc);
+    let items = with_role(&nodes, Role::MenuItem);
+    for label in ["Share", "Duplicate", "Delete"] {
+        assert!(
+            items.iter().any(|n| n.label() == Some(label)),
+            "{label} is a menu item"
+        );
+    }
+    assert!(
+        with_role(&nodes, Role::Dialog)
+            .iter()
+            .any(|n| n.is_modal() && n.label() == Some("The entry")),
+        "the sheet is a modal named by its title"
+    );
+}

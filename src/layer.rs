@@ -24,6 +24,7 @@ use std::rc::Rc;
 use dioxus::html::{Key, Modifiers, NamedKey};
 use dioxus::prelude::*;
 
+use crate::actions::{ActionSheet, SheetAction};
 use crate::dialog::{Answer, Dialog, Field, FieldKey};
 use crate::icon::{Icon, Ink};
 use crate::menu::{Entry, Level, Menu, Outcome, Sizes};
@@ -38,6 +39,7 @@ pub const TOASTS: usize = 3;
 type Pick = Rc<dyn Fn(usize)>;
 type Done = Rc<dyn Fn(Answer)>;
 type Action = Rc<dyn Fn()>;
+type Choose = Rc<dyn Fn(Option<usize>)>;
 
 /// A short notice at the bottom of the page, until it is dismissed.
 #[derive(Clone, Debug, PartialEq)]
@@ -98,6 +100,7 @@ pub(crate) struct LayerState {
     /// expanded.
     owner: Option<u64>,
     dialog: Option<(Dialog, Done)>,
+    actions: Option<(ActionSheet, Choose)>,
     /// Each toast, its id and its action's handler, oldest first.
     toasts: Vec<(u64, Toast, Option<Action>)>,
     /// The page's size, which a menu is kept inside.
@@ -106,7 +109,7 @@ pub(crate) struct LayerState {
 
 impl LayerState {
     pub fn is_open(&self) -> bool {
-        self.menu.is_some() || self.dialog.is_some()
+        self.menu.is_some() || self.dialog.is_some() || self.actions.is_some()
     }
 
     /// The control whose menu is open.
@@ -174,11 +177,31 @@ impl Unit {
         w.dialog = Some((dialog, Rc::new(move |a| (done.borrow_mut())(a))));
     }
 
+    /// Open `sheet`; `choose` is given the chosen action's id, or `None`
+    /// when it was cancelled, after it has closed.
+    pub fn open_actions(&self, sheet: ActionSheet, choose: impl FnMut(Option<usize>) + 'static) {
+        let choose = RefCell::new(choose);
+        let mut l = self.layer;
+        let mut w = l.write();
+        w.menu = None;
+        w.actions = Some((sheet, Rc::new(move |a| (choose.borrow_mut())(a))));
+    }
+
+    fn choose(&self, action: Option<usize>) {
+        let mut l = self.layer;
+        let choose = l.write().actions.take().map(|(_, c)| c);
+        if let Some(c) = choose {
+            c(action);
+        }
+    }
+
     /// Close whatever is open, choosing nothing.
     pub fn close(&self) {
         let mut l = self.layer;
         if l.peek().menu.is_some() {
             l.write().menu = None;
+        } else if l.peek().actions.is_some() {
+            self.choose(None);
         } else if l.peek().dialog.is_some() {
             self.answer(Answer::Cancel);
         }
@@ -220,6 +243,12 @@ impl Unit {
                 .as_mut()
                 .map_or(Outcome::Ignored, |(m, _)| m.key(key, mods));
             return self.settle(outcome);
+        }
+        if l.peek().actions.is_some() {
+            if matches!(key, Key::Named(NamedKey::Escape)) {
+                self.choose(None);
+            }
+            return true;
         }
         if l.peek().dialog.is_none() {
             return false;
@@ -265,7 +294,7 @@ impl Unit {
     pub(crate) fn layer_text(&self, text: &str) -> bool {
         let l = self.layer.peek();
         if l.dialog.is_none() {
-            return l.menu.is_some();
+            return l.menu.is_some() || l.actions.is_some();
         }
         drop(l);
         self.type_text(text);
@@ -326,6 +355,7 @@ fn LayerView(unit: Unit) -> Element {
         .map(|i| l.menu.as_ref().and_then(|(m, _)| m.levels.get(i).cloned()))
         .collect();
     let dialog = l.dialog.as_ref().map(|(d, _)| d.clone());
+    let actions = l.actions.as_ref().map(|(a, _)| a.clone());
     let toasts: Vec<(u64, Toast)> = l
         .toasts
         .iter()
@@ -335,12 +365,16 @@ fn LayerView(unit: Unit) -> Element {
     drop(l);
     let (safe, keyboard) = unit.edges();
     let toasts_bottom = safe.bottom.max(keyboard) + 16.0;
-    let backdrop = if menu || dialog.is_some() {
+    let backdrop = if menu || dialog.is_some() || actions.is_some() {
         "block"
     } else {
         "none"
     };
-    let scrim = if dialog.is_some() { " unit-scrim" } else { "" };
+    let scrim = if dialog.is_some() || actions.is_some() {
+        " unit-scrim"
+    } else {
+        ""
+    };
     // The layer itself is always displayed, and lets the pointer through to
     // the page; what it holds is shown and hidden.
     rsx! {
@@ -355,6 +389,8 @@ fn LayerView(unit: Unit) -> Element {
                     let mut l = unit.layer;
                     if l.peek().menu.is_some() {
                         l.write().menu = None;
+                    } else if l.peek().actions.is_some() {
+                        unit.choose(None);
                     }
                 },
             }
@@ -362,6 +398,7 @@ fn LayerView(unit: Unit) -> Element {
                 MenuLevel { key: "{depth}", unit, depth, level }
             }
             DialogView { unit, dialog, top: safe.top }
+            ActionsView { unit, sheet: actions, bottom: safe.bottom }
             div { class: "unit-toasts", role: "status", "aria-live": "polite",
                 style: "bottom: {toasts_bottom}px",
                 for (id, t) in toasts {
@@ -553,6 +590,78 @@ fn DialogView(unit: Unit, dialog: Option<Dialog>, top: f64) -> Element {
                     {button(d.ok.clone(), true, d.destructive)}
                 }
             }
+        }
+    }
+}
+
+#[component]
+fn ActionsView(unit: Unit, sheet: Option<ActionSheet>, bottom: f64) -> Element {
+    // One template open or closed, for the reason a menu level has one.
+    let title_id = use_hook(|| format!("unit-{}", next_id()));
+    let display = if sheet.is_some() { "flex" } else { "none" };
+    let s = sheet.unwrap_or_else(|| ActionSheet::new(Vec::new()));
+    rsx! {
+        div { class: "unit-actions-place", style: "display: {display}; padding-bottom: {bottom + 8.0}px",
+            div { class: "unit-actions", role: "dialog", "aria-modal": "true",
+                "aria-labelledby": s.title.is_some().then(|| title_id.clone()),
+                onpointerdown: move |e: PointerEvent| e.stop_propagation(),
+                div { class: "unit-actions-group", role: "menu",
+                    if s.title.is_some() || s.message.is_some() {
+                        div { class: "unit-actions-head",
+                            if let Some(t) = &s.title {
+                                div { class: "unit-actions-title", id: "{title_id}", "{t}" }
+                            }
+                            if let Some(m) = &s.message {
+                                div { class: "unit-actions-message", "{m}" }
+                            }
+                        }
+                    }
+                    for a in s.actions.iter().cloned() {
+                        {action_view(unit, a)}
+                    }
+                }
+                button { class: "unit-actions-cancel", r#type: "button",
+                    "aria-label": "{s.cancel}",
+                    onpointerdown: move |e: PointerEvent| e.stop_propagation(),
+                    onclick: move |e: MouseEvent| {
+                        e.stop_propagation();
+                        unit.choose(None);
+                    },
+                    "{s.cancel}"
+                }
+            }
+        }
+    }
+}
+
+fn action_view(unit: Unit, a: SheetAction) -> Element {
+    let ink = match () {
+        _ if !a.enabled => Ink::Dim,
+        _ if a.destructive => Ink::Danger,
+        _ => Ink::Accent,
+    };
+    let class = format!(
+        "unit-action{}{}",
+        if a.destructive { " danger" } else { "" },
+        if a.enabled { "" } else { " off" }
+    );
+    let id = a.id;
+    let enabled = a.enabled;
+    rsx! {
+        button { key: "{id}", class, r#type: "button", role: "menuitem",
+            disabled: !enabled,
+            "aria-label": "{a.label}",
+            onpointerdown: move |e: PointerEvent| e.stop_propagation(),
+            onclick: move |e: MouseEvent| {
+                e.stop_propagation();
+                if enabled {
+                    unit.choose(Some(id));
+                }
+            },
+            if let Some(d) = a.icon {
+                Icon { d, ink }
+            }
+            span { "{a.label}" }
         }
     }
 }

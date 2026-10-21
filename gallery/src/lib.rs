@@ -316,6 +316,16 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                                 move |a| said.set(format!("The alert answered {a:?}.")),
                             );
                         }, "Confirm…" }
+                        Button { onpress: move |_| {
+                            unit.open_actions(
+                                ActionSheet::new(vec![
+                                    SheetAction::new(1, "Share").icon(paths::SHARE),
+                                    SheetAction::new(2, "Duplicate"),
+                                    SheetAction::new(3, "Delete").icon(paths::TRASH).destructive(),
+                                ]).title("The entry").message("What to do with it."),
+                                move |a| said.set(format!("Action {a:?} chosen.")),
+                            );
+                        }, "Actions…" }
                         Button { onpress: move |_| modal.set(true), "Modal…" }
                         Button { onpress: move |_| sheet.set(true), "Sheet…" }
                         Button { onpress: move |_| {
