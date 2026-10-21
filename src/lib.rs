@@ -227,4 +227,56 @@ mod tests {
         let html = render(Probe);
         assert!(html.contains(crate::Palette::DARK.danger), "{html}");
     }
+
+    #[test]
+    fn a_control_taken_out_of_the_page_gives_up_the_keys() {
+        use std::cell::{Cell, RefCell};
+        thread_local! {
+            static UNIT: RefCell<Option<Unit>> = const { RefCell::new(None) };
+            static SHOW: RefCell<Option<Signal<bool>>> = const { RefCell::new(None) };
+            static PRESSED: Cell<u32> = const { Cell::new(0) };
+        }
+        fn Page() -> Element {
+            let show = use_signal(|| true);
+            rsx! {
+                UnitRoot { keys: Keys::Host,
+                    Grab { show }
+                    if show() { Pressed {} }
+                }
+            }
+        }
+        #[component]
+        fn Grab(show: Signal<bool>) -> Element {
+            let u = use_unit();
+            UNIT.with(|c| *c.borrow_mut() = Some(u));
+            SHOW.with(|c| *c.borrow_mut() = Some(show));
+            rsx! {}
+        }
+        #[component]
+        fn Pressed() -> Element {
+            let f = crate::use_focus(crate::Kind::Button, |_, _| {
+                PRESSED.with(|p| p.set(p.get() + 1));
+                true
+            });
+            use_hook(move || f.press());
+            rsx! {}
+        }
+        let mut dom = VirtualDom::new(Page);
+        dom.rebuild_in_place();
+        let unit = UNIT.with(|c| c.borrow().unwrap());
+        let enter = dioxus::html::Key::Named(dioxus::html::NamedKey::Enter);
+        dom.in_runtime(|| {
+            assert!(unit.focused().is_some(), "the control has the keys");
+            assert!(unit.key(&enter, Default::default()));
+        });
+        assert_eq!(PRESSED.with(Cell::get), 1);
+        let mut show = SHOW.with(|c| c.borrow().unwrap());
+        dom.in_runtime(|| show.set(false));
+        dom.render_immediate(&mut dioxus_core::NoOpMutations);
+        dom.in_runtime(|| {
+            assert_eq!(unit.focused(), None, "gone, and the keys with it");
+            assert!(!unit.key(&enter, Default::default()));
+        });
+        assert_eq!(PRESSED.with(Cell::get), 1);
+    }
 }
