@@ -110,6 +110,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut volume = use_signal(|| 0.4f64);
     let mut stepped = use_signal(|| 3.0f64);
     let mut name = use_signal(String::new);
+    let mut reader = use_signal(String::new);
     let mut notes = use_signal(String::new);
     let mut font = use_signal(|| Some(0usize));
     let mut faces = use_signal(|| vec![true, false, false]);
@@ -297,6 +298,10 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                               accessory: Accessory::Chevron,
                               onpress: move |_| said.set("Appearance opened.".into()) }
                         Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
+                        TextField { inline: true, label: "Add a reader", placeholder: "Add a reader…",
+                                    value: reader(), oninput: move |v| reader.set(v),
+                                    action: "Add", action_disabled: reader().trim().is_empty(),
+                                    onaction: move |v: String| { said.set(format!("Added {v}.")); reader.set(String::new()); } }
                         Row { title: "Sign Out", destructive: true,
                               onpress: move |_| said.set("Signed out.".into()) }
                     }
@@ -308,6 +313,14 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                               trailing: rsx! {
                                   Button { variant: Variant::Ghost, onpress: move |_| said.set("Archive removed.".into()), "Remove" }
                               } }
+                    }
+                    Section { title: "Contents", footer: "Rows set in by their depth, as a nested list's are.",
+                        Row { title: "Part One", onpress: move |_| said.set("Part One opened.".into()) }
+                        Row { title: "The Harbour", depth: 1, subtitle: "Chapter 1",
+                              onpress: move |_| said.set("The Harbour opened.".into()) }
+                        Row { title: "Low tide", depth: 2, subtitle: "From Ana",
+                              note: "\u{201c}The boats lean over on the mud.\u{201d}",
+                              onpress: move |_| said.set("Low tide opened.".into()) }
                     }
                     Section { title: "Markup",
                         for (i, m) in ["Markdown", "Plain text", "Org"].into_iter().enumerate() {
@@ -376,6 +389,10 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                             unit.toast_with(Toast::new("Saved.").tone(Tone::Success).action("Undo"),
                                 move || said.set("Undone.".into()));
                         }, "Toast" }
+                        Button { onpress: move |_| {
+                            unit.toast_with(Toast::new("Moved.").action("Undo").lasts(std::time::Duration::from_secs(2)),
+                                move || said.set("Move undone.".into()));
+                        }, "Brief toast" }
                     }
                     Stack { axis: Axis::Horizontal, wrap: true,
                         Badge { "3" }

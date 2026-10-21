@@ -239,10 +239,16 @@ pub const CSS: &str = r#"
 .unit-row.off { color: var(--unit-dim); }
 .unit-row-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .unit-row-subtitle { font-size: 0.85em; color: var(--unit-dim); }
+.unit-row-note { font-size: 0.85em; color: var(--unit-dim); margin-top: 2px; }
+.unit-row-indent { flex: none; margin-right: -10px; }
 .unit-row-detail { flex: none; color: var(--unit-dim); }
 .unit-row-trailing { display: flex; justify-content: flex-end; flex: 0 1 55%; }
 .unit-row-blank { width: 16px; flex: none; }
 .unit-text-field.unit-inline { flex: 1; }
+.unit-field-action { display: flex; align-items: center; gap: 8px; }
+.unit-field-action > .unit-input { flex: 1; min-width: 0; }
+.unit-field-action > .unit-button { flex: none; }
+.unit-field-action > .unit-input.unit-inline { text-align: left; }
 .unit-input.unit-inline { padding: 0; text-align: right; background: transparent;
                           border-color: transparent; }
 
