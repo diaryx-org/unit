@@ -2,10 +2,11 @@
 //! the page, centred or as a sheet from the bottom.
 //!
 //! It is drawn where the page puts it, not in the overlay, so its content
-//! keeps its hooks and its place in the page's tree; and it is in the tree
-//! from the first frame, shown and hidden, for the reason the overlay is
-//! (`layer.rs`). Escape closes the topmost one open, through the page's
-//! keys.
+//! keeps its hooks and its place in the page's tree. It can be in the tree
+//! from the first frame, shown and hidden, or put there only while it is
+//! open (an app that mounts each sheet on demand): the gallery's tests lay
+//! out both under Blitz. Escape closes the topmost one open, through the
+//! page's keys.
 //!
 //! It keeps clear of the window's safe area and the soft keyboard, as the
 //! host sets them ([`Unit::set_insets`](crate::Unit::set_insets),
@@ -63,6 +64,10 @@ pub fn Modal(
     draggable: bool,
     /// Buttons along its bottom.
     actions: Option<Element>,
+    /// A class of the page's own on the layer it sits in, which covers the
+    /// page: for the page's styles of what is inside it.
+    #[props(default)]
+    class: String,
     children: Element,
 ) -> Element {
     let unit = use_unit();
@@ -123,7 +128,7 @@ pub fn Modal(
         }
     };
     rsx! {
-        div { class: "{place}", style: "{place_style}",
+        div { class: "{place} {class}", style: "{place_style}",
             onpointerdown: move |e: PointerEvent| {
                 e.stop_propagation();
                 onclose.call(());

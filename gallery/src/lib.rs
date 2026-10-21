@@ -117,6 +117,9 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut picked = use_signal(|| Some(2usize));
     let mut modal = use_signal(|| false);
     let mut sheet = use_signal(|| false);
+    // A sheet put in the page only while it is open, as an app that
+    // mounts each of its sheets on demand does.
+    let mut mounted = use_signal(|| false);
     let mut markup = use_signal(|| 0usize);
     // What a phone would set: its safe area, and the keyboard up.
     let mut edges = use_signal(|| 0usize);
@@ -368,6 +371,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         }, "Actions…" }
                         Button { onpress: move |_| modal.set(true), "Modal…" }
                         Button { onpress: move |_| sheet.set(true), "Sheet…" }
+                        Button { onpress: move |_| mounted.set(true), "Mounted sheet…" }
                         Button { onpress: move |_| {
                             unit.toast_with(Toast::new("Saved.").tone(Tone::Success).action("Undo"),
                                 move || said.set("Undone.".into()));
@@ -397,6 +401,12 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
             Text { "Content of the page's own, with its own state:" }
             Checkbox { checked: spelling(), onchange: move |v| spelling.set(v), "Check spelling" }
             Select { label: "Font", choices: fonts.clone(), selected: font(), onpick: move |i| font.set(Some(i)) }
+        }
+        if mounted() {
+            Modal { open: true, title: "Mounted", placement: Placement::Sheet, class: "gallery-mounted",
+                    onclose: move |_| mounted.set(false),
+                Text { "In the page only while open." }
+            }
         }
         Modal { open: sheet(), title: "A sheet", placement: Placement::Sheet,
                 cancel: "Cancel", done: "Done", onclose: move |_| sheet.set(false),
