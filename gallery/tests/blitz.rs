@@ -591,3 +591,62 @@ fn a_destructive_menu_item_is_drawn_in_the_danger_colour_with_its_icon() {
     let (_, _, lw, _) = rect(&doc, level);
     assert!(w < lw, "the item and its icon fit in the level");
 }
+
+#[test]
+fn a_row_is_pressed_by_a_finger_and_read_as_a_button_with_its_value() {
+    let mut doc = page(1200, 800);
+    let row = labelled(&doc, ".unit-row", "Appearance, System");
+    tap(&mut doc, row);
+    assert_eq!(said(&doc), "Appearance opened.");
+    let signout = labelled(&doc, ".unit-row", "Sign Out");
+    assert!(class_of(&doc, signout).contains("danger"));
+    click(&mut doc, signout);
+    assert_eq!(said(&doc), "Signed out.");
+    let nodes = tree(&doc);
+    assert!(
+        with_role(&nodes, Role::Button)
+            .iter()
+            .any(|n| n.label() == Some("Appearance, System")),
+        "a row that opens something is read as a button, with its value"
+    );
+}
+
+#[test]
+fn a_rows_choice_of_one_ticks_the_row_pressed_and_reads_as_radios() {
+    let mut doc = page(1200, 800);
+    let org = labelled(&doc, ".unit-row", "Org");
+    assert_eq!(attr(&doc, org, "aria-checked").as_deref(), Some("false"));
+    tap(&mut doc, org);
+    let org = labelled(&doc, ".unit-row", "Org");
+    assert_eq!(attr(&doc, org, "aria-checked").as_deref(), Some("true"));
+    let md = labelled(&doc, ".unit-row", "Markdown");
+    assert_eq!(attr(&doc, md, "aria-checked").as_deref(), Some("false"));
+    let nodes = tree(&doc);
+    let on: Vec<_> = with_role(&nodes, Role::RadioButton)
+        .into_iter()
+        .filter(|n| n.label() == Some("Org"))
+        .collect();
+    assert_eq!(on.len(), 1);
+    assert_eq!(on[0].toggled(), Some(Toggled::True));
+}
+
+#[test]
+fn a_row_holds_a_field_at_its_right_and_is_a_fingers_height_at_touch_density() {
+    let mut doc = page(390, 844);
+    let touch = find(&doc, ".unit-segment", "Touch");
+    tap(&mut doc, touch);
+    let row = labelled(&doc, ".unit-row", "Name");
+    let (rx, _, rw, rh) = rect(&doc, row);
+    assert!(rh >= 44.0, "a row {rh} tall");
+    // The inline field, in the row, not the Text card's.
+    let field = doc
+        .inner
+        .borrow()
+        .query_selector("input.unit-inline")
+        .unwrap()
+        .unwrap();
+    let (fx, _, fw, _) = rect(&doc, field);
+    assert!(fw > 40.0, "the field has room: {fw}");
+    assert!(fx > rx + 40.0, "the field sits right of the title");
+    assert!(fx + fw <= rx + rw, "and inside the row");
+}

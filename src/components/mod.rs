@@ -4,6 +4,7 @@
 pub mod button;
 pub mod choice;
 pub mod layout;
+pub mod list;
 pub mod menus;
 pub mod modal;
 pub mod navigation;

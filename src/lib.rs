@@ -67,6 +67,7 @@ pub use components::choice::{Checkbox, Orientation, RadioGroup, Segmented, Switc
 pub use components::layout::{
     Align, Axis, Badge, Callout, Card, Divider, Field, Heading, Progress, Spacer, Stack, Text,
 };
+pub use components::list::{Accessory, Row, Section};
 pub use components::menus::{Chips, Choice, ContextMenu, MenuButton, Select, left_top};
 pub use components::modal::{Modal, Placement};
 pub use components::navigation::{Disclosure, ListBox, Tabs};
@@ -85,11 +86,11 @@ pub use unit::{
 /// Everything a page uses, at once.
 pub mod prelude {
     pub use crate::{
-        Align, Answer, Appearance, Axis, Badge, Button, Callout, Card, Checkbox, Chips, Choice,
-        ContextMenu, Density, Dialog, Disclosure, Divider, Entry, Field, Heading, Icon, Ink,
-        InputKind, Item, Keys, ListBox, MenuButton, Modal, Orientation, Placement, Progress,
-        RadioGroup, Segmented, Select, Slider, Spacer, Stack, Switch, Tabs, Text, TextArea,
-        TextField, Theme, Toast, ToggleButton, Tone, Unit, UnitRoot, Variant, use_unit,
+        Accessory, Align, Answer, Appearance, Axis, Badge, Button, Callout, Card, Checkbox, Chips,
+        Choice, ContextMenu, Density, Dialog, Disclosure, Divider, Entry, Field, Heading, Icon,
+        Ink, InputKind, Item, Keys, ListBox, MenuButton, Modal, Orientation, Placement, Progress,
+        RadioGroup, Row, Section, Segmented, Select, Slider, Spacer, Stack, Switch, Tabs, Text,
+        TextArea, TextField, Theme, Toast, ToggleButton, Tone, Unit, UnitRoot, Variant, use_unit,
     };
 }
 

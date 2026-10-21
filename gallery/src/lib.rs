@@ -74,6 +74,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut picked = use_signal(|| Some(2usize));
     let mut modal = use_signal(|| false);
     let mut sheet = use_signal(|| false);
+    let mut markup = use_signal(|| 0usize);
 
     let edit = vec![
         Item::new(CUT, "Cut").shortcut("⌘X").into(),
@@ -217,6 +218,27 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                               onactivate: move |i: usize| said.set(format!("Opened {}.", fruit[i])) }
                     Disclosure { title: "More details",
                         Text { "Hidden until opened." }
+                    }
+                }
+                Card { title: "Lists",
+                    Section { title: "Account", footer: "Rows in a group, as a settings pane has them.",
+                        Row { title: "Name", trailing: rsx! {
+                            TextField { inline: true, label: "Name", value: name(), placeholder: "Your name",
+                                        oninput: move |v| name.set(v) }
+                        } }
+                        Row { title: "Appearance", detail: "System", icon: paths::SHARE,
+                              accessory: Accessory::Chevron,
+                              onpress: move |_| said.set("Appearance opened.".into()) }
+                        Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
+                        Row { title: "Sign Out", destructive: true,
+                              onpress: move |_| said.set("Signed out.".into()) }
+                    }
+                    Section { title: "Markup",
+                        for (i, m) in ["Markdown", "Plain text", "Org"].into_iter().enumerate() {
+                            Row { key: "{i}", title: m, subtitle: (i == 0).then(|| "What the editor writes".to_string()),
+                                  accessory: Accessory::Check(markup() == i),
+                                  onpress: move |_| markup.set(i) }
+                        }
                     }
                 }
                 Card { title: "Overlays",
