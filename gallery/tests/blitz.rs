@@ -1115,3 +1115,35 @@ fn a_pressed_row_holds_a_control_beside_it_that_is_pressed_on_its_own() {
     let buttons = with_role(&nodes, Role::Button);
     assert!(buttons.iter().any(|n| n.label() == Some("Archive")));
 }
+
+#[test]
+fn the_gooey_look_draws_the_choice_under_its_segment_and_the_segments_equal() {
+    let mut doc = page(1200, 800);
+    let choice = |doc: &DioxusDocument| {
+        let inner = doc.inner.borrow();
+        // The View control's: the gallery's fourth segmented control.
+        inner.query_selector_all(".unit-goo-choice").unwrap()[4]
+    };
+    assert!(
+        !displayed(&doc, choice(&doc)),
+        "the plain look hides the shapes"
+    );
+
+    let gooey = find(&doc, ".unit-segment", "Gooey");
+    tap(&mut doc, gooey);
+    settle(&mut doc);
+
+    let segments =
+        ["Day", "Week", "Month"].map(|text| rect(&doc, find(&doc, ".unit-segment", text)));
+    for (_, _, w, _) in segments {
+        assert!((w - segments[0].2).abs() < 0.5, "{segments:?}");
+    }
+    let (x, _, w, _) = rect(&doc, choice(&doc));
+    let (day_x, _, day_w, _) = segments[0];
+    assert!(
+        (x - day_x).abs() < 0.5 && (w - day_w).abs() < 0.5,
+        "{:?} under {:?}",
+        (x, w),
+        (day_x, day_w)
+    );
+}

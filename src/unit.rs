@@ -23,7 +23,7 @@ use dioxus::html::{Key, Modifiers, NamedKey};
 use dioxus::prelude::*;
 
 use crate::layer::LayerState;
-use crate::theme::{Appearance, Density, Theme};
+use crate::theme::{Appearance, Density, Look, Theme};
 
 /// What the host answers for the page: the clipboard, for a dialog's field.
 pub trait Clipboard {
@@ -424,6 +424,26 @@ impl Focus {
     }
 }
 
+/// The SVG filter [`Look::Gooey`] draws its shapes through, as `url(#unit-goo)`: a blur, then
+/// alpha sharpened back to an edge, so shapes that come near each other join with a neck.
+/// Hidden: it draws nothing itself.
+#[component]
+fn GooFilter() -> Element {
+    rsx! {
+        svg { class: "unit-goo-defs", width: "0", height: "0", "aria-hidden": "true",
+            defs {
+                filter { id: "unit-goo",
+                    feGaussianBlur { "stdDeviation": "4" }
+                    feColorMatrix {
+                        "type": "matrix",
+                        "values": "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9",
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// The root of a page of components: the theme's stylesheet, the page, and
 /// over it the overlay where menus, dialogs and toasts are drawn. Everything
 /// that uses a component goes under it.
@@ -434,6 +454,7 @@ pub fn UnitRoot(
     keys: Keys,
     #[props(default)] appearance: Appearance,
     #[props(default)] density: Density,
+    #[props(default)] look: Look,
     /// Whether the renderer presses a focused button on Return and Space
     /// itself, as a browser does and Blitz does not.
     #[props(default = cfg!(target_arch = "wasm32"))]
@@ -455,6 +476,7 @@ pub fn UnitRoot(
             class: "unit-root {class}",
             "data-appearance": appearance.attr(),
             "data-density": density.attr(),
+            "data-look": look.attr(),
             // A browser sends keys to the focused element, and to the body
             // with none: a press inside the page focuses the root, so its
             // keys reach it here. Blitz focuses nothing on a press but a
@@ -473,6 +495,9 @@ pub fn UnitRoot(
                     unit.set_viewport(size.width, size.height);
                 }
             },
+            if look == Look::Gooey {
+                GooFilter {}
+            }
             {children}
             {crate::layer::render(unit)}
         }

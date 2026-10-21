@@ -1,9 +1,13 @@
 //! Every component's styles. Colours and sizes are the theme's custom
 //! properties (`theme.rs`) and nothing else, so a theme restyles them all.
 //!
-//! Written for what Blitz lays out as a browser does: flexbox, absolute
-//! positions by `left`/`top`/`right`/`bottom`, attribute selectors, `:hover`
-//! — not `inset`, `calc()`, transitions or animations. A menu's rows and
+//! Written for what Blitz lays out as a browser does: flexbox, grid, absolute
+//! positions by `left`/`top`/`right`/`bottom`, attribute selectors, `:hover`,
+//! transitions with `linear()` easing — not `inset` or `calc()`. A filter
+//! that names an SVG `<filter>` is given twice, as `filter` for a browser and
+//! `--blitz-filter` for Blitz, whose Stylo parses no `url()` there. Blitz's
+//! own renderer, vello-hybrid, draws filters with the fork's patches; the
+//! classic one draws none. A menu's rows and
 //! separators have fixed heights, the ones `menu::Sizes` computes its
 //! geometry by, for each density.
 
@@ -167,6 +171,33 @@ pub const CSS: &str = r#"
 .unit-segment:hover { background: var(--unit-control-hover); }
 .unit-segment.on { background: var(--unit-raised); box-shadow: 0 1px 3px var(--unit-shadow); }
 .unit-root[data-density="touch"] .unit-segment { border-radius: 8px; }
+
+/* The gooey look: shapes drawn through the root's SVG filter, a blur then an alpha edge, so
+   that near ones join. `filter` is a browser's, `--blitz-filter` Blitz's. */
+.unit-goo { display: none; }
+.unit-goo-defs { position: absolute; width: 0; height: 0; }
+.unit-root[data-look="gooey"] .unit-goo { display: block; position: absolute; left: 2px; top: 2px;
+                                          right: 2px; bottom: 2px; pointer-events: none;
+                                          overflow: hidden;
+                                          filter: url(#unit-goo); --blitz-filter: url(#unit-goo); }
+.unit-root[data-look="gooey"] .unit-goo-choice,
+.unit-root[data-look="gooey"] .unit-goo-drop { position: absolute; top: 0; bottom: 0;
+                                               background: var(--unit-accent);
+                                               border-radius: var(--unit-radius); }
+.unit-root[data-look="gooey"] .unit-goo-choice {
+    transition: left 420ms linear(0, 0.38 9%, 0.81 20%, 1.02 31%, 1.05 40%, 1.03 50%, 1.0 62%,
+                                  0.995 75%, 1); }
+.unit-root[data-look="gooey"] .unit-goo-drop { top: 20%; bottom: 20%;
+    transition: left 700ms cubic-bezier(0.6, 0, 0.2, 1); }
+.unit-root[data-look="gooey"] .unit-segmented { position: relative; display: inline-grid;
+                                               grid-auto-flow: column; grid-auto-columns: 1fr;
+                                               gap: 0; }
+.unit-root[data-look="gooey"] .unit-segment { position: relative; padding: 0 12px;
+                                             transition: color 120ms ease-out; }
+/* The chosen label turns as the choice reaches it, not before. */
+.unit-root[data-look="gooey"] .unit-segment.on { background: transparent; box-shadow: none;
+                                                color: var(--unit-accent-text);
+                                                transition: color 160ms ease-in 140ms; }
 
 /* Slider: the thumb's and the stops' room inside its own box */
 .unit-slider { position: relative; height: var(--unit-control-height); min-width: 120px; width: 100%; }

@@ -18,8 +18,8 @@ const DELETE: usize = 12;
 /// The page, at the appearance and density the page itself chooses.
 #[allow(non_snake_case)]
 pub fn Gallery() -> Element {
-    // A window can start dark, or at a finger's density, for a look at each:
-    // UNIT_APPEARANCE=dark, UNIT_DENSITY=touch.
+    // A window can start dark, at a finger's density, or gooey, for a look at
+    // each: UNIT_APPEARANCE=dark, UNIT_DENSITY=touch, UNIT_LOOK=gooey.
     let env = |_name: &str| {
         #[cfg(not(target_arch = "wasm32"))]
         return std::env::var(_name).unwrap_or_default();
@@ -35,10 +35,14 @@ pub fn Gallery() -> Element {
         "touch" => Density::Touch,
         _ => Density::Regular,
     });
+    let look = use_signal(|| match env("UNIT_LOOK").as_str() {
+        "gooey" => Look::Gooey,
+        _ => Look::Plain,
+    });
     rsx! {
-        UnitRoot { appearance: appearance(), density: density(), class: "gallery",
+        UnitRoot { appearance: appearance(), density: density(), look: look(), class: "gallery",
             style { {GALLERY_CSS} }
-            Page { appearance, density }
+            Page { appearance, density, look }
             // The page's own element, outside any component, as a host's
             // editor is: unit's styles leave its box as the page drew it.
             div { class: "gallery-own" }
@@ -92,7 +96,7 @@ html, body { margin: 0; }
 "#;
 
 #[component]
-fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
+fn Page(appearance: Signal<Appearance>, density: Signal<Density>, look: Signal<Look>) -> Element {
     let unit = use_unit();
     #[cfg(not(target_arch = "wasm32"))]
     use_hook(move || {
@@ -183,6 +187,12 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         unit.set_insets(if i == 0 { Insets::default() } else { phone });
                         unit.set_keyboard(if i == 2 { 336.0 } else { 0.0 });
                     },
+                }
+                Segmented {
+                    label: "Look",
+                    options: vec!["Plain".into(), "Gooey".into()],
+                    selected: Some(if look() == Look::Gooey { 1 } else { 0 }),
+                    onchange: move |i| look.clone().set(if i == 1 { Look::Gooey } else { Look::Plain }),
                 }
                 Segmented {
                     label: "Density",

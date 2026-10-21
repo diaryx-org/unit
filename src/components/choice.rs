@@ -225,6 +225,21 @@ pub fn Segmented(
             onpointerdown: move |_| focus.press(),
             onfocus: move |_| focus.dom_focus(),
             onblur: move |_| focus.dom_blur(),
+            // The shapes the gooey look draws behind the segments, which the plain one hides:
+            // the choice, and a drop that follows it more slowly, joined to it while they are
+            // close. Each sits at the chosen segment's share of the width, the segments being
+            // equal in that look.
+            if let Some(i) = selected.filter(|&i| i < n) {
+                div { class: "unit-goo", "aria-hidden": "true",
+                    for part in ["unit-goo-choice", "unit-goo-drop"] {
+                        div {
+                            key: "{part}",
+                            class: part,
+                            style: "left: {i as f64 * 100.0 / n as f64}%; width: {100.0 / n as f64}%",
+                        }
+                    }
+                }
+            }
             for (i, o) in options.into_iter().enumerate() {
                 div {
                     key: "{i}",

@@ -210,6 +210,30 @@ impl Density {
     }
 }
 
+/// How controls move and join: the shapes behind them, and how they get from one place to
+/// the next.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Look {
+    /// Each control on its own; a change of choice is a change of colour.
+    #[default]
+    Plain,
+    /// The shapes behind controls are liquid: a segmented control's choice flows to the next
+    /// segment, stretching and leaving a drop that rejoins it. Drawn through an SVG filter that
+    /// [`UnitRoot`](crate::UnitRoot) puts in the page (a blur, then an alpha threshold), which
+    /// a browser applies through `filter` and Blitz through `--blitz-filter`.
+    Gooey,
+}
+
+impl Look {
+    /// The root's `data-look`.
+    pub fn attr(self) -> &'static str {
+        match self {
+            Look::Plain => "plain",
+            Look::Gooey => "gooey",
+        }
+    }
+}
+
 /// Everything a page's components are drawn with.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Theme {

@@ -84,7 +84,7 @@ pub use icon::{Icon, Ink};
 pub use layer::{Toast, Tone};
 pub use menu::{Entry, Item};
 pub use style::CSS;
-pub use theme::{Appearance, Density, Metrics, Palette, Theme};
+pub use theme::{Appearance, Density, Look, Metrics, Palette, Theme};
 pub use unit::{
     Clipboard, Focus, Insets, Keys, Kind, Unit, UnitRoot, next_id, use_focus, use_unit,
     use_unit_provider,
@@ -95,10 +95,11 @@ pub mod prelude {
     pub use crate::{
         Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem, Button, Callout,
         Card, Checkbox, Chips, Choice, ContextMenu, Density, Dialog, Disclosure, Divider, Entry,
-        Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal,
-        NavBar, Orientation, Placement, Progress, RadioGroup, Row, Section, Segmented, Select,
-        SheetAction, Slider, Spacer, Stack, Switch, TabBar, Tabs, Text, TextArea, TextField, Theme,
-        Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
+        Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, Look, MenuButton,
+        Modal, NavBar, Orientation, Placement, Progress, RadioGroup, Row, Section, Segmented,
+        Select, SheetAction, Slider, Spacer, Stack, Switch, TabBar, Tabs, Text, TextArea,
+        TextField, Theme, Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant,
+        use_unit,
     };
 }
 
@@ -196,6 +197,30 @@ mod tests {
         let html = render(Page);
         assert!(html.contains("data-appearance=\"dark\""), "{html}");
         assert!(html.contains("data-density=\"touch\""), "{html}");
+    }
+
+    #[test]
+    fn the_gooey_look_puts_its_filter_in_the_page_and_its_shapes_under_the_choice() {
+        fn Page() -> Element {
+            rsx! {
+                UnitRoot { look: Look::Gooey,
+                    Segmented { label: "View", options: vec!["Day".into(), "Week".into(), "Month".into(), "Year".into()],
+                                selected: Some(1), onchange: |_| {} }
+                }
+            }
+        }
+        let html = render(Page);
+        assert!(html.contains("data-look=\"gooey\""), "{html}");
+        assert!(html.contains("id=\"unit-goo\""), "{html}");
+        // The choice and its drop, each at the second quarter of the width.
+        assert_eq!(html.matches("left: 25%; width: 25%").count(), 2, "{html}");
+        // The plain look draws no filter.
+        fn Plain() -> Element {
+            rsx! { UnitRoot { "x" } }
+        }
+        let html = render(Plain);
+        assert!(html.contains("data-look=\"plain\""), "{html}");
+        assert!(!html.contains("unit-goo\""), "{html}");
     }
 
     #[test]
