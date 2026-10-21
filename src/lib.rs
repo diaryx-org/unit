@@ -238,6 +238,17 @@ mod tests {
     }
 
     #[test]
+    fn a_page_can_leave_the_stylesheet_to_a_file_of_its_own() {
+        fn Page() -> Element {
+            rsx! { UnitRoot { stylesheet: false, "x" } }
+        }
+        let html = render(Page);
+        assert!(!html.contains("<style"), "{html}");
+        assert!(!html.contains("--unit-accent"), "{html}");
+        assert!(Unit::stylesheet(&Theme::default()).contains("--unit-accent"));
+    }
+
+    #[test]
     fn a_forced_appearance_and_density_are_attributes_of_the_root() {
         fn Page() -> Element {
             rsx! { UnitRoot { appearance: Appearance::Dark, density: Density::Touch, "x" } }
