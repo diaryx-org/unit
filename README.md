@@ -23,14 +23,17 @@ unit = { git = "https://github.com/diaryx-org/unit", branch = "main" }
 
 | | |
 |---|---|
-| Buttons | `Button` (default, primary, ghost, danger), `ToggleButton` |
+| Buttons | `Button` (default, primary, ghost, danger), `ToggleButton`, each with an `icon` |
+| Icons | `Icon`: a path on a 24-unit grid stroked in `currentColor`, the text's or an `Ink` of the theme's; `icon::paths` |
 | Choices | `Checkbox`, `Switch`, `RadioGroup`, `Segmented`, `Slider`, `Chips` |
 | Text | `TextField` (text, search, email, URL, password, number), `TextArea` |
-| Menus | `MenuButton`, `Select`, `ContextMenu`; items with shortcuts, ticks, separators and submenus |
-| Navigation | `Tabs`, `ListBox` (arrows, Home, End, typeahead), `Disclosure` |
-| Overlays | `Unit::open_dialog` (alerts, confirmations, a prompt), `Modal` and its `Sheet` placement, `Unit::toast` |
+| Menus | `MenuButton`, `Select`, `ContextMenu` (the secondary button, or a finger held); items with shortcuts, ticks, icons, separators, submenus, and destructive ones |
+| Lists | `Section` (rows under a caption), `Row` (icon, title, subtitle, value, a chevron or a tick, a control at the right) |
+| Navigation | `Tabs`, `ListBox` (arrows, Home, End, typeahead), `Disclosure`, `NavBar`, `TabBar`, `Tree` and `TreeRow` |
+| Overlays | `Unit::open_dialog` (alerts, confirmations, a prompt), `Unit::open_actions` (an action sheet), `Modal` and its `Sheet` placement (Cancel and Done, dragged down to close), `Unit::toast` |
+| Gestures | `LongPress` and `use_hold`: a finger held still, timed by the host's sleep (`Unit::set_timer`) |
 | Layout | `Stack`, `Spacer`, `Card`, `Divider`, `Field` (a form's row), `Heading`, `Text`, `Badge`, `Progress`, `Callout` |
-| Theme | `Theme`: a light and a dark `Palette` and a pointer's and a finger's `Metrics`, written as CSS custom properties; `Appearance` and `Density` on the root |
+| Theme | `Theme`: a light and a dark `Palette`, a pointer's and a finger's `Metrics`, and a text and a heading font, written as CSS custom properties; `Appearance` and `Density` on the root |
 
 Its component list and its theme of tokens take after
 [Libero](https://github.com/tdymel/libero)'s; how it is built does not.
@@ -62,6 +65,13 @@ its buttons `refuses_keys: true`: pressed, they leave the keys with the
 editor, as a Mac's toolbar buttons do. unit's styles set `box-sizing` on its
 own elements only, so the host's under `UnitRoot` keep the box model they
 chose.
+
+On a phone, the host tells unit what the platform knows and Blitz does not
+pass on: the safe area (`Unit::set_insets`), which sheets, bars, dialogs
+and toasts keep clear of; the soft keyboard's height (`Unit::set_keyboard`),
+which a sheet sits on and a toast above; the appearance, `Light` or `Dark`
+rather than `System`; and a sleep (`Unit::set_timer`), which times a long
+press while the finger is still down.
 
 ## Why it is built the way it is
 

@@ -47,16 +47,21 @@ pub fn TextField(
     #[props(default)] disabled: bool,
     /// Return in the field: a search's go.
     onsubmit: Option<EventHandler<String>>,
+    /// Drawn with no box and its text at the right, its `label` read and
+    /// not drawn: a field in a [`crate::Row`].
+    #[props(default)]
+    inline: bool,
 ) -> Element {
     let focus = use_focus(Kind::Text, |_, _| false);
     let id = use_hook(next_id);
+    let inline_class = if inline { " unit-inline" } else { "" };
     rsx! {
-        div { class: "unit-text-field",
-            if let Some(l) = &label {
+        div { class: "unit-text-field{inline_class}",
+            if let Some(l) = label.as_ref().filter(|_| !inline) {
                 label { class: "unit-field-label", r#for: "unit-{id}", "{l}" }
             }
             input {
-                class: "unit-input{focus.class()}",
+                class: "unit-input{inline_class}{focus.class()}",
                 id: "unit-{id}",
                 r#type: kind.attr(),
                 value: "{value}",

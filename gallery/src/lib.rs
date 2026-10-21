@@ -2,6 +2,8 @@
 //! binary shows it in a window or a browser; the tests lay it out headless.
 
 use dioxus::prelude::*;
+use unit::Insets;
+use unit::icon::paths;
 use unit::prelude::*;
 
 /// Ids of the menus' items.
@@ -11,6 +13,7 @@ const PASTE: usize = 3;
 const WRAP: usize = 4;
 const H1: usize = 10;
 const H2: usize = 11;
+const DELETE: usize = 12;
 
 /// The page, at the appearance and density the page itself chooses.
 #[allow(non_snake_case)]
@@ -43,6 +46,41 @@ pub fn Gallery() -> Element {
     }
 }
 
+/// A sleep on a thread of its own, for a long press while the finger is
+/// still down: the gallery has no runtime of its own to time it with. With
+/// UNIT_NO_TIMER set, the page has none, and a hold fires on the release.
+#[cfg(not(target_arch = "wasm32"))]
+fn thread_sleep(
+    d: std::time::Duration,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()>>> {
+    use std::sync::{Arc, Mutex};
+    use std::task::{Poll, Waker};
+    struct Sleep(Arc<Mutex<(bool, Option<Waker>)>>);
+    impl std::future::Future for Sleep {
+        type Output = ();
+        fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<()> {
+            let mut s = self.0.lock().unwrap();
+            if s.0 {
+                Poll::Ready(())
+            } else {
+                s.1 = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        }
+    }
+    let state = Arc::new(Mutex::new((false, None::<Waker>)));
+    let s = state.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(d);
+        let mut s = s.lock().unwrap();
+        s.0 = true;
+        if let Some(w) = s.1.take() {
+            w.wake();
+        }
+    });
+    Box::pin(Sleep(state))
+}
+
 const GALLERY_CSS: &str = r#"
 html, body { margin: 0; }
 .gallery { min-height: 100vh; padding: 20px 24px 80px; }
@@ -55,6 +93,12 @@ html, body { margin: 0; }
 #[component]
 fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let unit = use_unit();
+    #[cfg(not(target_arch = "wasm32"))]
+    use_hook(move || {
+        if std::env::var_os("UNIT_NO_TIMER").is_none() {
+            unit.set_timer(thread_sleep);
+        }
+    });
     let mut said = use_signal(|| String::from("Nothing yet."));
     let mut bold = use_signal(|| false);
     let mut italic = use_signal(|| false);
@@ -72,6 +116,13 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut picked = use_signal(|| Some(2usize));
     let mut modal = use_signal(|| false);
     let mut sheet = use_signal(|| false);
+    let mut markup = use_signal(|| 0usize);
+    // What a phone would set: its safe area, and the keyboard up.
+    let mut edges = use_signal(|| 0usize);
+    let mut tip = use_signal(|| true);
+    let mut place = use_signal(|| 0usize);
+    let mut journal = use_signal(|| false);
+    let mut folder = use_signal(|| String::from("Archive"));
 
     let edit = vec![
         Item::new(CUT, "Cut").shortcut("⌘X").into(),
@@ -82,6 +133,10 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
             .into(),
         Entry::Separator,
         Item::new(WRAP, "Wrap Lines").checked(wrap()).into(),
+        Item::new(DELETE, "Delete")
+            .icon(paths::TRASH)
+            .destructive()
+            .into(),
         Entry::submenu(
             "Heading",
             vec![
@@ -118,6 +173,17 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                     onchange: move |i| appearance.clone().set([Appearance::System, Appearance::Light, Appearance::Dark][i]),
                 }
                 Segmented {
+                    label: "Edges",
+                    options: vec!["Window".into(), "Phone".into(), "Keyboard".into()],
+                    selected: Some(edges()),
+                    onchange: move |i| {
+                        edges.set(i);
+                        let phone = Insets { top: 47.0, bottom: 34.0, ..Insets::default() };
+                        unit.set_insets(if i == 0 { Insets::default() } else { phone });
+                        unit.set_keyboard(if i == 2 { 336.0 } else { 0.0 });
+                    },
+                }
+                Segmented {
                     label: "Density",
                     options: vec!["Pointer".into(), "Touch".into()],
                     selected: Some(if density() == Density::Touch { 1 } else { 0 }),
@@ -135,6 +201,9 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         Button { variant: Variant::Ghost, onpress: move |_| said.set("Ghost pressed.".into()), "Ghost" }
                         Button { variant: Variant::Danger, onpress: move |_| said.set("Delete pressed.".into()), "Delete" }
                         Button { disabled: true, onpress: move |_| said.set("Disabled pressed!".into()), "Disabled" }
+                        Button { icon: paths::PLUS, onpress: move |_| said.set("Add pressed.".into()), "Add" }
+                        Button { icon: paths::SHARE, label: "Share", variant: Variant::Ghost, class: "unit-icon",
+                                 onpress: move |_| said.set("Share pressed.".into()) }
                         ToggleButton { pressed: bold(), label: "Bold", onchange: move |v| bold.set(v), b { "B" } }
                         // A toolbar's: pressed, it leaves the keys where they were.
                         ToggleButton { pressed: italic(), label: "Italic", refuses_keys: true,
@@ -189,7 +258,11 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                     }
                     ContextMenu { entries: edit.clone(), onpick: pick,
                         div { class: "unit-callout", style: "margin-top: 10px",
-                            "Right-click here for a context menu." }
+                            "Right-click or hold here for a context menu." }
+                    }
+                    LongPress { onhold: move |_| said.set("Held.".into()),
+                                onpress: move |_| said.set("Tapped, not held.".into()),
+                        div { class: "unit-callout", "Tap or hold here." }
                     }
                     Chips { label: "Faces", choices: face_choices, on: faces(),
                             onpick: move |i: usize| faces.with_mut(|f: &mut Vec<bool>| f[i] = !f[i]) }
@@ -210,6 +283,53 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         Text { "Hidden until opened." }
                     }
                 }
+                Card { title: "Lists",
+                    Section { title: "Account", footer: "Rows in a group, as a settings pane has them.",
+                        Row { title: "Name", trailing: rsx! {
+                            TextField { inline: true, label: "Name", value: name(), placeholder: "Your name",
+                                        oninput: move |v| name.set(v) }
+                        } }
+                        Row { title: "Appearance", detail: "System", icon: paths::SHARE,
+                              accessory: Accessory::Chevron,
+                              onpress: move |_| said.set("Appearance opened.".into()) }
+                        Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
+                        Row { title: "Sign Out", destructive: true,
+                              onpress: move |_| said.set("Signed out.".into()) }
+                    }
+                    Section { title: "Markup",
+                        for (i, m) in ["Markdown", "Plain text", "Org"].into_iter().enumerate() {
+                            Row { key: "{i}", title: m, subtitle: (i == 0).then(|| "What the editor writes".to_string()),
+                                  accessory: Accessory::Check(markup() == i),
+                                  onpress: move |_| markup.set(i) }
+                        }
+                    }
+                }
+                Card { title: "Bars",
+                    NavBar { title: "Entries", back: "Library",
+                             onback: move |_| said.set("Back to Library pressed.".into()),
+                             trailing: rsx! {
+                                 Button { icon: paths::PLUS, label: "New", variant: Variant::Ghost, class: "unit-icon",
+                                          onpress: move |_| said.set("New pressed.".into()) }
+                             } }
+                    TabBar { label: "Places", selected: place(), onchange: move |i| place.set(i),
+                             items: vec![
+                                 BarItem::new("Shelf", paths::MORE),
+                                 BarItem::new("Search", paths::SEARCH),
+                                 BarItem::new("Share", paths::SHARE),
+                             ] }
+                    Tree { label: "Folders",
+                        TreeRow { label: "Journal", expanded: journal(), selected: folder() == "Journal",
+                                  ontoggle: move |v| journal.set(v), onpress: move |_| folder.set("Journal".into()) }
+                        if journal() {
+                            for f in ["2026", "Drafts"] {
+                                TreeRow { key: "{f}", label: f, depth: 1, selected: folder() == f,
+                                          onpress: move |_| folder.set(f.into()) }
+                            }
+                        }
+                        TreeRow { label: "Archive", selected: folder() == "Archive",
+                                  onpress: move |_| folder.set("Archive".into()) }
+                    }
+                }
                 Card { title: "Overlays",
                     Stack { axis: Axis::Horizontal, wrap: true,
                         Button { onpress: move |_| {
@@ -226,6 +346,16 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                                 move |a| said.set(format!("The alert answered {a:?}.")),
                             );
                         }, "Confirm…" }
+                        Button { onpress: move |_| {
+                            unit.open_actions(
+                                ActionSheet::new(vec![
+                                    SheetAction::new(1, "Share").icon(paths::SHARE),
+                                    SheetAction::new(2, "Duplicate"),
+                                    SheetAction::new(3, "Delete").icon(paths::TRASH).destructive(),
+                                ]).title("The entry").message("What to do with it."),
+                                move |a| said.set(format!("Action {a:?} chosen.")),
+                            );
+                        }, "Actions…" }
                         Button { onpress: move |_| modal.set(true), "Modal…" }
                         Button { onpress: move |_| sheet.set(true), "Sheet…" }
                         Button { onpress: move |_| {
@@ -240,6 +370,12 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         Badge { tone: Tone::Danger, "Error" }
                     }
                     Callout { tone: Tone::Warning, title: "Heads up", "A callout in the page." }
+                    if tip() {
+                        Callout { title: "A tip", action: "Show me",
+                                  onaction: move |_| said.set("Tip shown.".into()),
+                                  ondismiss: move |_| tip.set(false),
+                                  "One that can be acted on, or put away." }
+                    }
                 }
             }
         }
@@ -252,7 +388,9 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
             Checkbox { checked: spelling(), onchange: move |v| spelling.set(v), "Check spelling" }
             Select { label: "Font", choices: fonts.clone(), selected: font(), onpick: move |i| font.set(Some(i)) }
         }
-        Modal { open: sheet(), title: "A sheet", placement: Placement::Sheet, onclose: move |_| sheet.set(false),
+        Modal { open: sheet(), title: "A sheet", placement: Placement::Sheet,
+                cancel: "Cancel", done: "Done", onclose: move |_| sheet.set(false),
+                ondone: move |_| { sheet.set(false); said.set("Sheet done.".into()); },
             Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
             Slider { label: "Volume", value: volume(), onchange: move |v| volume.set(v) }
         }

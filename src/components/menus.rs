@@ -11,7 +11,9 @@
 use dioxus::html::{Key, NamedKey};
 use dioxus::prelude::*;
 
-use crate::components::button::is_press;
+use crate::components::button::{Variant, is_press};
+use crate::components::hold::use_hold;
+use crate::icon::Icon;
 use crate::menu::{Entry, Item};
 use crate::unit::{Kind, Unit, use_focus, use_unit};
 
@@ -100,6 +102,8 @@ pub fn MenuButton(
     height: f64,
     top: Option<f64>,
     label: Option<String>,
+    /// An icon before the children, as [`crate::Button`]'s.
+    icon: Option<&'static str>,
     #[props(default)] disabled: bool,
     /// Takes no keys, as [`crate::Button`]'s `refuses_keys`: the menu
     /// still opens on a press, and its keys are the menu's while it is open.
@@ -164,6 +168,9 @@ pub fn MenuButton(
                 }
                 opener.open(entries2.clone(), height, top, true, onpick);
             },
+            if let Some(d) = icon {
+                Icon { d, ink: Variant::Default.ink(disabled) }
+            }
             {children}
         }
     }
@@ -234,8 +241,9 @@ pub fn Select(
 }
 
 /// An area whose context menu is `entries`: opened by the secondary button,
-/// or a two-finger click, at the pointer. `onopen` is called first, with
-/// where, so the page can choose what the menu holds.
+/// a two-finger click, or a finger held on it ([`crate::LongPress`]'s
+/// hold), at the pointer. `onopen` is called first, with where, so the page
+/// can choose what the menu holds.
 #[component]
 pub fn ContextMenu(
     entries: Vec<Entry>,
@@ -245,16 +253,30 @@ pub fn ContextMenu(
     children: Element,
 ) -> Element {
     let unit = use_unit();
+    let menu = entries.clone();
+    let open = move |(x, y): (f64, f64), entries: Vec<Entry>| {
+        if let Some(o) = onopen {
+            o.call((x, y));
+        }
+        unit.open_menu(entries, (x, y), 0.0, move |i| onpick.call(i));
+    };
+    let hold = use_hold(move |at| open(at, menu.clone()));
     rsx! {
         div { class: "unit-context {class}",
             oncontextmenu: move |e: MouseEvent| {
                 e.prevent_default();
                 e.stop_propagation();
                 let p = e.client_coordinates();
-                if let Some(o) = onopen {
-                    o.call((p.x, p.y));
+                open((p.x, p.y), entries.clone());
+            },
+            onpointerdown: move |e: PointerEvent| hold.down(&e),
+            onpointermove: move |e: PointerEvent| hold.moved(&e),
+            onpointerup: move |e: PointerEvent| hold.up(&e),
+            onpointercancel: move |e: PointerEvent| hold.up(&e),
+            onclick: move |e: MouseEvent| {
+                if hold.take_held() {
+                    e.stop_propagation();
                 }
-                unit.open_menu(entries.clone(), (p.x, p.y), 0.0, move |i| onpick.call(i));
             },
             {children}
         }

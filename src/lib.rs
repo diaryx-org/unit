@@ -4,9 +4,11 @@
 //!
 //! Buttons, toggles, checkboxes, switches, radio groups, segmented
 //! controls, sliders, text fields, selects, menus with submenus, context
-//! menus, chips, tabs, list boxes, disclosures, dialogs, modals and sheets,
-//! toasts, and the layout and text round them — in a theme of CSS custom
-//! properties, light and dark, at a pointer's density or a finger's.
+//! menus, chips, tabs, list boxes, disclosures, rows in groups, a phone's
+//! navigation and tab bars, a tree, dialogs, action sheets, modals and
+//! sheets, toasts, a long press, icons, and the layout and text round them —
+//! in a theme of CSS custom properties, light and dark, at a pointer's
+//! density or a finger's.
 //!
 //! # Why it is built the way it is
 //!
@@ -53,41 +55,50 @@
 //! `keys: Keys::Host` and calls [`Unit::key`] and [`Unit::text`] before it
 //! uses a key, and gives keys to the renderer while [`Unit::typing`].
 
+pub mod actions;
 pub mod components;
 pub mod dialog;
+pub mod icon;
 pub mod layer;
 pub mod menu;
 mod style;
 pub mod theme;
 mod unit;
 
+pub use actions::{ActionSheet, SheetAction};
+pub use components::bars::{BarItem, NavBar, TabBar, Tree, TreeRow};
 pub use components::button::{Button, ToggleButton, Variant};
 pub use components::choice::{Checkbox, Orientation, RadioGroup, Segmented, Switch};
+pub use components::hold::{Hold, LongPress, use_hold};
 pub use components::layout::{
     Align, Axis, Badge, Callout, Card, Divider, Field, Heading, Progress, Spacer, Stack, Text,
 };
+pub use components::list::{Accessory, Row, Section};
 pub use components::menus::{Chips, Choice, ContextMenu, MenuButton, Select, left_top};
 pub use components::modal::{Modal, Placement};
 pub use components::navigation::{Disclosure, ListBox, Tabs};
 pub use components::slider::Slider;
 pub use components::text_field::{InputKind, TextArea, TextField};
 pub use dialog::{Answer, Dialog};
+pub use icon::{Icon, Ink};
 pub use layer::{Toast, Tone};
 pub use menu::{Entry, Item};
 pub use style::CSS;
 pub use theme::{Appearance, Density, Metrics, Palette, Theme};
 pub use unit::{
-    Clipboard, Focus, Keys, Kind, Unit, UnitRoot, next_id, use_focus, use_unit, use_unit_provider,
+    Clipboard, Focus, Insets, Keys, Kind, Unit, UnitRoot, next_id, use_focus, use_unit,
+    use_unit_provider,
 };
 
 /// Everything a page uses, at once.
 pub mod prelude {
     pub use crate::{
-        Align, Answer, Appearance, Axis, Badge, Button, Callout, Card, Checkbox, Chips, Choice,
-        ContextMenu, Density, Dialog, Disclosure, Divider, Entry, Field, Heading, InputKind, Item,
-        Keys, ListBox, MenuButton, Modal, Orientation, Placement, Progress, RadioGroup, Segmented,
-        Select, Slider, Spacer, Stack, Switch, Tabs, Text, TextArea, TextField, Theme, Toast,
-        ToggleButton, Tone, Unit, UnitRoot, Variant, use_unit,
+        Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem, Button, Callout,
+        Card, Checkbox, Chips, Choice, ContextMenu, Density, Dialog, Disclosure, Divider, Entry,
+        Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal,
+        NavBar, Orientation, Placement, Progress, RadioGroup, Row, Section, Segmented, Select,
+        SheetAction, Slider, Spacer, Stack, Switch, TabBar, Tabs, Text, TextArea, TextField, Theme,
+        Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
     };
 }
 
@@ -185,5 +196,35 @@ mod tests {
         let html = render(Page);
         assert!(html.contains("data-appearance=\"dark\""), "{html}");
         assert!(html.contains("data-density=\"touch\""), "{html}");
+    }
+
+    #[test]
+    fn an_icon_is_stroked_in_the_text_colour_or_its_ink() {
+        fn Page() -> Element {
+            rsx! {
+                UnitRoot { appearance: Appearance::Dark,
+                    Icon { d: crate::icon::paths::PLUS }
+                    Icon { d: crate::icon::paths::TRASH, ink: Ink::Danger }
+                }
+            }
+        }
+        let html = render(Page);
+        assert_eq!(html.matches("stroke=\"currentColor\"").count(), 2, "{html}");
+        assert!(
+            html.contains("class=\"unit-svg unit-ink-danger\""),
+            "{html}"
+        );
+        assert!(html.contains("aria-hidden=\"true\""), "{html}");
+        // What a page draws in Rust has the appearance's colours.
+        fn Probe() -> Element {
+            rsx! { UnitRoot { appearance: Appearance::Dark, Read {} } }
+        }
+        #[component]
+        fn Read() -> Element {
+            let u = use_unit();
+            rsx! { "{u.ink(Ink::Danger)}" }
+        }
+        let html = render(Probe);
+        assert!(html.contains(crate::Palette::DARK.danger), "{html}");
     }
 }

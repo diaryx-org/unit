@@ -3,7 +3,9 @@
 
 use dioxus::prelude::*;
 
+use crate::icon::paths;
 use crate::layer::Tone;
+use crate::{Button, Variant};
 
 /// Which way a stack runs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -151,19 +153,37 @@ pub fn Progress(value: f64, label: Option<String>) -> Element {
     }
 }
 
-/// A message in the page, in a tone: a warning over a form.
+/// A message in the page, in a tone: a warning over a form, a tip. With
+/// `action`, a button beside it does `onaction`; with `ondismiss`, a close
+/// button takes it away.
 #[component]
-pub fn Callout(#[props(default)] tone: Tone, title: Option<String>, children: Element) -> Element {
+pub fn Callout(
+    #[props(default)] tone: Tone,
+    title: Option<String>,
+    action: Option<String>,
+    onaction: Option<EventHandler<()>>,
+    ondismiss: Option<EventHandler<()>>,
+    children: Element,
+) -> Element {
     let role = match tone {
         Tone::Danger | Tone::Warning => "alert",
         _ => "note",
     };
     rsx! {
         div { class: "unit-callout{tone.class()}", role,
-            if let Some(t) = title {
-                div { class: "unit-callout-title", "{t}" }
+            div { class: "unit-callout-body",
+                if let Some(t) = title {
+                    div { class: "unit-callout-title", "{t}" }
+                }
+                {children}
             }
-            {children}
+            if let Some(a) = action {
+                Button { variant: Variant::Ghost, onpress: move |_| if let Some(f) = onaction { f.call(()) }, "{a}" }
+            }
+            if let Some(d) = ondismiss {
+                Button { variant: Variant::Ghost, class: "unit-icon", label: "Dismiss",
+                         icon: paths::CLOSE, onpress: move |_| d.call(()) }
+            }
         }
     }
 }

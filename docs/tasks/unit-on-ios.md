@@ -18,12 +18,13 @@ inside a phone's width. The gallery's tests tap with a finger's pointer id,
 and a 390-point page was looked at on the Mac. None of it has run on a
 phone. What may differ there:
 
-- A **drag** on a slider may pan the page instead: Blitz takes a finger's
+- A **drag** on a slider may pan the page instead (a sheet's title bar
+  sets `touch-action: none` for its drag; a slider does not yet): Blitz takes a finger's
   move as a pan unless something stops it, and unit's `touch-action` is not
   set.
-- A **long press** opens no context menu: `ContextMenu` opens on
-  `contextmenu`, which a finger does not send, and unit has no timers to
-  time a long press with.
+- A **long press** opens a `ContextMenu` once the host gives unit a sleep
+  (`Unit::set_timer`), as the gallery's tests do with a thread; that it
+  fires on a phone, and is not taken for a scroll, is unchecked.
 - The **soft keyboard** comes up for a real `<input>` only if Blitz on iOS
   asks for it when the field is focused.
 - **VoiceOver** reads the AccessKit tree, and presses through blitz-shell's

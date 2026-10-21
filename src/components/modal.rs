@@ -6,12 +6,22 @@
 //! from the first frame, shown and hidden, for the reason the overlay is
 //! (`layer.rs`). Escape closes the topmost one open, through the page's
 //! keys.
+//!
+//! It keeps clear of the window's safe area and the soft keyboard, as the
+//! host sets them ([`Unit::set_insets`](crate::Unit::set_insets),
+//! [`Unit::set_keyboard`](crate::Unit::set_keyboard)): a sheet sits on the
+//! keyboard's top edge while it is up. A sheet is dragged down by its
+//! grabber or its title bar to close, as a phone's is: the pointer's moves
+//! are followed wherever they go on the page, since the scrim under the
+//! sheet covers it all.
 
 use std::rc::Rc;
 
 use dioxus::prelude::*;
 
+use crate::components::button::Variant;
 use crate::unit::{next_id, use_unit};
+use crate::{Button, Icon, Ink, icon::paths};
 
 /// Where a modal sits.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -23,9 +33,17 @@ pub enum Placement {
     Sheet,
 }
 
+/// How far a sheet is dragged down before letting go closes it, in CSS
+/// pixels.
+pub const DISMISS: f64 = 90.0;
+
 /// A modal over the page while `open`. `onclose` is called when it asks to
-/// close — Escape, a press on the scrim, its close button — and the page
-/// sets `open` false.
+/// close — Escape, a press on the scrim, its close button or Cancel, a
+/// sheet dragged down — and the page sets `open` false.
+///
+/// With `cancel` or `done` its title bar is a phone's: Cancel at the left,
+/// the title in the middle, Done at the right, which calls `ondone`. With
+/// neither, a close button at the right.
 #[component]
 pub fn Modal(
     open: bool,
@@ -35,6 +53,14 @@ pub fn Modal(
     /// Its width, in CSS pixels, where the page has room.
     #[props(default = 440.0)]
     width: f64,
+    /// The label of a button at the title bar's left that closes it.
+    cancel: Option<String>,
+    /// The label of a button at the title bar's right that finishes.
+    done: Option<String>,
+    ondone: Option<EventHandler<()>>,
+    /// Whether a sheet closes when dragged down.
+    #[props(default = true)]
+    draggable: bool,
     /// Buttons along its bottom.
     actions: Option<Element>,
     children: Element,
@@ -46,29 +72,81 @@ pub fn Modal(
     let close: Rc<dyn Fn()> = Rc::new(move || onclose.call(()));
     unit.modal(id, open.then_some(close));
     use_drop(move || unit.modal(id, None));
+    // Where a drag of the sheet began, and how far down it has come.
+    let mut drag = use_signal(|| None::<(f64, f64)>);
+    if !open && drag.peek().is_some() {
+        drag.set(None);
+    }
 
+    let sheet = placement == Placement::Sheet;
+    let drags = sheet && draggable;
+    let (safe, keyboard) = unit.edges();
     let display = if open { "flex" } else { "none" };
-    let place = match placement {
-        Placement::Center => "unit-modal-place",
-        Placement::Sheet => "unit-modal-place unit-sheet-place",
+    let (place, panel) = if sheet {
+        ("unit-modal-place unit-sheet-place", "unit-modal unit-sheet")
+    } else {
+        ("unit-modal-place", "unit-modal")
     };
-    let panel = match placement {
-        Placement::Center => "unit-modal",
-        Placement::Sheet => "unit-modal unit-sheet",
+    // The place keeps the panel off the status bar, and a sheet on the
+    // keyboard's top edge; a sheet's own padding keeps its content off the
+    // home indicator, which the keyboard covers while it is up.
+    let place_style = if sheet {
+        format!(
+            "display: {display}; padding-top: {}px; padding-bottom: {keyboard}px",
+            safe.top + 16.0
+        )
+    } else {
+        format!(
+            "display: {display}; padding: {}px {}px {}px {}px",
+            safe.top + 16.0,
+            safe.right + 16.0,
+            safe.bottom.max(keyboard) + 16.0,
+            safe.left + 16.0
+        )
     };
-    let style = match placement {
-        Placement::Center => format!("width: {width}px"),
-        Placement::Sheet => String::new(),
+    let dy = drag().map_or(0.0, |(_, dy)| dy);
+    let panel_style = if sheet {
+        let bottom = if keyboard > 0.0 { 0.0 } else { safe.bottom };
+        format!(
+            "padding-bottom: {}px; padding-left: {}px; padding-right: {}px; transform: translateY({dy}px)",
+            bottom + 16.0,
+            safe.left + 16.0,
+            safe.right + 16.0
+        )
+    } else {
+        format!("width: {width}px")
+    };
+    let phone_bar = cancel.is_some() || done.is_some();
+    let start = move |e: PointerEvent| {
+        if drags {
+            drag.clone().set(Some((e.client_coordinates().y, 0.0)));
+        }
     };
     rsx! {
-        div { class: "{place}", style: "display: {display}",
+        div { class: "{place}", style: "{place_style}",
             onpointerdown: move |e: PointerEvent| {
                 e.stop_propagation();
                 onclose.call(());
             },
+            onpointermove: move |e: PointerEvent| {
+                let began = *drag.peek();
+                if let Some((y0, _)) = began {
+                    let dy = (e.client_coordinates().y - y0).max(0.0);
+                    drag.set(Some((y0, dy)));
+                }
+            },
+            onpointerup: move |e: PointerEvent| {
+                if let Some((_, dy)) = drag.take() {
+                    e.stop_propagation();
+                    if dy > DISMISS {
+                        onclose.call(());
+                    }
+                }
+            },
+            onpointercancel: move |_| drag.set(None),
             div {
                 class: "{panel}",
-                style,
+                style: "{panel_style}",
                 role: "dialog",
                 "aria-modal": "true",
                 "aria-labelledby": "unit-{id}",
@@ -76,15 +154,47 @@ pub fn Modal(
                     e.stop_propagation();
                     unit.pressed_root();
                 },
-                div { class: "unit-modal-head",
-                    div { class: "unit-dialog-title", id: "unit-{id}", "{title}" }
-                    button { class: "unit-button unit-ghost unit-icon", r#type: "button",
-                        "aria-label": "Close",
-                        onclick: move |e: MouseEvent| {
+                if sheet {
+                    div { class: "unit-sheet-grabber", "aria-hidden": "true",
+                        onpointerdown: move |e: PointerEvent| {
                             e.stop_propagation();
-                            onclose.call(());
+                            unit.pressed_root();
+                            start(e);
                         },
-                        "✕"
+                        div { class: "unit-sheet-grabber-bar" }
+                    }
+                }
+                div {
+                    class: if phone_bar { "unit-modal-head unit-phone-bar" } else { "unit-modal-head" },
+                    onpointerdown: move |e: PointerEvent| {
+                        e.stop_propagation();
+                        unit.pressed_root();
+                        start(e);
+                    },
+                    if phone_bar {
+                        div { class: "unit-modal-side",
+                            if let Some(c) = cancel {
+                                Button { variant: Variant::Ghost, onpress: move |_| onclose.call(()), "{c}" }
+                            }
+                        }
+                        div { class: "unit-dialog-title", id: "unit-{id}", "{title}" }
+                        div { class: "unit-modal-side unit-modal-end",
+                            if let Some(d) = done {
+                                Button { variant: Variant::Ghost, class: "unit-done",
+                                         onpress: move |_| if let Some(f) = ondone { f.call(()) }, "{d}" }
+                            }
+                        }
+                    } else {
+                        div { class: "unit-dialog-title", id: "unit-{id}", "{title}" }
+                        button { class: "unit-button unit-ghost unit-icon", r#type: "button",
+                            "aria-label": "Close",
+                            onpointerdown: move |e: PointerEvent| e.stop_propagation(),
+                            onclick: move |e: MouseEvent| {
+                                e.stop_propagation();
+                                onclose.call(());
+                            },
+                            Icon { d: paths::CLOSE, ink: Ink::Dim, size: 14.0 }
+                        }
                     }
                 }
                 div { class: "unit-modal-body", {children} }

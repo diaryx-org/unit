@@ -485,7 +485,13 @@ fn assistive_tech_reads_every_control_as_what_it_is() {
         .into_iter()
         .find(|n| n.label() == Some("Bold"));
     assert!(bold.is_some(), "the toggle is named by its label");
-    let tabs = with_role(&nodes, Role::Tab);
+    // The Navigation card's tabs, read by their text; the tab bar's are
+    // named by their labels.
+    let bar = ["Shelf", "Search", "Share"];
+    let tabs: Vec<_> = with_role(&nodes, Role::Tab)
+        .into_iter()
+        .filter(|n| n.label().is_none_or(|l| !bar.contains(&l)))
+        .collect();
     assert_eq!(
         tabs.iter()
             .filter(|n| n.is_selected() == Some(true))
@@ -522,4 +528,567 @@ fn assistive_tech_reads_each_controls_state() {
     let dialogs = with_role(&nodes, Role::Dialog);
     assert_eq!(dialogs.len(), 1, "only the open dialog is in the tree");
     assert!(dialogs[0].is_modal());
+}
+
+/// The first element matching `selector` named `label` by `aria-label`.
+fn labelled(doc: &DioxusDocument, selector: &str, label: &str) -> NodeId {
+    let all = doc.inner.borrow().query_selector_all(selector).unwrap();
+    *all.iter()
+        .find(|&&id| attr(doc, id, "aria-label").as_deref() == Some(label))
+        .unwrap_or_else(|| panic!("no {selector} labelled {label:?}"))
+}
+
+/// The first icon under `node`: its stroke and its class.
+fn icon_under(doc: &DioxusDocument, node: NodeId) -> (String, String) {
+    let svg = {
+        let inner = doc.inner.borrow();
+        let all = inner.query_selector_all(".unit-svg").unwrap();
+        *all.iter()
+            .find(|&&id| {
+                let mut n = inner.get_node(id).unwrap().parent;
+                while let Some(p) = n {
+                    if p == node {
+                        return true;
+                    }
+                    n = inner.get_node(p).unwrap().parent;
+                }
+                false
+            })
+            .expect("an icon under the node")
+    };
+    (attr(doc, svg, "stroke").unwrap(), class_of(doc, svg))
+}
+
+#[test]
+fn an_icon_is_stroked_in_its_buttons_colour_and_the_button_named_by_its_label() {
+    let mut doc = page(1200, 800);
+    let share = labelled(&doc, "button", "Share");
+    assert_eq!(
+        icon_under(&doc, share),
+        ("currentColor".into(), "unit-svg".into()),
+        "in the button's text colour"
+    );
+    let (_, _, w, h) = rect(&doc, share);
+    assert_eq!(w, h, "an icon alone draws its button square");
+    tap(&mut doc, share);
+    assert_eq!(said(&doc), "Share pressed.");
+    let nodes = tree(&doc);
+    assert!(
+        with_role(&nodes, Role::Button)
+            .iter()
+            .any(|n| n.label() == Some("Share")),
+        "the icon's button is read by its label"
+    );
+    let add = find(&doc, "button", "Add");
+    assert_eq!(icon_under(&doc, add).0, "currentColor");
+}
+
+#[test]
+fn a_destructive_menu_item_is_drawn_in_the_danger_colour_with_its_icon() {
+    let mut doc = page(1200, 800);
+    let edit = find(&doc, "button", "Edit ▾");
+    click(&mut doc, edit);
+    let delete = labelled(&doc, ".unit-item", "Delete");
+    assert!(class_of(&doc, delete).contains("danger"));
+    assert_eq!(
+        icon_under(&doc, delete),
+        ("currentColor".into(), "unit-svg unit-ink-danger".into())
+    );
+    let (_, _, w, _) = rect(&doc, delete);
+    let level = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-menu")
+        .unwrap()
+        .unwrap();
+    let (_, _, lw, _) = rect(&doc, level);
+    assert!(w < lw, "the item and its icon fit in the level");
+}
+
+#[test]
+fn a_row_is_pressed_by_a_finger_and_read_as_a_button_with_its_value() {
+    let mut doc = page(1200, 800);
+    let row = labelled(&doc, ".unit-row", "Appearance, System");
+    tap(&mut doc, row);
+    assert_eq!(said(&doc), "Appearance opened.");
+    let signout = labelled(&doc, ".unit-row", "Sign Out");
+    assert!(class_of(&doc, signout).contains("danger"));
+    click(&mut doc, signout);
+    assert_eq!(said(&doc), "Signed out.");
+    let nodes = tree(&doc);
+    assert!(
+        with_role(&nodes, Role::Button)
+            .iter()
+            .any(|n| n.label() == Some("Appearance, System")),
+        "a row that opens something is read as a button, with its value"
+    );
+}
+
+#[test]
+fn a_rows_choice_of_one_ticks_the_row_pressed_and_reads_as_radios() {
+    let mut doc = page(1200, 800);
+    let org = labelled(&doc, ".unit-row", "Org");
+    assert_eq!(attr(&doc, org, "aria-checked").as_deref(), Some("false"));
+    tap(&mut doc, org);
+    let org = labelled(&doc, ".unit-row", "Org");
+    assert_eq!(attr(&doc, org, "aria-checked").as_deref(), Some("true"));
+    let md = labelled(&doc, ".unit-row", "Markdown");
+    assert_eq!(attr(&doc, md, "aria-checked").as_deref(), Some("false"));
+    let nodes = tree(&doc);
+    let on: Vec<_> = with_role(&nodes, Role::RadioButton)
+        .into_iter()
+        .filter(|n| n.label() == Some("Org"))
+        .collect();
+    assert_eq!(on.len(), 1);
+    assert_eq!(on[0].toggled(), Some(Toggled::True));
+}
+
+#[test]
+fn a_row_holds_a_field_at_its_right_and_is_a_fingers_height_at_touch_density() {
+    let mut doc = page(390, 844);
+    let touch = find(&doc, ".unit-segment", "Touch");
+    tap(&mut doc, touch);
+    let row = labelled(&doc, ".unit-row", "Name");
+    let (rx, _, rw, rh) = rect(&doc, row);
+    assert!(rh >= 44.0, "a row {rh} tall");
+    // The inline field, in the row, not the Text card's.
+    let field = doc
+        .inner
+        .borrow()
+        .query_selector("input.unit-inline")
+        .unwrap()
+        .unwrap();
+    let (fx, _, fw, _) = rect(&doc, field);
+    assert!(fw > 40.0, "the field has room: {fw}");
+    assert!(fx > rx + 40.0, "the field sits right of the title");
+    assert!(fx + fw <= rx + rw, "and inside the row");
+}
+
+/// A finger pressed at `(x, y)`, moved by `dy` in steps, and lifted.
+fn drag_by(doc: &mut DioxusDocument, x: f64, y: f64, dy: f64) {
+    let id = BlitzPointerId::Finger(1);
+    doc.handle_ui_event(UiEvent::PointerDown(pointer(
+        id,
+        x,
+        y,
+        MouseEventButtons::Primary,
+    )));
+    settle(doc);
+    for i in 1..=5 {
+        let at = y + dy * i as f64 / 5.0;
+        doc.handle_ui_event(UiEvent::PointerMove(pointer(
+            id,
+            x,
+            at,
+            MouseEventButtons::Primary,
+        )));
+        settle(doc);
+    }
+    doc.handle_ui_event(UiEvent::PointerUp(pointer(
+        id,
+        x,
+        y + dy,
+        MouseEventButtons::None,
+    )));
+    settle(doc);
+}
+
+fn sheet_open(doc: &DioxusDocument) -> bool {
+    let place = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-sheet-place")
+        .unwrap()
+        .unwrap();
+    displayed(doc, place)
+}
+
+fn sheet_panel(doc: &DioxusDocument) -> NodeId {
+    doc.inner
+        .borrow()
+        .query_selector(".unit-sheet")
+        .unwrap()
+        .unwrap()
+}
+
+#[test]
+fn a_sheet_dragged_down_far_enough_closes_and_a_short_drag_springs_back() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Sheet…");
+    tap(&mut doc, open);
+    assert!(sheet_open(&doc));
+    let grabber = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-sheet-grabber")
+        .unwrap()
+        .unwrap();
+    let (gx, gy, gw, gh) = rect(&doc, grabber);
+    let (_, top, _, _) = rect(&doc, sheet_panel(&doc));
+    drag_by(&mut doc, gx + gw / 2.0, gy + gh / 2.0, 30.0);
+    assert!(sheet_open(&doc), "a short drag leaves it open");
+    let (_, after, _, _) = rect(&doc, sheet_panel(&doc));
+    assert_eq!(after, top, "and back where it was");
+    drag_by(&mut doc, gx + gw / 2.0, gy + gh / 2.0, 160.0);
+    assert!(!sheet_open(&doc), "a long one closes it");
+}
+
+#[test]
+fn a_sheets_title_bar_has_cancel_and_done() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Sheet…");
+    tap(&mut doc, open);
+    let done = find(&doc, ".unit-sheet button", "Done");
+    tap(&mut doc, done);
+    assert!(!sheet_open(&doc));
+    assert_eq!(said(&doc), "Sheet done.");
+    let open = find(&doc, "button", "Sheet…");
+    tap(&mut doc, open);
+    let cancel = find(&doc, ".unit-sheet button", "Cancel");
+    tap(&mut doc, cancel);
+    assert!(!sheet_open(&doc));
+    assert_eq!(said(&doc), "Sheet done.", "Cancel is not Done");
+}
+
+#[test]
+fn a_sheet_keeps_off_the_home_indicator_and_sits_on_the_keyboard() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Sheet…");
+    let phone = find(&doc, ".unit-segment", "Phone");
+    tap(&mut doc, phone);
+    tap(&mut doc, open);
+    let panel = sheet_panel(&doc);
+    let (_, y, _, h) = rect(&doc, panel);
+    assert_eq!(y + h, 844.0, "the sheet runs to the bottom edge");
+    let body = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-sheet .unit-modal-body")
+        .unwrap()
+        .unwrap();
+    let (_, by, _, bh) = rect(&doc, body);
+    assert!(
+        by + bh <= 844.0 - 34.0,
+        "its content clears the home indicator"
+    );
+    // The keyboard, up.
+    let cancel = find(&doc, ".unit-sheet button", "Cancel");
+    tap(&mut doc, cancel);
+    let keyboard = find(&doc, ".unit-segment", "Keyboard");
+    tap(&mut doc, keyboard);
+    let open = find(&doc, "button", "Sheet…");
+    tap(&mut doc, open);
+    let (_, y, _, h) = rect(&doc, sheet_panel(&doc));
+    assert_eq!(y + h, 844.0 - 336.0, "the sheet sits on the keyboard");
+}
+
+#[test]
+fn a_toast_sits_above_the_keyboard() {
+    let mut doc = page(390, 844);
+    let keyboard = find(&doc, ".unit-segment", "Keyboard");
+    tap(&mut doc, keyboard);
+    let toast = find(&doc, "button", "Toast");
+    tap(&mut doc, toast);
+    let shown = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-toast")
+        .unwrap()
+        .unwrap();
+    let (_, y, _, h) = rect(&doc, shown);
+    assert!(
+        y + h <= 844.0 - 336.0,
+        "the toast's bottom {} is under the keyboard",
+        y + h
+    );
+}
+
+/// A finger down at the middle of `node`, held `ms` with the page polled
+/// meanwhile, then lifted.
+fn hold(doc: &mut DioxusDocument, node: NodeId, ms: u64) -> bool {
+    let (x, y, w, h) = rect(doc, node);
+    let (x, y) = (x + w / 2.0, y + h / 2.0);
+    let id = BlitzPointerId::Finger(1);
+    doc.handle_ui_event(UiEvent::PointerDown(pointer(
+        id,
+        x,
+        y,
+        MouseEventButtons::Primary,
+    )));
+    settle(doc);
+    std::thread::sleep(std::time::Duration::from_millis(ms));
+    settle(doc);
+    let open_before_lift = menu_open(doc);
+    doc.handle_ui_event(UiEvent::PointerUp(pointer(
+        id,
+        x,
+        y,
+        MouseEventButtons::None,
+    )));
+    settle(doc);
+    open_before_lift
+}
+
+fn menu_open(doc: &DioxusDocument) -> bool {
+    let menu = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-menu")
+        .unwrap()
+        .unwrap();
+    displayed(doc, menu)
+}
+
+#[test]
+fn a_finger_held_still_opens_the_context_menu_while_it_is_down_and_lifting_picks_nothing() {
+    let mut doc = page(390, 844);
+    let area = find(
+        &doc,
+        ".unit-callout",
+        "Right-click or hold here for a context menu.",
+    );
+    assert!(
+        hold(&mut doc, area, 650),
+        "the menu opens before the finger lifts"
+    );
+    assert!(menu_open(&doc), "and stays open when it lifts");
+    assert_eq!(said(&doc), "Nothing yet.", "lifting chose nothing");
+}
+
+#[test]
+fn a_tap_is_not_a_hold_and_a_hold_is_not_a_tap() {
+    let mut doc = page(390, 844);
+    let area = find(&doc, ".unit-callout", "Tap or hold here.");
+    tap(&mut doc, area);
+    assert_eq!(said(&doc), "Tapped, not held.");
+    hold(&mut doc, area, 650);
+    assert_eq!(
+        said(&doc),
+        "Held.",
+        "the click that ends a hold is not a tap"
+    );
+}
+
+#[test]
+fn the_mouse_held_down_is_not_a_long_press() {
+    let mut doc = page(1200, 800);
+    let area = find(&doc, ".unit-callout", "Tap or hold here.");
+    let (x, y, w, h) = rect(&doc, area);
+    let (x, y) = (x + w / 2.0, y + h / 2.0);
+    doc.handle_ui_event(UiEvent::PointerDown(pointer(
+        BlitzPointerId::Mouse,
+        x,
+        y,
+        MouseEventButtons::Primary,
+    )));
+    settle(&mut doc);
+    std::thread::sleep(std::time::Duration::from_millis(650));
+    settle(&mut doc);
+    doc.handle_ui_event(UiEvent::PointerUp(pointer(
+        BlitzPointerId::Mouse,
+        x,
+        y,
+        MouseEventButtons::None,
+    )));
+    settle(&mut doc);
+    assert_eq!(said(&doc), "Tapped, not held.");
+}
+
+fn actions_open(doc: &DioxusDocument) -> bool {
+    let place = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-actions-place")
+        .unwrap()
+        .unwrap();
+    displayed(doc, place)
+}
+
+#[test]
+fn an_action_sheet_rises_from_the_bottom_and_picks_or_cancels() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    assert!(actions_open(&doc));
+    let cancel = find(&doc, ".unit-actions-cancel", "Cancel");
+    let (_, y, _, h) = rect(&doc, cancel);
+    assert_eq!(y + h, 844.0 - 8.0, "Cancel sits at the bottom");
+    let delete = find(&doc, ".unit-action", "Delete");
+    assert!(class_of(&doc, delete).contains("danger"));
+    tap(&mut doc, delete);
+    assert!(!actions_open(&doc));
+    assert_eq!(said(&doc), "Action Some(3) chosen.");
+
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    tap(&mut doc, cancel);
+    assert_eq!(said(&doc), "Action None chosen.");
+
+    // A press on the scrim cancels it, and Escape does.
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    let backdrop = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-backdrop")
+        .unwrap()
+        .unwrap();
+    doc.handle_ui_event(UiEvent::PointerDown(pointer(
+        BlitzPointerId::Finger(1),
+        195.0,
+        40.0,
+        MouseEventButtons::Primary,
+    )));
+    settle(&mut doc);
+    let _ = backdrop;
+    assert!(!actions_open(&doc), "a press above the sheet cancels it");
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    key(&mut doc, Key::Named(NamedKey::Escape));
+    assert!(!actions_open(&doc));
+}
+
+#[test]
+fn assistive_tech_reads_an_action_sheet_as_a_modal_menu() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Actions…");
+    tap(&mut doc, open);
+    let nodes = tree(&doc);
+    let items = with_role(&nodes, Role::MenuItem);
+    for label in ["Share", "Duplicate", "Delete"] {
+        assert!(
+            items.iter().any(|n| n.label() == Some(label)),
+            "{label} is a menu item"
+        );
+    }
+    assert!(
+        with_role(&nodes, Role::Dialog)
+            .iter()
+            .any(|n| n.is_modal() && n.label() == Some("The entry")),
+        "the sheet is a modal named by its title"
+    );
+}
+
+#[test]
+fn a_callout_is_acted_on_and_put_away() {
+    let mut doc = page(1200, 800);
+    let show = find(&doc, ".unit-callout button", "Show me");
+    tap(&mut doc, show);
+    assert_eq!(said(&doc), "Tip shown.");
+    let dismiss = labelled(&doc, ".unit-callout button", "Dismiss");
+    click(&mut doc, dismiss);
+    let titles: Vec<String> = doc
+        .inner
+        .borrow()
+        .query_selector_all(".unit-callout-title")
+        .unwrap()
+        .iter()
+        .map(|&id| doc.inner.borrow().get_node(id).unwrap().text_content())
+        .collect();
+    assert!(!titles.iter().any(|t| t == "A tip"), "{titles:?}");
+}
+
+#[test]
+fn a_nav_bar_goes_back_and_keeps_below_the_status_bar() {
+    let mut doc = page(390, 844);
+    let back = labelled(&doc, "button", "Back to Library");
+    tap(&mut doc, back);
+    assert_eq!(said(&doc), "Back to Library pressed.");
+    let bar = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-navbar")
+        .unwrap()
+        .unwrap();
+    let row = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-navbar-row")
+        .unwrap()
+        .unwrap();
+    let (_, top, _, _) = rect(&doc, bar);
+    let (_, row_top, _, _) = rect(&doc, row);
+    assert_eq!(row_top, top, "no status bar, no room for one");
+    let phone = find(&doc, ".unit-segment", "Phone");
+    tap(&mut doc, phone);
+    let (_, top, _, _) = rect(&doc, bar);
+    let (_, row_top, _, _) = rect(&doc, row);
+    assert_eq!(row_top - top, 47.0, "the bar's row clears the status bar");
+    let nodes = tree(&doc);
+    assert!(
+        with_role(&nodes, Role::Toolbar)
+            .iter()
+            .any(|n| n.label() == Some("Entries"))
+    );
+}
+
+#[test]
+fn a_tab_bar_picks_a_place_by_a_tap_and_the_arrows() {
+    let mut doc = page(390, 844);
+    let search = labelled(&doc, ".unit-tabbar-item", "Search");
+    tap(&mut doc, search);
+    let search = labelled(&doc, ".unit-tabbar-item", "Search");
+    assert_eq!(attr(&doc, search, "aria-selected").as_deref(), Some("true"));
+    key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    let share = labelled(&doc, ".unit-tabbar-item", "Share");
+    assert_eq!(attr(&doc, share, "aria-selected").as_deref(), Some("true"));
+    let nodes = tree(&doc);
+    let tabs: Vec<_> = with_role(&nodes, Role::Tab)
+        .into_iter()
+        .filter(|n| n.label() == Some("Share"))
+        .collect();
+    assert_eq!(tabs.len(), 1);
+    assert_eq!(tabs[0].is_selected(), Some(true));
+}
+
+#[test]
+fn a_tree_opens_by_its_arrow_and_the_keys_and_reads_its_levels() {
+    let mut doc = page(1200, 800);
+    let count = |doc: &DioxusDocument| {
+        doc.inner
+            .borrow()
+            .query_selector_all(".unit-tree-row")
+            .unwrap()
+            .len()
+    };
+    assert_eq!(count(&doc), 2);
+    let arrow = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-tree-row .unit-tree-arrow")
+        .unwrap()
+        .unwrap();
+    click(&mut doc, arrow);
+    assert_eq!(count(&doc), 4, "Journal open, its two rows under it");
+    let journal = labelled(&doc, ".unit-tree-row", "Journal");
+    assert_eq!(
+        attr(&doc, journal, "aria-selected").as_deref(),
+        Some("false"),
+        "opening is not choosing"
+    );
+    let drafts = labelled(&doc, ".unit-tree-row", "Drafts");
+    let (jx, _, _, _) = rect(&doc, journal);
+    let (dx, _, _, _) = rect(&doc, drafts);
+    assert_eq!(dx, jx, "a row's indent is inside its box");
+    click(&mut doc, drafts);
+    let drafts = labelled(&doc, ".unit-tree-row", "Drafts");
+    assert_eq!(attr(&doc, drafts, "aria-selected").as_deref(), Some("true"));
+    let nodes = tree(&doc);
+    let items = with_role(&nodes, Role::TreeItem);
+    let d = items
+        .iter()
+        .find(|n| n.label() == Some("Drafts"))
+        .expect("Drafts in the tree");
+    // AccessKit counts levels from 0: aria-level 2.
+    assert_eq!(d.level(), Some(1));
+    let j = items
+        .iter()
+        .find(|n| n.label() == Some("Journal"))
+        .expect("Journal in the tree");
+    assert_eq!(j.is_expanded(), Some(true));
+    // The Left arrow closes Journal once it has the keys.
+    let journal = labelled(&doc, ".unit-tree-row", "Journal");
+    click(&mut doc, journal);
+    key(&mut doc, Key::Named(NamedKey::ArrowLeft));
+    assert_eq!(count(&doc), 2);
 }
