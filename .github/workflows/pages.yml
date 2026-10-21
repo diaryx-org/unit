@@ -1,0 +1,64 @@
+name: Pages
+# Publish the gallery, every unit component working on one page, to GitHub
+# Pages, built for the web from main:
+#
+#     https://diaryx-org.github.io/unit/
+#
+# The site is what `gallery/web/build.sh` makes, so the published page and a
+# local `build.sh` are the same files. unit is consumed from main, not from a
+# tag, so the gallery follows main too.
+#
+# Pages has to be switched on once by hand: Settings -> Pages -> Source:
+# "GitHub Actions". actions/configure-pages could do it only with a token
+# carrying `administration:write`, so it is not used; the page's URLs are all
+# relative and need no base path. When Pages is off, actions/deploy-pages says
+# so on its own.
+on:
+  push: { branches: [main] }
+  workflow_dispatch: null
+
+permissions:
+  contents: read
+
+# One deploy at a time, and never cancel one in flight: a half-finished Pages
+# deployment is a broken site, unlike a cancelled build.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build gallery
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+    # rust-toolchain.toml pins the toolchain and its wasm32 target; rustup
+    # installs both on the first cargo call.
+    - uses: Swatinem/rust-cache@v2
+      with: { key: "wasm32-unknown-unknown" }
+    # The bindings and the crate must match, so the CLI's version is
+    # Cargo.lock's, prebuilt rather than `cargo install`ed.
+    - id: bindgen
+      run: echo "version=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/version = |"/, ""); print; exit }' Cargo.lock)" >> "$GITHUB_OUTPUT"
+    - uses: taiki-e/install-action@v2
+      with: { tool: "wasm-bindgen@${{ steps.bindgen.outputs.version }}" }
+    - run: gallery/web/build.sh _site
+    - uses: actions/upload-pages-artifact@v4
+      with: { path: _site }
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write # to publish the deployment
+      id-token: write # to prove to Pages that it came from this workflow
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - id: deployment
+      uses: actions/deploy-pages@v4

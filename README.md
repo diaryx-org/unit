@@ -3,11 +3,14 @@
 Components for [Dioxus](https://dioxuslabs.com) that work the same on the web
 and on dioxus-native (Blitz), on a desktop and on a phone, and that assistive
 tech reads on each. It needs only `dioxus`, no renderer and no JavaScript.
+Every component, working, is at <https://diaryx-org.github.io/unit/>: the
+gallery built for the web from main.
 
 ```sh
 cargo test --workspace                   # the library, and every component laid out by Blitz
 cargo run -p unit-gallery                # every component, in a window drawn by Blitz
 dx serve -p unit-gallery --platform web --no-default-features --features web
+gallery/web/build.sh                     # the gallery as a static site, as Pages publishes it
 UNIT_APPEARANCE=dark UNIT_DENSITY=touch cargo run -p unit-gallery
 ```
 

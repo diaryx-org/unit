@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- The gallery's page in a browser, for GitHub Pages and for a look without
+     dx: `gallery/web/build.sh` puts the wasm and its bindings beside it. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>unit · gallery</title>
+<meta name="description" content="Every unit component, working, on one page: Dioxus components that draw the same on the web and on dioxus-native." />
+</head>
+<body>
+<div id="main"></div>
+<noscript>The gallery is a Dioxus app compiled to WebAssembly, and needs JavaScript to start.</noscript>
+<script type="module">
+  import init from "./unit-gallery.js";
+  init({ module_or_path: "./unit-gallery_bg.wasm" });
+</script>
+</body>
+</html>
