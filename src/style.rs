@@ -383,7 +383,7 @@ pub const CSS: &str = r#"
 .unit-callout.unit-warning { border-color: var(--unit-warning); }
 .unit-callout.unit-danger { border-color: var(--unit-danger); }
 .unit-callout-title { font-weight: 700; margin-bottom: 4px; }
-.unit-callout-body { flex: 1; }
+.unit-callout-body { flex: 1; min-width: 0; }
 .unit-callout .unit-button { margin: -4px 0; }
 "#;
 

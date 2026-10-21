@@ -204,6 +204,51 @@ mod tests {
     }
 
     #[test]
+    fn a_field_carries_what_a_form_and_a_password_manager_read() {
+        fn Page() -> Element {
+            rsx! {
+                UnitRoot {
+                    TextField {
+                        value: "",
+                        oninput: |_| {},
+                        kind: InputKind::Password,
+                        name: "password",
+                        autocomplete: "current-password",
+                        required: true,
+                        minlength: 8,
+                        maxlength: 64,
+                    }
+                    TextField { value: "", oninput: |_| {}, label: "Note" }
+                }
+            }
+        }
+        let html = render(Page);
+        for needle in [
+            "name=\"password\"",
+            "autocomplete=\"current-password\"",
+            "aria-required=\"true\"",
+            "minlength=\"8\"",
+            "maxlength=\"64\"",
+        ] {
+            assert!(html.contains(needle), "{needle} missing in {html}");
+        }
+        // A field without them has none of them.
+        assert_eq!(html.matches("autocomplete=").count(), 1, "{html}");
+        assert_eq!(html.matches("aria-required").count(), 1, "{html}");
+    }
+
+    #[test]
+    fn a_page_can_leave_the_stylesheet_to_a_file_of_its_own() {
+        fn Page() -> Element {
+            rsx! { UnitRoot { stylesheet: false, "x" } }
+        }
+        let html = render(Page);
+        assert!(!html.contains("<style"), "{html}");
+        assert!(!html.contains("--unit-accent"), "{html}");
+        assert!(Unit::stylesheet(&Theme::default()).contains("--unit-accent"));
+    }
+
+    #[test]
     fn a_forced_appearance_and_density_are_attributes_of_the_root() {
         fn Page() -> Element {
             rsx! { UnitRoot { appearance: Appearance::Dark, density: Density::Touch, "x" } }

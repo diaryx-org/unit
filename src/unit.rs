@@ -337,7 +337,7 @@ impl Unit {
     }
 
     /// The page's stylesheet: `theme`'s properties and every component's
-    /// styles. [`UnitRoot`] puts it in the page.
+    /// styles. [`UnitRoot`] puts it in the page, unless told not to.
     pub fn stylesheet(theme: &Theme) -> String {
         format!("{}{}", theme.css(), crate::style::CSS)
     }
@@ -458,6 +458,11 @@ pub fn UnitRoot(
     activates: bool,
     /// The theme; [`Theme::default`] unless given.
     theme: Option<Theme>,
+    /// Whether the theme's stylesheet goes in the page, in a `<style>`. A
+    /// web page rendered on a server serves [`Unit::stylesheet`] as a file
+    /// of its own instead, which a browser caches, and passes `false`.
+    #[props(default = true)]
+    stylesheet: bool,
     #[props(default)] class: String,
     children: Element,
 ) -> Element {
@@ -475,7 +480,9 @@ pub fn UnitRoot(
     let css = use_memo(use_reactive!(|theme| Unit::stylesheet(&theme)));
     let page_keys = keys == Keys::Page;
     rsx! {
-        style { {css()} }
+        if stylesheet {
+            style { {css()} }
+        }
         div {
             class: "unit-root {class}",
             "data-appearance": appearance.attr(),

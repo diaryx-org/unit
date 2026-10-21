@@ -59,7 +59,9 @@ fn App() -> Element {
 ```
 
 `UnitRoot` puts the theme's stylesheet in the page, keeps the page's focus,
-and draws the overlay that menus, dialogs and toasts appear in. A browser and
+and draws the overlay that menus, dialogs and toasts appear in. A page
+rendered on a server can pass `stylesheet: false` and serve
+`Unit::stylesheet(&theme)` as a file of its own, which a browser caches. A browser and
 dioxus-native's `launch` need nothing more. A host that reads keys itself, as
 an editor reading them from winit does, passes `keys: Keys::Host`, calls
 `Unit::key` and `Unit::text` before it uses a key, and gives keys to the
