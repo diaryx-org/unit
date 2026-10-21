@@ -295,6 +295,15 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         Text { "Hidden until opened." }
                     }
                 }
+                Card { title: "Icons",
+                    div { style: "display: flex; flex-wrap: wrap; gap: 14px;",
+                        for (name, d) in paths::ALL {
+                            span { key: "{name}", title: "{name}", Icon { d, size: 24.0 } }
+                        }
+                        Icon { d: paths::BOOKMARK, ink: Ink::Accent, filled: true, size: 24.0 }
+                        Icon { d: paths::PLAY, filled: true, size: 24.0 }
+                    }
+                }
                 Card { title: "Lists",
                     Section { title: "Account", footer: "Rows in a group, as a settings pane has them.",
                         Row { title: "Name", trailing: rsx! {
