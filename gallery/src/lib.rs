@@ -119,6 +119,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut markup = use_signal(|| 0usize);
     // What a phone would set: its safe area, and the keyboard up.
     let mut edges = use_signal(|| 0usize);
+    let mut tip = use_signal(|| true);
 
     let edit = vec![
         Item::new(CUT, "Cut").shortcut("⌘X").into(),
@@ -340,6 +341,12 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         Badge { tone: Tone::Danger, "Error" }
                     }
                     Callout { tone: Tone::Warning, title: "Heads up", "A callout in the page." }
+                    if tip() {
+                        Callout { title: "A tip", action: "Show me",
+                                  onaction: move |_| said.set("Tip shown.".into()),
+                                  ondismiss: move |_| tip.set(false),
+                                  "One that can be acted on, or put away." }
+                    }
                 }
             }
         }

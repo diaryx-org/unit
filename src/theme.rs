@@ -197,7 +197,13 @@ pub struct Theme {
     pub touch: Metrics,
     /// The font stack.
     pub font: &'static str,
+    /// The headings' font stack: a heading, a card's and a dialog's title.
+    /// The text's unless a page sets its own, a serif over a sans text.
+    pub heading_font: &'static str,
 }
+
+/// The system's text face, on each platform.
+pub const SYSTEM_FONT: &str = "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif";
 
 impl Default for Theme {
     fn default() -> Self {
@@ -206,7 +212,8 @@ impl Default for Theme {
             dark: Palette::DARK,
             regular: Metrics::REGULAR,
             touch: Metrics::TOUCH,
-            font: "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+            font: SYSTEM_FONT,
+            heading_font: SYSTEM_FONT,
         }
     }
 }
@@ -229,6 +236,7 @@ impl Theme {
         };
         s.push_str(".unit-root {\n");
         let _ = writeln!(s, "  --unit-font: {};", self.font);
+        let _ = writeln!(s, "  --unit-heading-font: {};", self.heading_font);
         palette(&mut s, &self.light);
         metrics(&mut s, &self.regular);
         s.push_str("}\n");
@@ -266,5 +274,22 @@ mod tests {
         let css = Theme::default().css();
         assert_eq!(css.matches("--unit-accent: #3b7ff0").count(), 2, "{css}");
         assert!(css.contains("[data-density=\"touch\"]"));
+    }
+
+    #[test]
+    fn headings_take_their_own_font() {
+        let theme = Theme {
+            heading_font: "Georgia, serif",
+            ..Theme::default()
+        };
+        let css = theme.css();
+        assert!(
+            css.contains("--unit-heading-font: Georgia, serif;"),
+            "{css}"
+        );
+        assert!(
+            css.contains(&format!("--unit-font: {SYSTEM_FONT};")),
+            "{css}"
+        );
     }
 }

@@ -955,3 +955,22 @@ fn assistive_tech_reads_an_action_sheet_as_a_modal_menu() {
         "the sheet is a modal named by its title"
     );
 }
+
+#[test]
+fn a_callout_is_acted_on_and_put_away() {
+    let mut doc = page(1200, 800);
+    let show = find(&doc, ".unit-callout button", "Show me");
+    tap(&mut doc, show);
+    assert_eq!(said(&doc), "Tip shown.");
+    let dismiss = labelled(&doc, ".unit-callout button", "Dismiss");
+    click(&mut doc, dismiss);
+    let titles: Vec<String> = doc
+        .inner
+        .borrow()
+        .query_selector_all(".unit-callout-title")
+        .unwrap()
+        .iter()
+        .map(|&id| doc.inner.borrow().get_node(id).unwrap().text_content())
+        .collect();
+    assert!(!titles.iter().any(|t| t == "A tip"), "{titles:?}");
+}

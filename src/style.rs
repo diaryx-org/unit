@@ -54,7 +54,7 @@ pub const CSS: &str = r#"
                background: var(--unit-surface); color: var(--unit-text);
                border: 1px solid var(--unit-border); border-radius: var(--unit-radius-large);
                box-shadow: 0 12px 40px var(--unit-shadow); }
-.unit-dialog-title { font-weight: 700; margin-bottom: 6px; }
+.unit-dialog-title { font-family: var(--unit-heading-font); font-weight: 700; margin-bottom: 6px; }
 .unit-dialog-message { margin-bottom: 10px; }
 .unit-dialog .unit-input { margin: 4px 0 14px; }
 .unit-dialog-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
@@ -184,7 +184,7 @@ pub const CSS: &str = r#"
               background: var(--unit-control); border: 1px solid var(--unit-border);
               border-radius: var(--unit-radius); }
 .unit-textarea { height: auto; padding: 6px 8px; }
-.unit-heading { margin: 0 0 6px; font-weight: 700; }
+.unit-heading { margin: 0 0 6px; font-family: var(--unit-heading-font); font-weight: 700; }
 .unit-text { margin: 0 0 6px; }
 .unit-text.dim, .unit-note { color: var(--unit-dim); }
 .unit-note { font-size: 0.92em; margin-top: 4px; }
@@ -268,7 +268,7 @@ pub const CSS: &str = r#"
 .unit-card { display: flex; flex-direction: column; gap: var(--unit-gap);
              padding: 12px 14px; background: var(--unit-surface);
              border: 1px solid var(--unit-border); border-radius: var(--unit-radius-large); }
-.unit-card-title { margin: 0; font-size: 1em; font-weight: 700; }
+.unit-card-title { margin: 0; font-family: var(--unit-heading-font); font-size: 1em; font-weight: 700; }
 .unit-divider { height: 1px; background: var(--unit-border); margin: 4px 0; }
 .unit-form-row { display: flex; align-items: flex-start; gap: var(--unit-gap); }
 .unit-form-label { flex: none; width: 34%; padding-top: 4px; text-align: right; }
@@ -282,12 +282,15 @@ pub const CSS: &str = r#"
 .unit-badge.unit-danger { background: var(--unit-danger); border-color: var(--unit-danger); color: #ffffff; }
 .unit-progress { height: 6px; overflow: hidden; border-radius: 3px; background: var(--unit-border); }
 .unit-progress-fill { height: 100%; background: var(--unit-accent); }
-.unit-callout { padding: 10px 12px; border-radius: var(--unit-radius);
+.unit-callout { display: flex; align-items: flex-start; gap: 8px;
+                padding: 10px 12px; border-radius: var(--unit-radius);
                 border: 1px solid var(--unit-border); background: var(--unit-surface); }
 .unit-callout.unit-success { border-color: var(--unit-success); }
 .unit-callout.unit-warning { border-color: var(--unit-warning); }
 .unit-callout.unit-danger { border-color: var(--unit-danger); }
 .unit-callout-title { font-weight: 700; margin-bottom: 4px; }
+.unit-callout-body { flex: 1; }
+.unit-callout .unit-button { margin: -4px 0; }
 "#;
 
 #[cfg(test)]
