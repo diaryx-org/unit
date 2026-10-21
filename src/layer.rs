@@ -165,6 +165,7 @@ impl Unit {
         let sizes = match *self.density.peek() {
             crate::Density::Regular => Sizes::REGULAR,
             crate::Density::Touch => Sizes::TOUCH,
+            crate::Density::Cell => Sizes::CELL,
         };
         let menu = Menu::open(entries, at, above, viewport, sizes);
         let mut w = l.write();
@@ -172,8 +173,9 @@ impl Unit {
         w.owner = (owner != 0).then_some(owner);
     }
 
-    /// Highlight the open menu's first item, as a menu opened by a key does.
-    pub(crate) fn hot_first(&self) {
+    /// Highlight the open menu's first item, as a menu opened by a key does:
+    /// for a host that opens [`Unit::open_menu`] from a key of its own.
+    pub fn hot_first(&self) {
         let mut l = self.layer;
         if let Some((m, _)) = l.write().menu.as_mut() {
             m.hot_first();
@@ -197,6 +199,26 @@ impl Unit {
         let mut w = l.write();
         w.menu = None;
         w.actions = Some((sheet, Rc::new(move |a| (choose.borrow_mut())(a))));
+    }
+
+    fn step_actions(&self, down: bool) {
+        let mut l = self.layer;
+        if let Some((s, _)) = l.write().actions.as_mut() {
+            s.step(down);
+        }
+    }
+
+    /// Choose what the keys have highlighted, if anything.
+    fn choose_hot(&self) {
+        let chosen = self
+            .layer
+            .peek()
+            .actions
+            .as_ref()
+            .and_then(|(s, _)| s.chosen());
+        if let Some(c) = chosen {
+            self.choose(c);
+        }
     }
 
     fn choose(&self, action: Option<usize>) {
@@ -268,8 +290,15 @@ impl Unit {
             return self.settle(outcome);
         }
         if l.peek().actions.is_some() {
-            if matches!(key, Key::Named(NamedKey::Escape)) {
-                self.choose(None);
+            let shift = mods.contains(Modifiers::SHIFT);
+            match key {
+                Key::Named(NamedKey::Escape) => self.choose(None),
+                Key::Named(NamedKey::ArrowDown) => self.step_actions(true),
+                Key::Named(NamedKey::ArrowUp) => self.step_actions(false),
+                Key::Named(NamedKey::Tab) => self.step_actions(!shift),
+                Key::Named(NamedKey::Enter) => self.choose_hot(),
+                Key::Character(c) if c == " " => self.choose_hot(),
+                _ => {}
             }
             return true;
         }
@@ -639,11 +668,13 @@ fn ActionsView(unit: Unit, sheet: Option<ActionSheet>, bottom: f64) -> Element {
                             }
                         }
                     }
-                    for a in s.actions.iter().cloned() {
-                        {action_view(unit, a)}
+                    for (i, a) in s.actions.iter().cloned().enumerate() {
+                        {action_view(unit, a, s.hot == Some(i))}
                     }
                 }
-                button { class: "unit-actions-cancel", r#type: "button",
+                button {
+                    class: if s.hot == Some(s.actions.len()) { "unit-actions-cancel hot" } else { "unit-actions-cancel" },
+                    r#type: "button",
                     "aria-label": "{s.cancel}",
                     onpointerdown: move |e: PointerEvent| e.stop_propagation(),
                     onclick: move |e: MouseEvent| {
@@ -657,16 +688,17 @@ fn ActionsView(unit: Unit, sheet: Option<ActionSheet>, bottom: f64) -> Element {
     }
 }
 
-fn action_view(unit: Unit, a: SheetAction) -> Element {
+fn action_view(unit: Unit, a: SheetAction, hot: bool) -> Element {
     let ink = match () {
         _ if !a.enabled => Ink::Dim,
         _ if a.destructive => Ink::Danger,
         _ => Ink::Accent,
     };
     let class = format!(
-        "unit-action{}{}",
+        "unit-action{}{}{}",
         if a.destructive { " danger" } else { "" },
-        if a.enabled { "" } else { " off" }
+        if a.enabled { "" } else { " off" },
+        if hot { " hot" } else { "" }
     );
     let id = a.id;
     let enabled = a.enabled;

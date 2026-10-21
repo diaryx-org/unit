@@ -187,6 +187,17 @@ impl Metrics {
         radius_large: 14.0,
     };
 
+    /// For a terminal's cells ([`Density::Cell`]): a control a row high,
+    /// text a monospace face's 16px, a gap of about one cell's width, and
+    /// square corners.
+    pub const CELL: Metrics = Metrics {
+        control: 24.0,
+        font_size: 16.0,
+        gap: 10.0,
+        radius: 0.0,
+        radius_large: 0.0,
+    };
+
     fn entries(&self) -> [(&'static str, f64); 5] {
         [
             ("control-height", self.control),
@@ -227,6 +238,13 @@ pub enum Density {
     Regular,
     /// For a finger.
     Touch,
+    /// For a terminal's character cells: a renderer that paints the page
+    /// into a grid (leaf's terminal host) rather than pixels. Every row a
+    /// menu or a dialog has is one cell high — [`Metrics::CELL`]'s control,
+    /// 24px — with no rounded corners or shadows, which cells cannot draw.
+    /// The host gives the theme its monospace [`Theme::font`], whose advance
+    /// is its cell.
+    Cell,
 }
 
 impl Density {
@@ -235,6 +253,7 @@ impl Density {
         match self {
             Density::Regular => "regular",
             Density::Touch => "touch",
+            Density::Cell => "cell",
         }
     }
 }
@@ -246,6 +265,7 @@ pub struct Theme {
     pub dark: Palette,
     pub regular: Metrics,
     pub touch: Metrics,
+    pub cell: Metrics,
     /// The font stack.
     pub font: &'static str,
     /// The headings' font stack: a heading, a card's and a dialog's title.
@@ -263,6 +283,7 @@ impl Default for Theme {
             dark: Palette::DARK,
             regular: Metrics::REGULAR,
             touch: Metrics::TOUCH,
+            cell: Metrics::CELL,
             font: SYSTEM_FONT,
             heading_font: SYSTEM_FONT,
         }
@@ -301,6 +322,9 @@ impl Theme {
         s.push_str("}\n");
         s.push_str(".unit-root[data-density=\"touch\"] {\n");
         metrics(&mut s, &self.touch);
+        s.push_str("}\n");
+        s.push_str(".unit-root[data-density=\"cell\"] {\n");
+        metrics(&mut s, &self.cell);
         s.push_str("}\n");
         s
     }

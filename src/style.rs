@@ -46,6 +46,12 @@ pub const CSS: &str = r#"
 .unit-root[data-density="touch"] .unit-item { height: 40px; line-height: 40px; border-radius: 8px; }
 .unit-root[data-density="touch"] .unit-tick { width: 28px; }
 .unit-root[data-density="touch"] .unit-sep { height: 13px; padding: 6px 12px; }
+.unit-root[data-density="cell"] { line-height: 24px; }
+.unit-root[data-density="cell"] .unit-menu { padding: 23px 0; font-size: inherit; border-radius: 0; box-shadow: none; }
+.unit-root[data-density="cell"] .unit-item { height: 24px; line-height: 24px; margin: 0; padding: 0 10px 0 0; border-radius: 0; }
+.unit-root[data-density="cell"] .unit-tick { width: 20px; }
+.unit-root[data-density="cell"] .unit-key { padding-left: 20px; }
+.unit-root[data-density="cell"] .unit-sep { height: 24px; padding: 11px 10px; }
 
 /* The overlay's dialog */
 .unit-dialog-place { position: absolute; left: 0; top: 0; right: 0; bottom: 0;
@@ -58,6 +64,11 @@ pub const CSS: &str = r#"
 .unit-dialog-message { margin-bottom: 10px; }
 .unit-dialog .unit-input { margin: 4px 0 14px; }
 .unit-dialog-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.unit-root[data-density="cell"] .unit-dialog { padding: 23px 20px; box-shadow: none; }
+.unit-root[data-density="cell"] .unit-dialog-title { margin-bottom: 0; }
+.unit-root[data-density="cell"] .unit-dialog-message { margin: 24px 0 0; }
+.unit-root[data-density="cell"] .unit-dialog .unit-input { margin: 24px 0 0; }
+.unit-root[data-density="cell"] .unit-dialog-buttons { gap: 20px; margin-top: 24px; }
 .unit-field { line-height: var(--unit-control-height); white-space: pre; overflow: hidden; }
 .unit-field.all { background: var(--unit-selection); }
 .unit-caret { display: inline-block; width: 1px; height: 16px; vertical-align: middle;
@@ -87,6 +98,14 @@ pub const CSS: &str = r#"
 .unit-action:hover, .unit-actions-cancel:hover { background: var(--unit-control-hover); }
 .unit-actions-cancel { font-weight: 700; background: var(--unit-surface);
                        border: 1px solid var(--unit-border); border-radius: var(--unit-radius-large); }
+.unit-action.hot, .unit-actions-cancel.hot { background: var(--unit-accent); color: var(--unit-accent-text); }
+.unit-action.danger.hot { background: var(--unit-danger); color: var(--unit-accent-text); }
+.unit-root[data-density="cell"] .unit-actions-place { justify-content: flex-start; padding: 72px 20px 24px; }
+.unit-root[data-density="cell"] .unit-actions { gap: 24px; }
+.unit-root[data-density="cell"] .unit-actions-group { border-radius: 0; padding-bottom: 23px; }
+.unit-root[data-density="cell"] .unit-actions-head { padding: 23px 20px 24px; font-size: inherit; border-bottom: 0; }
+.unit-root[data-density="cell"] .unit-action, .unit-root[data-density="cell"] .unit-actions-cancel {
+    min-height: 24px; height: 24px; border-top: 0; border-radius: 0; }
 
 /* Toasts */
 .unit-toasts { position: absolute; left: 0; right: 0; bottom: 16px; display: flex;
@@ -410,5 +429,14 @@ mod tests {
         assert!(CSS.contains(&format!(".unit-item {{ height: {}px", t.item)));
         assert!(CSS.contains(&format!(".unit-sep {{ height: {}px", t.separator)));
         assert!(CSS.contains(&format!(".unit-menu {{ padding: {}px 0", t.pad)));
+        let c = Sizes::CELL;
+        let cell = |rule: &str| format!(".unit-root[data-density=\"cell\"] {rule}");
+        assert!(CSS.contains(&cell(&format!(".unit-item {{ height: {}px", c.item))));
+        assert!(CSS.contains(&cell(&format!(".unit-sep {{ height: {}px", c.separator))));
+        // The cell density's pad is its padding and its 1px border.
+        assert!(CSS.contains(&cell(&format!(
+            ".unit-menu {{ padding: {}px 0",
+            c.pad - 1.0
+        ))));
     }
 }

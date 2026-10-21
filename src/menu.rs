@@ -24,6 +24,10 @@ pub struct Sizes {
     /// An average character of the menus' face, for estimating width.
     pub char: f64,
     pub min_width: f64,
+    /// How far a level is kept off the viewport's edges.
+    pub margin: f64,
+    /// How far a submenu overlaps its parent, as the system's do.
+    pub overlap: f64,
 }
 
 impl Sizes {
@@ -33,6 +37,8 @@ impl Sizes {
         pad: 5.0,
         char: 7.0,
         min_width: 160.0,
+        margin: 4.0,
+        overlap: 4.0,
     };
 
     /// For a finger: rows tall enough to tap.
@@ -42,6 +48,24 @@ impl Sizes {
         pad: 6.0,
         char: 9.0,
         min_width: 200.0,
+        margin: 4.0,
+        overlap: 4.0,
+    };
+
+    /// For a terminal's cells: an item and a separator a row each, and a
+    /// row above and below the items, where the border is drawn — `pad` is
+    /// the stylesheet's 23px padding and the 1px border together, so a level
+    /// is exactly as tall as its rows. `char` is a 16px monospace face's
+    /// advance. A level keeps to the grid: no margin off the edges, and a
+    /// submenu overlapping its parent by one cell, so they share a border.
+    pub const CELL: Sizes = Sizes {
+        item: 24.0,
+        separator: 24.0,
+        pad: 24.0,
+        char: 9.7,
+        min_width: 160.0,
+        margin: 0.0,
+        overlap: 9.7,
     };
 }
 
@@ -50,10 +74,6 @@ const MAX_WIDTH: f64 = 380.0;
 const GUTTERS: f64 = 44.0;
 /// An item's icon and the gap after it: `.unit-item .unit-svg`.
 const ICON: f64 = 22.0;
-/// How far a submenu overlaps its parent, as the system's do.
-const OVERLAP: f64 = 4.0;
-/// A level kept this far off the viewport's edges.
-const MARGIN: f64 = 4.0;
 
 /// One thing a menu shows.
 #[derive(Clone, Debug, PartialEq)]
@@ -276,11 +296,12 @@ impl Menu {
     ) -> Self {
         let mut level = Level::new(entries, sizes);
         let (w, h) = (level.width, level.height());
-        level.left = at.0.min(viewport.0 - w - MARGIN).max(MARGIN);
-        level.top = if at.1 + h > viewport.1 - MARGIN && at.1 - above - h > MARGIN {
+        let margin = sizes.margin;
+        level.left = at.0.min(viewport.0 - w - margin).max(margin);
+        level.top = if at.1 + h > viewport.1 - margin && at.1 - above - h > margin {
             at.1 - above - h
         } else {
-            at.1.min(viewport.1 - h - MARGIN).max(MARGIN)
+            at.1.min(viewport.1 - h - margin).max(margin)
         };
         Self {
             levels: vec![level],
@@ -318,17 +339,18 @@ impl Menu {
         };
         let mut level = Level::new(entries.clone(), parent.sizes);
         let (w, h) = (level.width, level.height());
-        let right = parent.left + parent.width - OVERLAP;
-        level.left = if right + w > self.viewport.0 - MARGIN {
+        let z = parent.sizes;
+        let right = parent.left + parent.width - z.overlap;
+        level.left = if right + w > self.viewport.0 - z.margin {
             // No room to the right: to the left of the parent instead.
-            (parent.left - w + OVERLAP).max(MARGIN)
+            (parent.left - w + z.overlap).max(z.margin)
         } else {
             right
         };
         // Its first item level with the parent's.
-        level.top = (parent.top + parent.entry_top(i) - parent.sizes.pad)
-            .min(self.viewport.1 - h - MARGIN)
-            .max(MARGIN);
+        level.top = (parent.top + parent.entry_top(i) - z.pad)
+            .min(self.viewport.1 - h - z.margin)
+            .max(z.margin);
         self.levels.truncate(depth + 1);
         self.levels.push(level);
         true
@@ -488,7 +510,10 @@ mod tests {
         m.hover(0, 3);
         assert_eq!(m.levels.len(), 2);
         let (parent, sub) = (&m.levels[0], &m.levels[1]);
-        assert_eq!(sub.left, parent.left + parent.width - OVERLAP);
+        assert_eq!(
+            sub.left,
+            parent.left + parent.width - Sizes::REGULAR.overlap
+        );
         assert_eq!(sub.top, parent.top + parent.entry_top(3) - parent.sizes.pad);
         assert_eq!(m.release(1, 1), Outcome::Pick(11));
         // Back to the parent: the submenu closes.
