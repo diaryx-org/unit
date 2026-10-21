@@ -100,7 +100,7 @@ pub const CSS: &str = r#"
                        border: 1px solid var(--unit-border); border-radius: var(--unit-radius-large); }
 .unit-action.hot, .unit-actions-cancel.hot { background: var(--unit-accent); color: var(--unit-accent-text); }
 .unit-action.danger.hot { background: var(--unit-danger); color: var(--unit-accent-text); }
-.unit-root[data-density="cell"] .unit-actions-place { justify-content: center; padding: 24px 20px; }
+.unit-root[data-density="cell"] .unit-actions-place { justify-content: flex-start; padding: 72px 20px 24px; }
 .unit-root[data-density="cell"] .unit-actions { gap: 24px; }
 .unit-root[data-density="cell"] .unit-actions-group { border-radius: 0; padding-bottom: 23px; }
 .unit-root[data-density="cell"] .unit-actions-head { padding: 23px 20px 24px; font-size: inherit; border-bottom: 0; }
