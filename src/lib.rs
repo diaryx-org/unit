@@ -80,7 +80,8 @@ pub use menu::{Entry, Item};
 pub use style::CSS;
 pub use theme::{Appearance, Density, Metrics, Palette, Theme};
 pub use unit::{
-    Clipboard, Focus, Keys, Kind, Unit, UnitRoot, next_id, use_focus, use_unit, use_unit_provider,
+    Clipboard, Focus, Insets, Keys, Kind, Unit, UnitRoot, next_id, use_focus, use_unit,
+    use_unit_provider,
 };
 
 /// Everything a page uses, at once.

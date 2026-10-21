@@ -2,6 +2,7 @@
 //! binary shows it in a window or a browser; the tests lay it out headless.
 
 use dioxus::prelude::*;
+use unit::Insets;
 use unit::icon::paths;
 use unit::prelude::*;
 
@@ -75,6 +76,8 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut modal = use_signal(|| false);
     let mut sheet = use_signal(|| false);
     let mut markup = use_signal(|| 0usize);
+    // What a phone would set: its safe area, and the keyboard up.
+    let mut edges = use_signal(|| 0usize);
 
     let edit = vec![
         Item::new(CUT, "Cut").shortcut("⌘X").into(),
@@ -123,6 +126,17 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                     options: vec!["System".into(), "Light".into(), "Dark".into()],
                     selected: Some(match appearance() { Appearance::System => 0, Appearance::Light => 1, Appearance::Dark => 2 }),
                     onchange: move |i| appearance.clone().set([Appearance::System, Appearance::Light, Appearance::Dark][i]),
+                }
+                Segmented {
+                    label: "Edges",
+                    options: vec!["Window".into(), "Phone".into(), "Keyboard".into()],
+                    selected: Some(edges()),
+                    onchange: move |i| {
+                        edges.set(i);
+                        let phone = Insets { top: 47.0, bottom: 34.0, ..Insets::default() };
+                        unit.set_insets(if i == 0 { Insets::default() } else { phone });
+                        unit.set_keyboard(if i == 2 { 336.0 } else { 0.0 });
+                    },
                 }
                 Segmented {
                     label: "Density",
@@ -283,7 +297,9 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
             Checkbox { checked: spelling(), onchange: move |v| spelling.set(v), "Check spelling" }
             Select { label: "Font", choices: fonts.clone(), selected: font(), onpick: move |i| font.set(Some(i)) }
         }
-        Modal { open: sheet(), title: "A sheet", placement: Placement::Sheet, onclose: move |_| sheet.set(false),
+        Modal { open: sheet(), title: "A sheet", placement: Placement::Sheet,
+                cancel: "Cancel", done: "Done", onclose: move |_| sheet.set(false),
+                ondone: move |_| { sheet.set(false); said.set("Sheet done.".into()); },
             Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
             Slider { label: "Volume", value: volume(), onchange: move |v| volume.set(v) }
         }

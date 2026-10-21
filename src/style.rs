@@ -230,6 +230,14 @@ pub const CSS: &str = r#"
 .unit-modal-head { display: flex; align-items: center; justify-content: space-between;
                    gap: 8px; margin-bottom: 8px; }
 .unit-modal-head .unit-dialog-title { margin: 0; }
+.unit-sheet .unit-modal-head, .unit-sheet-grabber { touch-action: none; }
+.unit-sheet-grabber { display: flex; justify-content: center; padding: 0 0 8px; margin-top: -6px; }
+.unit-sheet-grabber-bar { width: 36px; height: 5px; border-radius: 3px; background: var(--unit-border); }
+.unit-modal-head.unit-phone-bar .unit-dialog-title { flex: 1; text-align: center; }
+.unit-modal-side { display: flex; flex: 1 1 0; }
+.unit-modal-side.unit-modal-end { justify-content: flex-end; }
+.unit-modal-head.unit-phone-bar .unit-dialog-title { flex: 2 1 0; }
+.unit-button.unit-done { font-weight: 700; color: var(--unit-accent); }
 
 /* Layout and feedback */
 .unit-stack { display: flex; }

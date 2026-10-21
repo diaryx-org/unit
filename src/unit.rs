@@ -31,6 +31,16 @@ pub trait Clipboard {
     fn write(&self, text: &str);
 }
 
+/// Room at each edge of the window that the page's content keeps clear of,
+/// in CSS pixels: a phone's status bar and home indicator.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Insets {
+    pub top: f64,
+    pub right: f64,
+    pub bottom: f64,
+    pub left: f64,
+}
+
 /// How keys reach the page's controls.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Keys {
@@ -91,6 +101,9 @@ pub struct Unit {
     /// from (`icon.rs`).
     pub(crate) theme: CopyValue<Theme>,
     pub(crate) appearance: Signal<Appearance>,
+    /// The window's safe area, and how far the soft keyboard covers the
+    /// page from the bottom: what sheets, dialogs and toasts keep clear of.
+    pub(crate) edges: Signal<(Insets, f64)>,
 }
 
 impl PartialEq for Unit {
@@ -133,6 +146,7 @@ pub fn use_unit_provider(keys: Keys, activates: bool) -> Unit {
         modals: CopyValue::new(Vec::new()),
         theme: CopyValue::new(Theme::default()),
         appearance: Signal::new(Appearance::System),
+        edges: Signal::new((Insets::default(), 0.0)),
     });
     unit.keys.clone().set(keys);
     unit.activates.clone().set(activates);
@@ -148,6 +162,33 @@ impl Unit {
         if l.peek().viewport != (width, height) {
             l.write().viewport = (width, height);
         }
+    }
+
+    /// The window's safe area, which sheets, dialogs and toasts keep clear
+    /// of: set it where the window has one (a phone) and whenever it
+    /// changes. Blitz's viewport is the whole window, so the renderer does
+    /// not keep the page out of it.
+    pub fn set_insets(&self, safe: Insets) {
+        let mut e = self.edges;
+        if e.peek().0 != safe {
+            e.write().0 = safe;
+        }
+    }
+
+    /// How far the soft keyboard covers the page from its bottom, in CSS
+    /// pixels, or 0 with none: a sheet sits above it, and a toast. A host
+    /// reads it from the platform (UIKit's keyboard frame) and sets it as
+    /// it changes.
+    pub fn set_keyboard(&self, height: f64) {
+        let mut e = self.edges;
+        if e.peek().1 != height {
+            e.write().1 = height;
+        }
+    }
+
+    /// The safe area, and the keyboard's height, as last set.
+    pub fn edges(&self) -> (Insets, f64) {
+        *self.edges.read()
     }
 
     /// Where a dialog's field reads and writes the clipboard, when the host

@@ -650,3 +650,142 @@ fn a_row_holds_a_field_at_its_right_and_is_a_fingers_height_at_touch_density() {
     assert!(fx > rx + 40.0, "the field sits right of the title");
     assert!(fx + fw <= rx + rw, "and inside the row");
 }
+
+/// A finger pressed at `(x, y)`, moved by `dy` in steps, and lifted.
+fn drag_by(doc: &mut DioxusDocument, x: f64, y: f64, dy: f64) {
+    let id = BlitzPointerId::Finger(1);
+    doc.handle_ui_event(UiEvent::PointerDown(pointer(
+        id,
+        x,
+        y,
+        MouseEventButtons::Primary,
+    )));
+    settle(doc);
+    for i in 1..=5 {
+        let at = y + dy * i as f64 / 5.0;
+        doc.handle_ui_event(UiEvent::PointerMove(pointer(
+            id,
+            x,
+            at,
+            MouseEventButtons::Primary,
+        )));
+        settle(doc);
+    }
+    doc.handle_ui_event(UiEvent::PointerUp(pointer(
+        id,
+        x,
+        y + dy,
+        MouseEventButtons::None,
+    )));
+    settle(doc);
+}
+
+fn sheet_open(doc: &DioxusDocument) -> bool {
+    let place = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-sheet-place")
+        .unwrap()
+        .unwrap();
+    displayed(doc, place)
+}
+
+fn sheet_panel(doc: &DioxusDocument) -> NodeId {
+    doc.inner
+        .borrow()
+        .query_selector(".unit-sheet")
+        .unwrap()
+        .unwrap()
+}
+
+#[test]
+fn a_sheet_dragged_down_far_enough_closes_and_a_short_drag_springs_back() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Sheet…");
+    tap(&mut doc, open);
+    assert!(sheet_open(&doc));
+    let grabber = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-sheet-grabber")
+        .unwrap()
+        .unwrap();
+    let (gx, gy, gw, gh) = rect(&doc, grabber);
+    let (_, top, _, _) = rect(&doc, sheet_panel(&doc));
+    drag_by(&mut doc, gx + gw / 2.0, gy + gh / 2.0, 30.0);
+    assert!(sheet_open(&doc), "a short drag leaves it open");
+    let (_, after, _, _) = rect(&doc, sheet_panel(&doc));
+    assert_eq!(after, top, "and back where it was");
+    drag_by(&mut doc, gx + gw / 2.0, gy + gh / 2.0, 160.0);
+    assert!(!sheet_open(&doc), "a long one closes it");
+}
+
+#[test]
+fn a_sheets_title_bar_has_cancel_and_done() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Sheet…");
+    tap(&mut doc, open);
+    let done = find(&doc, ".unit-sheet button", "Done");
+    tap(&mut doc, done);
+    assert!(!sheet_open(&doc));
+    assert_eq!(said(&doc), "Sheet done.");
+    let open = find(&doc, "button", "Sheet…");
+    tap(&mut doc, open);
+    let cancel = find(&doc, ".unit-sheet button", "Cancel");
+    tap(&mut doc, cancel);
+    assert!(!sheet_open(&doc));
+    assert_eq!(said(&doc), "Sheet done.", "Cancel is not Done");
+}
+
+#[test]
+fn a_sheet_keeps_off_the_home_indicator_and_sits_on_the_keyboard() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Sheet…");
+    let phone = find(&doc, ".unit-segment", "Phone");
+    tap(&mut doc, phone);
+    tap(&mut doc, open);
+    let panel = sheet_panel(&doc);
+    let (_, y, _, h) = rect(&doc, panel);
+    assert_eq!(y + h, 844.0, "the sheet runs to the bottom edge");
+    let body = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-sheet .unit-modal-body")
+        .unwrap()
+        .unwrap();
+    let (_, by, _, bh) = rect(&doc, body);
+    assert!(
+        by + bh <= 844.0 - 34.0,
+        "its content clears the home indicator"
+    );
+    // The keyboard, up.
+    let cancel = find(&doc, ".unit-sheet button", "Cancel");
+    tap(&mut doc, cancel);
+    let keyboard = find(&doc, ".unit-segment", "Keyboard");
+    tap(&mut doc, keyboard);
+    let open = find(&doc, "button", "Sheet…");
+    tap(&mut doc, open);
+    let (_, y, _, h) = rect(&doc, sheet_panel(&doc));
+    assert_eq!(y + h, 844.0 - 336.0, "the sheet sits on the keyboard");
+}
+
+#[test]
+fn a_toast_sits_above_the_keyboard() {
+    let mut doc = page(390, 844);
+    let keyboard = find(&doc, ".unit-segment", "Keyboard");
+    tap(&mut doc, keyboard);
+    let toast = find(&doc, "button", "Toast");
+    tap(&mut doc, toast);
+    let shown = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-toast")
+        .unwrap()
+        .unwrap();
+    let (_, y, _, h) = rect(&doc, shown);
+    assert!(
+        y + h <= 844.0 - 336.0,
+        "the toast's bottom {} is under the keyboard",
+        y + h
+    );
+}

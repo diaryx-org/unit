@@ -333,6 +333,8 @@ fn LayerView(unit: Unit) -> Element {
         .map(|(id, t, _)| (*id, t.clone()))
         .collect();
     drop(l);
+    let (safe, keyboard) = unit.edges();
+    let toasts_bottom = safe.bottom.max(keyboard) + 16.0;
     let backdrop = if menu || dialog.is_some() {
         "block"
     } else {
@@ -359,8 +361,9 @@ fn LayerView(unit: Unit) -> Element {
             for (depth, level) in levels.into_iter().enumerate() {
                 MenuLevel { key: "{depth}", unit, depth, level }
             }
-            DialogView { unit, dialog }
+            DialogView { unit, dialog, top: safe.top }
             div { class: "unit-toasts", role: "status", "aria-live": "polite",
+                style: "bottom: {toasts_bottom}px",
                 for (id, t) in toasts {
                     ToastView { key: "{id}", unit, id, toast: t }
                 }
@@ -483,7 +486,7 @@ fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, hot: bool) -> E
 }
 
 #[component]
-fn DialogView(unit: Unit, dialog: Option<Dialog>) -> Element {
+fn DialogView(unit: Unit, dialog: Option<Dialog>, top: f64) -> Element {
     // One template open or closed, for the reason a menu level has one.
     let ids = use_hook(|| (next_id(), next_id()));
     let display = if dialog.is_some() { "flex" } else { "none" };
@@ -516,7 +519,7 @@ fn DialogView(unit: Unit, dialog: Option<Dialog>) -> Element {
     };
     let (title_id, message_id) = (format!("unit-{}", ids.0), format!("unit-{}", ids.1));
     rsx! {
-        div { class: "unit-dialog-place", style: "display: {display}",
+        div { class: "unit-dialog-place", style: "display: {display}; padding-top: {top + 72.0}px",
             div { class: "unit-dialog", role: "dialog", "aria-modal": "true",
                 "aria-labelledby": "{title_id}",
                 "aria-describedby": d.message.is_some().then(|| message_id.clone()),
