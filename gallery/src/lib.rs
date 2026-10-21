@@ -113,6 +113,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut reader = use_signal(String::new);
     let mut notes = use_signal(String::new);
     let mut font = use_signal(|| Some(0usize));
+    let mut circle = use_signal(|| 0usize);
     let mut faces = use_signal(|| vec![true, false, false]);
     let mut tab = use_signal(|| 0usize);
     let mut picked = use_signal(|| Some(2usize));
@@ -272,6 +273,11 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                     }
                     Chips { label: "Faces", choices: face_choices, on: faces(),
                             onpick: move |i: usize| faces.with_mut(|f: &mut Vec<bool>| f[i] = !f[i]) }
+                    Chips { label: "Circle", on: (0..3).map(|i| circle() == i).collect::<Vec<_>>(),
+                            choices: vec![Choice::new("Only You"),
+                                          Choice::new("Family").dot("#b4541a").badge("4"),
+                                          Choice::new("Friends").dot("#3a7bd5").badge("12")],
+                            onpick: move |i: usize| circle.set(i) }
                 }
                 Card { title: "Navigation",
                     Tabs { label: "Sections", tabs: vec!["General".into(), "Editor".into(), "About".into()],

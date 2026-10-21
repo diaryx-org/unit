@@ -201,6 +201,11 @@ pub const CSS: &str = r#"
 .unit-chip.on { background: var(--unit-accent); color: var(--unit-accent-text);
                 border-color: var(--unit-accent); }
 .unit-root[data-density="touch"] .unit-chip { padding: 8px 14px; }
+.unit-chip.unit-marked { display: inline-flex; align-items: center; gap: 6px; }
+.unit-chip-dot { width: 8px; height: 8px; border-radius: 4px; flex: none; }
+.unit-chip-badge { font-size: 0.8em; padding: 0 6px; border-radius: 8px;
+                   background: var(--unit-control-hover); color: var(--unit-dim); }
+.unit-chip.on .unit-chip-badge { background: transparent; color: inherit; }
 .unit-tablist { display: flex; gap: 4px; border-bottom: 1px solid var(--unit-border); }
 .unit-tab { display: flex; align-items: center; height: var(--unit-control); padding: 0 12px;
             color: var(--unit-dim); border-bottom: 2px solid transparent; }

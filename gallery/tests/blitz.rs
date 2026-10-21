@@ -1274,3 +1274,27 @@ fn floating_panel(doc: &DioxusDocument) -> NodeId {
         .unwrap()
         .unwrap()
 }
+
+#[test]
+fn a_chip_shows_its_colour_and_count_and_is_read_by_its_label() {
+    let mut doc = page(1200, 800);
+    let family = find(&doc, ".unit-chip", "Family4");
+    let dot = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-chip .unit-chip-dot")
+        .unwrap()
+        .unwrap();
+    let ((cx, cy, _, ch), (dx, dy, dw, dh)) = (rect(&doc, family), rect(&doc, dot));
+    assert_eq!((dw, dh), (8.0, 8.0));
+    assert!(
+        dx > cx && (dy + dh / 2.0 - (cy + ch / 2.0)).abs() < 1.0,
+        "a dot before the label, centred"
+    );
+    assert_eq!(
+        attr(&doc, family, "aria-label").as_deref(),
+        Some("Family, 4")
+    );
+    click(&mut doc, family);
+    assert_eq!(attr(&doc, family, "aria-pressed").as_deref(), Some("true"));
+}
