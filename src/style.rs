@@ -201,6 +201,11 @@ pub const CSS: &str = r#"
 .unit-chip.on { background: var(--unit-accent); color: var(--unit-accent-text);
                 border-color: var(--unit-accent); }
 .unit-root[data-density="touch"] .unit-chip { padding: 8px 14px; }
+.unit-chip.unit-marked { display: inline-flex; align-items: center; gap: 6px; }
+.unit-chip-dot { width: 8px; height: 8px; border-radius: 4px; flex: none; }
+.unit-chip-badge { font-size: 0.8em; padding: 0 6px; border-radius: 8px;
+                   background: var(--unit-control-hover); color: var(--unit-dim); }
+.unit-chip.on .unit-chip-badge { background: transparent; color: inherit; }
 .unit-tablist { display: flex; gap: 4px; border-bottom: 1px solid var(--unit-border); }
 .unit-tab { display: flex; align-items: center; height: var(--unit-control); padding: 0 12px;
             color: var(--unit-dim); border-bottom: 2px solid transparent; }
@@ -239,10 +244,16 @@ pub const CSS: &str = r#"
 .unit-row.off { color: var(--unit-dim); }
 .unit-row-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .unit-row-subtitle { font-size: 0.85em; color: var(--unit-dim); }
+.unit-row-note { font-size: 0.85em; color: var(--unit-dim); margin-top: 2px; }
+.unit-row-indent { flex: none; margin-right: -10px; }
 .unit-row-detail { flex: none; color: var(--unit-dim); }
 .unit-row-trailing { display: flex; justify-content: flex-end; flex: 0 1 55%; }
 .unit-row-blank { width: 16px; flex: none; }
 .unit-text-field.unit-inline { flex: 1; }
+.unit-field-action { display: flex; align-items: center; gap: 8px; }
+.unit-field-action > .unit-input { flex: 1; min-width: 0; }
+.unit-field-action > .unit-button { flex: none; }
+.unit-field-action > .unit-input.unit-inline { text-align: left; }
 .unit-input.unit-inline { padding: 0; text-align: right; background: transparent;
                           border-color: transparent; }
 
@@ -278,6 +289,7 @@ pub const CSS: &str = r#"
               box-shadow: 0 12px 40px var(--unit-shadow); }
 .unit-modal.unit-sheet { width: 100%; border-bottom-left-radius: 0; border-bottom-right-radius: 0;
                          padding-bottom: 28px; }
+.unit-modal.unit-sheet.unit-floating { border-radius: var(--unit-radius-large); padding-bottom: 14px; }
 .unit-modal-head { display: flex; align-items: center; justify-content: space-between;
                    gap: 8px; margin-bottom: 8px; }
 .unit-modal-head .unit-dialog-title { margin: 0; }

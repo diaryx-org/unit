@@ -1147,3 +1147,154 @@ fn a_sheet_mounted_only_while_open_is_laid_out_and_closes() {
         "Escape closed it, and the page took it out"
     );
 }
+
+/// Each of `text`'s characters typed, as a keyboard types them into the
+/// field that has the keys.
+fn type_text(doc: &mut DioxusDocument, text: &str) {
+    for c in text.chars() {
+        let event = |state| BlitzKeyEvent {
+            key: Key::Character(c.to_string()),
+            code: Code::Unidentified,
+            modifiers: Modifiers::empty(),
+            location: Location::Standard,
+            is_auto_repeating: false,
+            is_composing: false,
+            state,
+            text: Some(c.to_string().into()),
+        };
+        doc.handle_ui_event(UiEvent::KeyDown(event(KeyState::Pressed)));
+        doc.handle_ui_event(UiEvent::KeyUp(event(KeyState::Released)));
+        settle(doc);
+    }
+}
+
+#[test]
+fn a_row_is_set_in_by_its_depth_and_reads_its_note() {
+    let doc = page(1200, 800);
+    let x = |title| rect(&doc, find(&doc, ".unit-row-title", title)).0;
+    let (part, chapter, scene) = (x("Part One"), x("The Harbour"), x("Low tide"));
+    assert!((chapter - part - 16.0).abs() < 0.5, "{part} {chapter}");
+    assert!((scene - chapter - 16.0).abs() < 0.5, "{chapter} {scene}");
+    let note = find(
+        &doc,
+        ".unit-row-note",
+        "\u{201c}The boats lean over on the mud.\u{201d}",
+    );
+    assert!(displayed(&doc, note));
+}
+
+#[test]
+fn a_fields_action_waits_for_its_text_and_is_pressed_by_return_too() {
+    let mut doc = page(1200, 800);
+    let add = find(&doc, ".unit-field-action button", "Add");
+    assert!(
+        attr(&doc, add, "disabled").is_some(),
+        "greyed while the field is empty"
+    );
+    let field = doc
+        .inner
+        .borrow()
+        .query_selector("input[aria-label='Add a reader']")
+        .unwrap()
+        .unwrap();
+    click(&mut doc, field);
+    type_text(&mut doc, "Ana");
+    let add = find(&doc, ".unit-field-action button", "Add");
+    assert!(attr(&doc, add, "disabled").is_none());
+    click(&mut doc, add);
+    assert_eq!(said(&doc), "Added Ana.");
+    click(&mut doc, field);
+    type_text(&mut doc, "Bo");
+    key(&mut doc, Key::Named(NamedKey::Enter));
+    assert_eq!(said(&doc), "Added Bo.");
+}
+
+#[test]
+fn a_brief_toast_goes_by_itself() {
+    let mut doc = page(1200, 800);
+    let show = find(&doc, "button", "Brief toast");
+    click(&mut doc, show);
+    let shown = |doc: &DioxusDocument| {
+        doc.inner
+            .borrow()
+            .query_selector(".unit-toast")
+            .unwrap()
+            .is_some()
+    };
+    assert!(shown(&doc));
+    std::thread::sleep(std::time::Duration::from_millis(2300));
+    settle(&mut doc);
+    assert!(!shown(&doc), "gone after its two seconds");
+}
+
+#[test]
+fn a_floating_sheet_is_held_off_the_edges_over_the_pages_bar_and_on_the_keyboard() {
+    let mut doc = page(390, 844);
+    let phone = find(&doc, ".unit-segment", "Phone");
+    tap(&mut doc, phone);
+    let open = find(&doc, "button", "Floating sheet…");
+    tap(&mut doc, open);
+    let (x, y, w, h) = rect(&doc, floating_panel(&doc));
+    assert_eq!((x, w), (8.0, 374.0), "held 8px off each side");
+    let style = attr(&doc, floating_panel(&doc), "style").unwrap();
+    assert!(style.contains("max-height: 70%"), "{style}");
+    assert_eq!(
+        y + h,
+        844.0 - 66.0 - 8.0,
+        "over the page's bar, not the home indicator"
+    );
+    assert!(
+        doc.inner
+            .borrow()
+            .query_selector(".unit-floating [aria-label=Close]")
+            .unwrap()
+            .is_none(),
+        "no close button"
+    );
+    key(&mut doc, Key::Named(NamedKey::Escape));
+    let place = doc
+        .inner
+        .borrow()
+        .query_selector(".gallery-floating")
+        .unwrap()
+        .unwrap();
+    assert!(!displayed(&doc, place), "Escape still closes it");
+    let keyboard = find(&doc, ".unit-segment", "Keyboard");
+    tap(&mut doc, keyboard);
+    let open = find(&doc, "button", "Floating sheet…");
+    tap(&mut doc, open);
+    let (_, y, _, h) = rect(&doc, floating_panel(&doc));
+    assert_eq!(y + h, 844.0 - 336.0 - 8.0, "on the keyboard");
+}
+
+fn floating_panel(doc: &DioxusDocument) -> NodeId {
+    doc.inner
+        .borrow()
+        .query_selector(".unit-floating")
+        .unwrap()
+        .unwrap()
+}
+
+#[test]
+fn a_chip_shows_its_colour_and_count_and_is_read_by_its_label() {
+    let mut doc = page(1200, 800);
+    let family = find(&doc, ".unit-chip", "Family4");
+    let dot = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-chip .unit-chip-dot")
+        .unwrap()
+        .unwrap();
+    let ((cx, cy, _, ch), (dx, dy, dw, dh)) = (rect(&doc, family), rect(&doc, dot));
+    assert_eq!((dw, dh), (8.0, 8.0));
+    assert!(
+        dx > cx && (dy + dh / 2.0 - (cy + ch / 2.0)).abs() < 1.0,
+        "a dot before the label, centred"
+    );
+    assert_eq!(
+        attr(&doc, family, "aria-label").as_deref(),
+        Some("Family, 4")
+    );
+    click(&mut doc, family);
+    assert_eq!(attr(&doc, family, "aria-pressed").as_deref(), Some("true"));
+}

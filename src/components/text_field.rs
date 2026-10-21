@@ -8,6 +8,7 @@
 
 use dioxus::prelude::*;
 
+use crate::components::button::{Button, Variant};
 use crate::unit::{Kind, next_id, use_focus};
 
 /// What a one-line field holds, which a phone's keyboard is chosen by.
@@ -37,6 +38,12 @@ impl InputKind {
 
 /// One line of text. `oninput` is given the whole text after each change.
 /// With a `label`, it is drawn above the field and read as its name.
+///
+/// With an `action`, a button of that name at the field's end does what the
+/// field is for — Add, Save, Use — and Return in the field presses it too,
+/// unless the field has an `onsubmit` of its own. `action_disabled` greys
+/// it while the text would not do: an empty name, an address not yet
+/// whole.
 #[component]
 pub fn TextField(
     value: String,
@@ -51,34 +58,59 @@ pub fn TextField(
     /// not drawn: a field in a [`crate::Row`].
     #[props(default)]
     inline: bool,
+    /// A button's name at the field's end: the field's action.
+    action: Option<String>,
+    /// The action pressed, or Return in the field, given the text.
+    onaction: Option<EventHandler<String>>,
+    #[props(default)] action_disabled: bool,
 ) -> Element {
     let focus = use_focus(Kind::Text, |_, _| false);
     let id = use_hook(next_id);
     let inline_class = if inline { " unit-inline" } else { "" };
+    let act = (!disabled && !action_disabled)
+        .then_some(onaction)
+        .flatten();
+    let submit = onsubmit.or(act);
+    let input = rsx! {
+        input {
+            class: "unit-input{inline_class}{focus.class()}",
+            id: "unit-{id}",
+            r#type: kind.attr(),
+            value: "{value}",
+            placeholder: "{placeholder}",
+            disabled,
+            "aria-label": label.clone(),
+            onpointerdown: move |_| focus.press(),
+            onfocus: move |_| focus.dom_focus(),
+            onblur: move |_| focus.dom_blur(),
+            oninput: move |e: FormEvent| oninput.call(e.value()),
+            onkeydown: {
+                let value = value.clone();
+                move |e: KeyboardEvent| {
+                    if e.key() == dioxus::html::Key::Named(dioxus::html::NamedKey::Enter)
+                        && let Some(s) = submit
+                    {
+                        s.call(value.clone());
+                    }
+                }
+            },
+        }
+    };
     rsx! {
         div { class: "unit-text-field{inline_class}",
             if let Some(l) = label.as_ref().filter(|_| !inline) {
                 label { class: "unit-field-label", r#for: "unit-{id}", "{l}" }
             }
-            input {
-                class: "unit-input{inline_class}{focus.class()}",
-                id: "unit-{id}",
-                r#type: kind.attr(),
-                value: "{value}",
-                placeholder: "{placeholder}",
-                disabled,
-                "aria-label": label.clone(),
-                onpointerdown: move |_| focus.press(),
-                onfocus: move |_| focus.dom_focus(),
-                onblur: move |_| focus.dom_blur(),
-                oninput: move |e: FormEvent| oninput.call(e.value()),
-                onkeydown: move |e: KeyboardEvent| {
-                    if e.key() == dioxus::html::Key::Named(dioxus::html::NamedKey::Enter)
-                        && let Some(s) = onsubmit
-                    {
-                        s.call(value.clone());
+            if let Some(a) = action {
+                div { class: "unit-field-action",
+                    {input}
+                    Button { variant: Variant::Ghost, disabled: disabled || action_disabled,
+                        onpress: move |_| if let Some(f) = onaction { f.call(value.clone()) },
+                        "{a}"
                     }
-                },
+                }
+            } else {
+                {input}
             }
         }
     }

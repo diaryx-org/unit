@@ -182,6 +182,12 @@ pub struct Choice {
     pub label: String,
     /// A style for its label: a font's chip in that font.
     pub style: Option<String>,
+    /// A colour's dot before a chip's label, a CSS colour: the circle or
+    /// the ink it names.
+    pub dot: Option<String>,
+    /// A few words after a chip's label, a count: how many it holds. Read
+    /// after the label.
+    pub badge: Option<String>,
 }
 
 impl Choice {
@@ -189,7 +195,19 @@ impl Choice {
         Self {
             label: label.into(),
             style: None,
+            dot: None,
+            badge: None,
         }
+    }
+
+    pub fn dot(mut self, colour: impl Into<String>) -> Self {
+        self.dot = Some(colour.into());
+        self
+    }
+
+    pub fn badge(mut self, text: impl Into<String>) -> Self {
+        self.badge = Some(text.into());
+        self
     }
 
     pub fn styled(mut self, style: impl Into<String>) -> Self {
@@ -311,11 +329,20 @@ fn Chip(choice: Choice, on: bool, onpress: EventHandler<()>) -> Element {
         }
         false
     });
+    let marked = if choice.dot.is_some() || choice.badge.is_some() {
+        " unit-marked"
+    } else {
+        ""
+    };
+    let ring = focus.class();
+    let pressed = on;
+    let on = if on { " on" } else { "" };
     rsx! {
         button {
-            class: if on { "unit-chip on{focus.class()}" } else { "unit-chip{focus.class()}" },
+            class: "unit-chip{on}{marked}{ring}",
             r#type: "button",
-            "aria-pressed": if on { "true" } else { "false" },
+            "aria-pressed": if pressed { "true" } else { "false" },
+            "aria-label": choice.badge.as_ref().map(|b| format!("{}, {b}", choice.label)),
             style: choice.style.clone().unwrap_or_default(),
             onpointerdown: move |_| focus.press(),
             onfocus: move |_| focus.dom_focus(),
@@ -324,7 +351,13 @@ fn Chip(choice: Choice, on: bool, onpress: EventHandler<()>) -> Element {
                 e.stop_propagation();
                 onpress.call(());
             },
+            if let Some(c) = &choice.dot {
+                span { class: "unit-chip-dot", "aria-hidden": "true", style: "background: {c}" }
+            }
             "{choice.label}"
+            if let Some(b) = &choice.badge {
+                span { class: "unit-chip-badge", "{b}" }
+            }
         }
     }
 }

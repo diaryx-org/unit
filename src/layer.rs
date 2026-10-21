@@ -20,6 +20,7 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Duration;
 
 use dioxus::html::{Key, Modifiers, NamedKey};
 use dioxus::prelude::*;
@@ -41,7 +42,8 @@ type Done = Rc<dyn Fn(Answer)>;
 type Action = Rc<dyn Fn()>;
 type Choose = Rc<dyn Fn(Option<usize>)>;
 
-/// A short notice at the bottom of the page, until it is dismissed.
+/// A short notice at the bottom of the page, until it is dismissed or, with
+/// `lasts`, until that long has gone by.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Toast {
     pub message: String,
@@ -49,6 +51,9 @@ pub struct Toast {
     /// given when it is pressed.
     pub action: Option<String>,
     pub tone: Tone,
+    /// How long it is shown, timed by the host's sleep
+    /// ([`Unit::set_timer`]); with none, or no sleep, until it is dismissed.
+    pub lasts: Option<Duration>,
 }
 
 /// What a toast or a badge says about its message.
@@ -78,7 +83,14 @@ impl Toast {
             message: message.into(),
             action: None,
             tone: Tone::Neutral,
+            lasts: None,
         }
+    }
+
+    /// Gone by itself after `time`: an Undo offered for a few seconds.
+    pub fn lasts(mut self, time: Duration) -> Self {
+        self.lasts = Some(time);
+        self
     }
 
     pub fn action(mut self, label: impl Into<String>) -> Self {
@@ -222,7 +234,18 @@ impl Unit {
 
     fn push_toast(&self, toast: Toast, action: Option<Action>) -> u64 {
         let id = next_id();
+        let lasts = toast.lasts;
         self.layer.clone().write().toasts.push((id, toast, action));
+        let sleep = self.timer.peek().clone();
+        if let (Some(time), Some(sleep)) = (lasts, sleep) {
+            let unit = *self;
+            // The root's, not the caller's: the sheet that showed it may
+            // be gone before the time is up.
+            dioxus::core::spawn_forever(async move {
+                sleep(time).await;
+                unit.dismiss(id);
+            });
+        }
         id
     }
 
