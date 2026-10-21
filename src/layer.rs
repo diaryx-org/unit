@@ -201,6 +201,26 @@ impl Unit {
         w.actions = Some((sheet, Rc::new(move |a| (choose.borrow_mut())(a))));
     }
 
+    fn step_actions(&self, down: bool) {
+        let mut l = self.layer;
+        if let Some((s, _)) = l.write().actions.as_mut() {
+            s.step(down);
+        }
+    }
+
+    /// Choose what the keys have highlighted, if anything.
+    fn choose_hot(&self) {
+        let chosen = self
+            .layer
+            .peek()
+            .actions
+            .as_ref()
+            .and_then(|(s, _)| s.chosen());
+        if let Some(c) = chosen {
+            self.choose(c);
+        }
+    }
+
     fn choose(&self, action: Option<usize>) {
         let mut l = self.layer;
         let choose = l.write().actions.take().map(|(_, c)| c);
@@ -270,8 +290,15 @@ impl Unit {
             return self.settle(outcome);
         }
         if l.peek().actions.is_some() {
-            if matches!(key, Key::Named(NamedKey::Escape)) {
-                self.choose(None);
+            let shift = mods.contains(Modifiers::SHIFT);
+            match key {
+                Key::Named(NamedKey::Escape) => self.choose(None),
+                Key::Named(NamedKey::ArrowDown) => self.step_actions(true),
+                Key::Named(NamedKey::ArrowUp) => self.step_actions(false),
+                Key::Named(NamedKey::Tab) => self.step_actions(!shift),
+                Key::Named(NamedKey::Enter) => self.choose_hot(),
+                Key::Character(c) if c == " " => self.choose_hot(),
+                _ => {}
             }
             return true;
         }
@@ -641,11 +668,13 @@ fn ActionsView(unit: Unit, sheet: Option<ActionSheet>, bottom: f64) -> Element {
                             }
                         }
                     }
-                    for a in s.actions.iter().cloned() {
-                        {action_view(unit, a)}
+                    for (i, a) in s.actions.iter().cloned().enumerate() {
+                        {action_view(unit, a, s.hot == Some(i))}
                     }
                 }
-                button { class: "unit-actions-cancel", r#type: "button",
+                button {
+                    class: if s.hot == Some(s.actions.len()) { "unit-actions-cancel hot" } else { "unit-actions-cancel" },
+                    r#type: "button",
                     "aria-label": "{s.cancel}",
                     onpointerdown: move |e: PointerEvent| e.stop_propagation(),
                     onclick: move |e: MouseEvent| {
@@ -659,16 +688,17 @@ fn ActionsView(unit: Unit, sheet: Option<ActionSheet>, bottom: f64) -> Element {
     }
 }
 
-fn action_view(unit: Unit, a: SheetAction) -> Element {
+fn action_view(unit: Unit, a: SheetAction, hot: bool) -> Element {
     let ink = match () {
         _ if !a.enabled => Ink::Dim,
         _ if a.destructive => Ink::Danger,
         _ => Ink::Accent,
     };
     let class = format!(
-        "unit-action{}{}",
+        "unit-action{}{}{}",
         if a.destructive { " danger" } else { "" },
-        if a.enabled { "" } else { " off" }
+        if a.enabled { "" } else { " off" },
+        if hot { " hot" } else { "" }
     );
     let id = a.id;
     let enabled = a.enabled;

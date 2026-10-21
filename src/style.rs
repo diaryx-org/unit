@@ -98,6 +98,14 @@ pub const CSS: &str = r#"
 .unit-action:hover, .unit-actions-cancel:hover { background: var(--unit-control-hover); }
 .unit-actions-cancel { font-weight: 700; background: var(--unit-surface);
                        border: 1px solid var(--unit-border); border-radius: var(--unit-radius-large); }
+.unit-action.hot, .unit-actions-cancel.hot { background: var(--unit-accent); color: var(--unit-accent-text); }
+.unit-action.danger.hot { background: var(--unit-danger); color: var(--unit-accent-text); }
+.unit-root[data-density="cell"] .unit-actions-place { justify-content: center; padding: 24px 20px; }
+.unit-root[data-density="cell"] .unit-actions { gap: 24px; }
+.unit-root[data-density="cell"] .unit-actions-group { border-radius: 0; padding-bottom: 23px; }
+.unit-root[data-density="cell"] .unit-actions-head { padding: 23px 20px 24px; font-size: inherit; border-bottom: 0; }
+.unit-root[data-density="cell"] .unit-action, .unit-root[data-density="cell"] .unit-actions-cancel {
+    min-height: 24px; height: 24px; border-top: 0; border-radius: 0; }
 
 /* Toasts */
 .unit-toasts { position: absolute; left: 0; right: 0; bottom: 16px; display: flex;
