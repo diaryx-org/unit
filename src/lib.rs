@@ -4,9 +4,11 @@
 //!
 //! Buttons, toggles, checkboxes, switches, radio groups, segmented
 //! controls, sliders, text fields, selects, menus with submenus, context
-//! menus, chips, tabs, list boxes, disclosures, dialogs, modals and sheets,
-//! toasts, and the layout and text round them — in a theme of CSS custom
-//! properties, light and dark, at a pointer's density or a finger's.
+//! menus, chips, tabs, list boxes, disclosures, rows in groups, a phone's
+//! navigation and tab bars, a tree, dialogs, action sheets, modals and
+//! sheets, toasts, a long press, icons, and the layout and text round them —
+//! in a theme of CSS custom properties, light and dark, at a pointer's
+//! density or a finger's.
 //!
 //! # Why it is built the way it is
 //!
