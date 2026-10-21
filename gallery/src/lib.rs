@@ -46,6 +46,41 @@ pub fn Gallery() -> Element {
     }
 }
 
+/// A sleep on a thread of its own, for a long press while the finger is
+/// still down: the gallery has no runtime of its own to time it with. With
+/// UNIT_NO_TIMER set, the page has none, and a hold fires on the release.
+#[cfg(not(target_arch = "wasm32"))]
+fn thread_sleep(
+    d: std::time::Duration,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()>>> {
+    use std::sync::{Arc, Mutex};
+    use std::task::{Poll, Waker};
+    struct Sleep(Arc<Mutex<(bool, Option<Waker>)>>);
+    impl std::future::Future for Sleep {
+        type Output = ();
+        fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<()> {
+            let mut s = self.0.lock().unwrap();
+            if s.0 {
+                Poll::Ready(())
+            } else {
+                s.1 = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        }
+    }
+    let state = Arc::new(Mutex::new((false, None::<Waker>)));
+    let s = state.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(d);
+        let mut s = s.lock().unwrap();
+        s.0 = true;
+        if let Some(w) = s.1.take() {
+            w.wake();
+        }
+    });
+    Box::pin(Sleep(state))
+}
+
 const GALLERY_CSS: &str = r#"
 html, body { margin: 0; }
 .gallery { min-height: 100vh; padding: 20px 24px 80px; }
@@ -58,6 +93,12 @@ html, body { margin: 0; }
 #[component]
 fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let unit = use_unit();
+    #[cfg(not(target_arch = "wasm32"))]
+    use_hook(move || {
+        if std::env::var_os("UNIT_NO_TIMER").is_none() {
+            unit.set_timer(thread_sleep);
+        }
+    });
     let mut said = use_signal(|| String::from("Nothing yet."));
     let mut bold = use_signal(|| false);
     let mut italic = use_signal(|| false);
@@ -213,7 +254,11 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                     }
                     ContextMenu { entries: edit.clone(), onpick: pick,
                         div { class: "unit-callout", style: "margin-top: 10px",
-                            "Right-click here for a context menu." }
+                            "Right-click or hold here for a context menu." }
+                    }
+                    LongPress { onhold: move |_| said.set("Held.".into()),
+                                onpress: move |_| said.set("Tapped, not held.".into()),
+                        div { class: "unit-callout", "Tap or hold here." }
                     }
                     Chips { label: "Faces", choices: face_choices, on: faces(),
                             onpick: move |i: usize| faces.with_mut(|f: &mut Vec<bool>| f[i] = !f[i]) }

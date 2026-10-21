@@ -104,6 +104,8 @@ pub struct Unit {
     /// The window's safe area, and how far the soft keyboard covers the
     /// page from the bottom: what sheets, dialogs and toasts keep clear of.
     pub(crate) edges: Signal<(Insets, f64)>,
+    /// The host's sleep, which times a long press (`hold.rs`).
+    pub(crate) timer: CopyValue<Option<crate::components::hold::Sleep>>,
 }
 
 impl PartialEq for Unit {
@@ -147,6 +149,7 @@ pub fn use_unit_provider(keys: Keys, activates: bool) -> Unit {
         theme: CopyValue::new(Theme::default()),
         appearance: Signal::new(Appearance::System),
         edges: Signal::new((Insets::default(), 0.0)),
+        timer: CopyValue::new(None),
     });
     unit.keys.clone().set(keys);
     unit.activates.clone().set(activates);

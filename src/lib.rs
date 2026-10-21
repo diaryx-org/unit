@@ -64,6 +64,7 @@ mod unit;
 
 pub use components::button::{Button, ToggleButton, Variant};
 pub use components::choice::{Checkbox, Orientation, RadioGroup, Segmented, Switch};
+pub use components::hold::{Hold, LongPress, use_hold};
 pub use components::layout::{
     Align, Axis, Badge, Callout, Card, Divider, Field, Heading, Progress, Spacer, Stack, Text,
 };
@@ -89,9 +90,10 @@ pub mod prelude {
     pub use crate::{
         Accessory, Align, Answer, Appearance, Axis, Badge, Button, Callout, Card, Checkbox, Chips,
         Choice, ContextMenu, Density, Dialog, Disclosure, Divider, Entry, Field, Heading, Icon,
-        Ink, InputKind, Item, Keys, ListBox, MenuButton, Modal, Orientation, Placement, Progress,
-        RadioGroup, Row, Section, Segmented, Select, Slider, Spacer, Stack, Switch, Tabs, Text,
-        TextArea, TextField, Theme, Toast, ToggleButton, Tone, Unit, UnitRoot, Variant, use_unit,
+        Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal, Orientation, Placement,
+        Progress, RadioGroup, Row, Section, Segmented, Select, Slider, Spacer, Stack, Switch, Tabs,
+        Text, TextArea, TextField, Theme, Toast, ToggleButton, Tone, Unit, UnitRoot, Variant,
+        use_unit,
     };
 }
 

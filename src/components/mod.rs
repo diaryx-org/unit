@@ -3,6 +3,7 @@
 
 pub mod button;
 pub mod choice;
+pub mod hold;
 pub mod layout;
 pub mod list;
 pub mod menus;

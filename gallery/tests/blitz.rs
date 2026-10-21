@@ -789,3 +789,94 @@ fn a_toast_sits_above_the_keyboard() {
         y + h
     );
 }
+
+/// A finger down at the middle of `node`, held `ms` with the page polled
+/// meanwhile, then lifted.
+fn hold(doc: &mut DioxusDocument, node: NodeId, ms: u64) -> bool {
+    let (x, y, w, h) = rect(doc, node);
+    let (x, y) = (x + w / 2.0, y + h / 2.0);
+    let id = BlitzPointerId::Finger(1);
+    doc.handle_ui_event(UiEvent::PointerDown(pointer(
+        id,
+        x,
+        y,
+        MouseEventButtons::Primary,
+    )));
+    settle(doc);
+    std::thread::sleep(std::time::Duration::from_millis(ms));
+    settle(doc);
+    let open_before_lift = menu_open(doc);
+    doc.handle_ui_event(UiEvent::PointerUp(pointer(
+        id,
+        x,
+        y,
+        MouseEventButtons::None,
+    )));
+    settle(doc);
+    open_before_lift
+}
+
+fn menu_open(doc: &DioxusDocument) -> bool {
+    let menu = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-menu")
+        .unwrap()
+        .unwrap();
+    displayed(doc, menu)
+}
+
+#[test]
+fn a_finger_held_still_opens_the_context_menu_while_it_is_down_and_lifting_picks_nothing() {
+    let mut doc = page(390, 844);
+    let area = find(
+        &doc,
+        ".unit-callout",
+        "Right-click or hold here for a context menu.",
+    );
+    assert!(
+        hold(&mut doc, area, 650),
+        "the menu opens before the finger lifts"
+    );
+    assert!(menu_open(&doc), "and stays open when it lifts");
+    assert_eq!(said(&doc), "Nothing yet.", "lifting chose nothing");
+}
+
+#[test]
+fn a_tap_is_not_a_hold_and_a_hold_is_not_a_tap() {
+    let mut doc = page(390, 844);
+    let area = find(&doc, ".unit-callout", "Tap or hold here.");
+    tap(&mut doc, area);
+    assert_eq!(said(&doc), "Tapped, not held.");
+    hold(&mut doc, area, 650);
+    assert_eq!(
+        said(&doc),
+        "Held.",
+        "the click that ends a hold is not a tap"
+    );
+}
+
+#[test]
+fn the_mouse_held_down_is_not_a_long_press() {
+    let mut doc = page(1200, 800);
+    let area = find(&doc, ".unit-callout", "Tap or hold here.");
+    let (x, y, w, h) = rect(&doc, area);
+    let (x, y) = (x + w / 2.0, y + h / 2.0);
+    doc.handle_ui_event(UiEvent::PointerDown(pointer(
+        BlitzPointerId::Mouse,
+        x,
+        y,
+        MouseEventButtons::Primary,
+    )));
+    settle(&mut doc);
+    std::thread::sleep(std::time::Duration::from_millis(650));
+    settle(&mut doc);
+    doc.handle_ui_event(UiEvent::PointerUp(pointer(
+        BlitzPointerId::Mouse,
+        x,
+        y,
+        MouseEventButtons::None,
+    )));
+    settle(&mut doc);
+    assert_eq!(said(&doc), "Tapped, not held.");
+}
