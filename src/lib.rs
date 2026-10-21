@@ -3,12 +3,12 @@
 //! tech reads on each.
 //!
 //! Buttons, toggles, checkboxes, switches, radio groups, segmented
-//! controls, sliders, text fields, selects, menus with submenus, context
-//! menus, chips, tabs, list boxes, disclosures, rows in groups, a phone's
-//! navigation and tab bars, a tree, dialogs, action sheets, modals and
-//! sheets, toasts, a long press, icons, and the layout and text round them —
-//! in a theme of CSS custom properties, light and dark, at a pointer's
-//! density or a finger's.
+//! controls, sliders, text fields, one-time codes, selects, menus with
+//! submenus, context menus, chips, tabs, list boxes, disclosures, rows in
+//! groups, a phone's navigation and tab bars, a tree, dialogs, action
+//! sheets, modals and sheets, toasts, a long press, icons, and the layout
+//! and text round them — in a theme of CSS custom properties, light and
+//! dark, at a pointer's density or a finger's.
 //!
 //! # Why it is built the way it is
 //!
@@ -73,6 +73,7 @@ pub use components::button::{Button, ToggleButton, Variant};
 pub use components::choice::{
     Checkbox, Orientation, RadioGroup, Segmented, Stepper, Swatch, SwatchAction, Swatches, Switch,
 };
+pub use components::code_field::CodeField;
 pub use components::hold::{Hold, LongPress, use_hold};
 pub use components::layout::{
     Align, Axis, Badge, Callout, Card, Divider, Field, Heading, Progress, Spacer, Stack, Text,
@@ -98,12 +99,12 @@ pub use unit::{
 pub mod prelude {
     pub use crate::{
         Accent, Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem, Button,
-        Callout, Card, Checkbox, Chips, Choice, ContextMenu, Density, Dialog, Disclosure, Divider,
-        Entry, Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton,
-        Modal, NavBar, Orientation, Placement, Progress, RadioGroup, Row, Section, Segmented,
-        Select, SheetAction, Slider, Spacer, Stack, Stepper, Swatch, SwatchAction, Swatches,
-        Switch, TabBar, Tabs, Text, TextArea, TextField, Theme, Toast, ToggleButton, Tone, Tree,
-        TreeRow, Unit, UnitRoot, Variant, use_unit,
+        Callout, Card, Checkbox, Chips, Choice, CodeField, ContextMenu, Density, Dialog,
+        Disclosure, Divider, Entry, Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox,
+        LongPress, MenuButton, Modal, NavBar, Orientation, Placement, Progress, RadioGroup, Row,
+        Section, Segmented, Select, SheetAction, Slider, Spacer, Stack, Stepper, Swatch,
+        SwatchAction, Swatches, Switch, TabBar, Tabs, Text, TextArea, TextField, Theme, Toast,
+        ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
     };
 }
 
@@ -162,6 +163,7 @@ mod tests {
                     ListBox { items: vec!["x".into(), "y".into()], selected: Some(0), onchange: |_| {} }
                     Progress { value: 0.5 }
                     TextField { value: "hi", oninput: |_| {}, label: "Name" }
+                    CodeField { value: "12", oninput: |_| {}, invalid: true }
                 }
             }
         }
@@ -187,6 +189,14 @@ mod tests {
             "aria-label=\"Name\"",
             "role=\"dialog\"",
             "aria-modal=\"true\"",
+            // A one-time code: one field, offered the code by the system,
+            // with a keyboard of digits on a phone.
+            "autocomplete=\"one-time-code\"",
+            "inputmode=\"numeric\"",
+            "maxlength=\"6\"",
+            "aria-label=\"Code\"",
+            "aria-invalid=\"true\"",
+            "class=\"unit-code-cells\" aria-hidden=\"true\"",
         ] {
             assert!(html.contains(needle), "{needle} missing in {html}");
         }

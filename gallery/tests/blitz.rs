@@ -1364,3 +1364,92 @@ fn a_chip_shows_its_colour_and_count_and_is_read_by_its_label() {
     click(&mut doc, family);
     assert_eq!(attr(&doc, family, "aria-pressed").as_deref(), Some("true"));
 }
+
+/// Backspace, as the window sends it: on a Mac, AppKit's `deleteBackward:`.
+fn backspace(doc: &mut DioxusDocument) {
+    #[cfg(target_os = "macos")]
+    {
+        doc.handle_ui_event(UiEvent::AppleStandardKeybinding("deleteBackward:".into()));
+        settle(doc);
+    }
+    #[cfg(not(target_os = "macos"))]
+    key(doc, Key::Named(NamedKey::Backspace));
+}
+
+/// The text the field's cells draw, one cell at a time.
+fn code_cells(doc: &DioxusDocument) -> String {
+    let inner = doc.inner.borrow();
+    inner
+        .query_selector_all(".unit-code-cell")
+        .unwrap()
+        .iter()
+        .map(|&id| inner.get_node(id).unwrap().text_content())
+        .collect()
+}
+
+#[test]
+fn a_code_is_typed_or_pasted_whole_into_one_field_and_keeps_only_its_digits() {
+    use blitz_traits::events::BlitzImeEvent;
+    let mut doc = page(1200, 800);
+    let field = labelled(&doc, "input", "Code");
+    // The field lies over every cell, so a press on any lands in it.
+    let cells = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-code-cells")
+        .unwrap()
+        .unwrap();
+    assert_eq!(rect(&doc, field), rect(&doc, cells));
+    assert_eq!(code_cells(&doc), "");
+    tap(&mut doc, field);
+    type_text(&mut doc, "12a3");
+    assert_eq!(code_cells(&doc), "123", "a letter is left out");
+    assert_eq!(attr(&doc, field, "value").as_deref(), Some("123"));
+    type_text(&mut doc, "999");
+    assert_eq!(said(&doc), "123999 is not the code.");
+    let code = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-code")
+        .unwrap()
+        .unwrap();
+    assert!(class_of(&doc, code).contains("invalid"));
+    // A seventh digit is not kept, in the cells or in the field.
+    type_text(&mut doc, "7");
+    assert_eq!(code_cells(&doc), "123999");
+    assert_eq!(attr(&doc, field, "value").as_deref(), Some("123999"));
+    // Emptied, and the whole code put in at once, as a paste or the
+    // system's AutoFill does, with what came round it in the message.
+    for _ in 0..6 {
+        backspace(&mut doc);
+    }
+    assert_eq!(code_cells(&doc), "");
+    assert!(
+        !class_of(&doc, code).contains("invalid"),
+        "typing again clears it"
+    );
+    doc.handle_ui_event(UiEvent::Ime(BlitzImeEvent::Commit(
+        "Your code: 123 456".into(),
+    )));
+    settle(&mut doc);
+    assert_eq!(code_cells(&doc), "123456");
+    assert_eq!(said(&doc), "Signed in.");
+
+    // Assistive tech reads one field, named, and no cells.
+    let nodes = tree(&doc);
+    let inputs: Vec<_> = with_role(&nodes, Role::TextInput)
+        .into_iter()
+        .filter(|n| n.label() == Some("Code"))
+        .collect();
+    // Blitz gives an <input>'s node no value yet, a TextField's neither:
+    // the field is found by its name.
+    assert_eq!(inputs.len(), 1, "one field, not one for each digit");
+    // The cells are hidden, which every adapter leaves out with all that
+    // is under them: their digits too.
+    let (_, cells) = nodes
+        .iter()
+        .find(|(id, _)| *id == AxId(cells.as_u64()))
+        .expect("the cells' node");
+    assert!(cells.is_hidden());
+    assert_eq!(cells.children().len(), 6);
+}

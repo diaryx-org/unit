@@ -114,6 +114,8 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut name = use_signal(String::new);
     let mut reader = use_signal(String::new);
     let mut notes = use_signal(String::new);
+    let mut code = use_signal(String::new);
+    let mut wrong = use_signal(|| false);
     let mut font = use_signal(|| Some(0usize));
     let mut circle = use_signal(|| 0usize);
     let mut faces = use_signal(|| vec![true, false, false]);
@@ -280,6 +282,16 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                                 oninput: move |v| name.set(v) }
                     TextArea { label: "Notes", value: notes(), rows: 3, oninput: move |v| notes.set(v) }
                     Text { dim: true, "Hello, {name}." }
+                }
+                Card { title: "Sign in",
+                    Text { dim: true, "The code sent to ana@example.com. 123456 is right." }
+                    CodeField { label: "Code", value: code(), invalid: wrong(),
+                                oninput: move |v| { code.set(v); wrong.set(false); },
+                                oncomplete: move |v: String| {
+                                    let right = v == "123456";
+                                    wrong.set(!right);
+                                    said.set(if right { "Signed in.".into() } else { format!("{v} is not the code.") });
+                                } }
                 }
                 Card { title: "Menus",
                     Stack { axis: Axis::Horizontal, wrap: true, align: Align::Center,

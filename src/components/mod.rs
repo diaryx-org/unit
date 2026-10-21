@@ -4,6 +4,7 @@
 pub mod bars;
 pub mod button;
 pub mod choice;
+pub mod code_field;
 pub mod hold;
 pub mod layout;
 pub mod list;

@@ -216,6 +216,25 @@ pub const CSS: &str = r#"
               background: var(--unit-control); border: 1px solid var(--unit-border);
               border-radius: var(--unit-radius); box-shadow: 0 1px 2px var(--unit-shadow-soft); }
 .unit-textarea { height: auto; padding: 6px 8px; }
+
+/* A one-time code: a cell for each digit, the field over them unseen, so a
+   press anywhere on the cells lands in it */
+.unit-code { position: relative; display: flex; align-self: flex-start; }
+.unit-code-cells { display: flex; gap: 8px; }
+.unit-code-cell { display: flex; align-items: center; justify-content: center; flex: none;
+                  width: 36px; height: 44px; font-size: 1.4em; font-weight: 500;
+                  color: var(--unit-text); background: var(--unit-control);
+                  border: 1px solid var(--unit-border); border-radius: var(--unit-radius);
+                  box-shadow: 0 1px 2px var(--unit-shadow-soft); }
+.unit-code-cell.on { border-color: var(--unit-accent); outline: 2px solid var(--unit-focus); outline-offset: 0; }
+.unit-code-cell .unit-caret { height: 1.1em; }
+.unit-code.invalid .unit-code-cell { border-color: var(--unit-danger); }
+.unit-code.invalid .unit-code-cell.on { outline-color: var(--unit-danger); }
+.unit-code.off .unit-code-cell { color: var(--unit-dim); box-shadow: none; }
+.unit-code-input { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+                   padding: 0; margin: 0; border: none; font-size: 16px; opacity: 0;
+                   background: transparent; }
+.unit-root[data-density="touch"] .unit-code-cell { width: 42px; height: 52px; font-size: 1.5em; }
 .unit-heading { margin: 0 0 6px; font-family: var(--unit-heading-font); font-weight: 700; }
 .unit-text { margin: 0 0 6px; }
 .unit-text.dim, .unit-note { color: var(--unit-dim); }
