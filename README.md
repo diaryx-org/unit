@@ -29,7 +29,7 @@ unit = { git = "https://github.com/diaryx-org/unit", branch = "main" }
 | Buttons | `Button` (default, primary, ghost, danger), `ToggleButton`, each with an `icon` |
 | Icons | `Icon`: a path on a 24-unit grid stroked in `currentColor`, the text's or an `Ink` of the theme's; `icon::paths` |
 | Choices | `Checkbox`, `Switch`, `RadioGroup`, `Segmented`, `Slider`, `Chips` (each with a colour's dot and a count, if it has them) |
-| Text | `TextField` (text, search, email, URL, password, number; with an `action` at its end, pressed by Return too), `TextArea` |
+| Text | `TextField` (text, search, email, URL, password, number; with an `action` at its end, pressed by Return too), `TextArea`, `CodeField` (a one-time code: a cell for each digit, one field to assistive tech, a whole code pasted or filled in at once) |
 | Menus | `MenuButton`, `Select`, `ContextMenu` (the secondary button, or a finger held); items with shortcuts, ticks, icons, separators, submenus, and destructive ones |
 | Lists | `Section` (rows under a caption), `Row` (icon, title, subtitle, a note under it, value, a chevron or a tick, a control at the right, set in by a `depth`) |
 | Navigation | `Tabs`, `ListBox` (arrows, Home, End, typeahead), `Disclosure`, `NavBar`, `TabBar`, `Tree` and `TreeRow` |

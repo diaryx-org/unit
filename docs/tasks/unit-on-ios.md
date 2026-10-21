@@ -27,6 +27,16 @@ phone. What may differ there:
   fires on a phone, and is not taken for a scroll, is unchecked.
 - The **soft keyboard** comes up for a real `<input>` only if Blitz on iOS
   asks for it when the field is focused.
+- A **`CodeField`** gets a keyboard of letters, and no code from Messages
+  or Mail on the QuickType bar. Safari reads its `inputmode` and
+  `autocomplete="one-time-code"`; Blitz reads neither. winit-uikit's view
+  is a `UIKeyInput` with no `keyboardType` or `textContentType`, and
+  blitz-shell enables the IME with no `ImePurpose`. The fork's
+  winit-uikit would need to answer `.numberPad` and `.oneTimeCode`, set
+  by the focused input. Whether iOS offers a code to a view that is only
+  a `UIKeyInput`, and not a `UITextInput`, is unchecked. A code that does
+  arrive comes through `insertText:` as one string, and the field keeps
+  its digits.
 - **VoiceOver** reads the AccessKit tree, and presses through blitz-shell's
   click (both seen in `examples/ios-a11y`); that each control's state
   (ticked, pressed, a value) is read out is unchecked.
