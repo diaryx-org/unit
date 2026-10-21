@@ -1115,3 +1115,35 @@ fn a_pressed_row_holds_a_control_beside_it_that_is_pressed_on_its_own() {
     let buttons = with_role(&nodes, Role::Button);
     assert!(buttons.iter().any(|n| n.label() == Some("Archive")));
 }
+
+#[test]
+fn a_sheet_mounted_only_while_open_is_laid_out_and_closes() {
+    let mut doc = page(390, 844);
+    let open = find(&doc, "button", "Mounted sheet…");
+    tap(&mut doc, open);
+    let place = doc
+        .inner
+        .borrow()
+        .query_selector(".gallery-mounted")
+        .unwrap()
+        .expect("the page's class on the modal's layer");
+    assert!(class_of(&doc, place).contains("unit-modal-place"));
+    let panel = doc
+        .inner
+        .borrow()
+        .query_selector(".gallery-mounted .unit-sheet")
+        .unwrap()
+        .unwrap();
+    let (_, y, w, h) = rect(&doc, panel);
+    assert_eq!(w, 390.0, "laid out the frame it was mounted in");
+    assert_eq!(y + h, 844.0, "along the bottom");
+    key(&mut doc, Key::Named(NamedKey::Escape));
+    assert!(
+        doc.inner
+            .borrow()
+            .query_selector(".gallery-mounted")
+            .unwrap()
+            .is_none(),
+        "Escape closed it, and the page took it out"
+    );
+}
