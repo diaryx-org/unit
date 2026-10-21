@@ -33,6 +33,22 @@ dioxus = { version = "0.8.0-alpha.3", default-features = false, features = [
     "hooks",
 ] }
 
+[features]
+# What unit reads from Apple's platforms: on a Mac, the accent the user chose
+# (`Accent::System`). Nothing is built for it on any other target.
+apple = ["dep:block2", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation"]
+
+# The versions winit and wgpu already bring, so a Blitz window builds them once.
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = { version = "0.6", optional = true }
+objc2 = { version = "0.6", optional = true }
+objc2-app-kit = { version = "0.3", optional = true, default-features = false, features = [
+    "std", "block2", "objc2-core-foundation", "NSAppearance", "NSColor", "NSColorSpace",
+] }
+objc2-foundation = { version = "0.3", optional = true, default-features = false, features = [
+    "std", "block2", "NSNotification", "NSOperation", "NSString", "NSObject",
+] }
+
 [dev-dependencies]
 dioxus-ssr = "=0.8.0-alpha.3"
 

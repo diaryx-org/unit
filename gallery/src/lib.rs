@@ -36,7 +36,7 @@ pub fn Gallery() -> Element {
         _ => Density::Regular,
     });
     rsx! {
-        UnitRoot { appearance: appearance(), density: density(), class: "gallery",
+        UnitRoot { appearance: appearance(), density: density(), accent: Accent::System, class: "gallery",
             style { {GALLERY_CSS} }
             Page { appearance, density }
             // The page's own element, outside any component, as a host's

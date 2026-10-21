@@ -99,6 +99,14 @@ impl Palette {
         shadow_soft: "rgba(0, 0, 0, 0.3)",
     };
 
+    /// This palette with the system's accent, focus ring and selection.
+    pub(crate) fn with(mut self, system: SystemColours) -> Palette {
+        self.accent = system.accent;
+        self.focus = system.focus;
+        self.selection = system.selection;
+        self
+    }
+
     fn entries(&self) -> [(&'static str, &'static str); 20] {
         [
             ("bg", self.bg),
@@ -123,6 +131,27 @@ impl Palette {
             ("shadow-soft", self.shadow_soft),
         ]
     }
+}
+
+/// Where a page's accent comes from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Accent {
+    /// The theme's.
+    #[default]
+    Theme,
+    /// The system's, where unit can read one: on a Mac with the `apple`
+    /// feature, the accent and highlight colours chosen in System Settings,
+    /// followed when they change. The theme's anywhere else.
+    System,
+}
+
+/// The colours a system chooses for one appearance, over the theme's: what
+/// [`Accent::System`] puts in each palette.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SystemColours {
+    pub accent: &'static str,
+    pub focus: &'static str,
+    pub selection: &'static str,
 }
 
 /// The sizes of one density.
