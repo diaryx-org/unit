@@ -19,7 +19,8 @@ native = ["dep:dioxus-native"]
 web = ["dep:dioxus-web"]
 
 [dependencies]
-unit = { path = ".." }
+# On a Mac, the accent the user chose (`Accent::System`).
+unit = { path = "..", features = ["apple"] }
 dioxus = { version = "0.8.0-alpha.3", default-features = false, features = [
     "macro",
     "html",

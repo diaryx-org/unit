@@ -60,6 +60,8 @@ pub mod components;
 pub mod dialog;
 pub mod icon;
 pub mod layer;
+#[cfg(all(feature = "apple", target_os = "macos"))]
+mod macos;
 pub mod menu;
 mod style;
 pub mod theme;
@@ -84,7 +86,7 @@ pub use icon::{Icon, Ink};
 pub use layer::{Toast, Tone};
 pub use menu::{Entry, Item};
 pub use style::CSS;
-pub use theme::{Appearance, Density, Metrics, Palette, Theme};
+pub use theme::{Accent, Appearance, Density, Metrics, Palette, Theme};
 pub use unit::{
     Clipboard, Focus, Insets, Keys, Kind, Unit, UnitRoot, next_id, use_focus, use_unit,
     use_unit_provider,
@@ -93,12 +95,13 @@ pub use unit::{
 /// Everything a page uses, at once.
 pub mod prelude {
     pub use crate::{
-        Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem, Button, Callout,
-        Card, Checkbox, Chips, Choice, ContextMenu, Density, Dialog, Disclosure, Divider, Entry,
-        Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal,
-        NavBar, Orientation, Placement, Progress, RadioGroup, Row, Section, Segmented, Select,
-        SheetAction, Slider, Spacer, Stack, Switch, TabBar, Tabs, Text, TextArea, TextField, Theme,
-        Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
+        Accent, Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem, Button,
+        Callout, Card, Checkbox, Chips, Choice, ContextMenu, Density, Dialog, Disclosure, Divider,
+        Entry, Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton,
+        Modal, NavBar, Orientation, Placement, Progress, RadioGroup, Row, Section, Segmented,
+        Select, SheetAction, Slider, Spacer, Stack, Switch, TabBar, Tabs, Text, TextArea,
+        TextField, Theme, Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant,
+        use_unit,
     };
 }
 
@@ -229,6 +232,34 @@ mod tests {
         }
         let html = render(Probe);
         assert!(html.contains(crate::Palette::DARK.danger), "{html}");
+    }
+
+    /// The system's accent goes in the stylesheet and in what a page draws
+    /// in Rust, where unit reads one; the theme's stays anywhere else.
+    #[test]
+    fn a_system_accent_is_the_system_s_where_there_is_one() {
+        fn Page() -> Element {
+            rsx! { UnitRoot { accent: Accent::System, appearance: Appearance::Light, Read {} } }
+        }
+        #[component]
+        fn Read() -> Element {
+            let u = use_unit();
+            rsx! { "ink {u.ink(Ink::Accent)}" }
+        }
+        let html = render(Page);
+        #[cfg(all(feature = "apple", target_os = "macos"))]
+        let (accent, dark) = {
+            let (light, dark) = crate::macos::read().unwrap();
+            (light.accent, dark.accent)
+        };
+        #[cfg(not(all(feature = "apple", target_os = "macos")))]
+        let (accent, dark) = (crate::Palette::LIGHT.accent, crate::Palette::DARK.accent);
+        assert!(
+            html.contains(&format!("--unit-accent: {accent};")),
+            "{html}"
+        );
+        assert!(html.contains(&format!("--unit-accent: {dark};")), "{html}");
+        assert!(html.contains(&format!("ink {accent}")), "{html}");
     }
 
     #[test]

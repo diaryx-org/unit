@@ -36,7 +36,7 @@ unit = { git = "https://github.com/diaryx-org/unit", branch = "main" }
 | Overlays | `Unit::open_dialog` (alerts, confirmations, a prompt), `Unit::open_actions` (an action sheet), `Modal` and its `Sheet` placement (Cancel and Done, dragged down to close, along the bottom or floating off the edges over a bar of the page's own), `Unit::toast` (until dismissed, or for as long as it `lasts`) |
 | Gestures | `LongPress` and `use_hold`: a finger held still, timed by the host's sleep (`Unit::set_timer`) |
 | Layout | `Stack`, `Spacer`, `Card`, `Divider`, `Field` (a form's row), `Heading`, `Text`, `Badge`, `Progress`, `Callout` |
-| Theme | `Theme`: a light and a dark `Palette`, a pointer's and a finger's `Metrics`, and a text and a heading font, written as CSS custom properties; `Appearance` and `Density` on the root |
+| Theme | `Theme`: a light and a dark `Palette`, a pointer's and a finger's `Metrics`, and a text and a heading font, written as CSS custom properties; `Appearance`, `Density` and `Accent` on the root |
 
 Its component list and its theme of tokens take after
 [Libero](https://github.com/tdymel/libero)'s; how it is built does not.
@@ -68,6 +68,15 @@ its buttons `refuses_keys: true`: pressed, they leave the keys with the
 editor, as a Mac's toolbar buttons do. unit's styles set `box-sizing` on its
 own elements only, so the host's under `UnitRoot` keep the box model they
 chose.
+
+`accent: Accent::System` on the root takes the accent from the system where
+unit can read one, and the theme's anywhere else. On a Mac, with the `apple`
+feature, that is the accent and highlight chosen in System Settings, and the
+focus ring drawn from them, followed when the user changes them:
+
+```toml
+unit = { git = "https://github.com/diaryx-org/unit", branch = "main", features = ["apple"] }
+```
 
 On a phone, the host tells unit what the platform knows and Blitz does not
 pass on: the safe area (`Unit::set_insets`), which sheets, bars, dialogs

@@ -23,7 +23,7 @@ use dioxus::html::{Key, Modifiers, NamedKey};
 use dioxus::prelude::*;
 
 use crate::layer::LayerState;
-use crate::theme::{Appearance, Density, Theme};
+use crate::theme::{Accent, Appearance, Density, SystemColours, Theme};
 
 /// What the host answers for the page: the clipboard, for a dialog's field.
 pub trait Clipboard {
@@ -424,6 +424,20 @@ impl Focus {
     }
 }
 
+/// The system's colours, light and dark, as a page follows them; `None`
+/// where unit reads none.
+type Colours = Signal<Option<(SystemColours, SystemColours)>>;
+
+#[cfg(all(feature = "apple", target_os = "macos"))]
+fn use_system_colours() -> Option<Colours> {
+    Some(crate::macos::use_colours())
+}
+
+#[cfg(not(all(feature = "apple", target_os = "macos")))]
+fn use_system_colours() -> Option<Colours> {
+    None
+}
+
 /// The root of a page of components: the theme's stylesheet, the page, and
 /// over it the overlay where menus, dialogs and toasts are drawn. Everything
 /// that uses a component goes under it.
@@ -434,6 +448,10 @@ pub fn UnitRoot(
     keys: Keys,
     #[props(default)] appearance: Appearance,
     #[props(default)] density: Density,
+    /// Where the accent comes from: the theme's, or the system's where unit
+    /// can read one ([`Accent::System`]).
+    #[props(default)]
+    accent: Accent,
     /// Whether the renderer presses a focused button on Return and Space
     /// itself, as a browser does and Blitz does not.
     #[props(default = cfg!(target_arch = "wasm32"))]
@@ -445,7 +463,14 @@ pub fn UnitRoot(
 ) -> Element {
     let unit = use_unit_provider(keys, activates);
     unit.density.clone().set(density);
-    let theme = theme.unwrap_or_default();
+    let system = use_system_colours();
+    let mut theme = theme.unwrap_or_default();
+    if accent == Accent::System
+        && let Some((light, dark)) = system.and_then(|colours| colours())
+    {
+        theme.light = theme.light.with(light);
+        theme.dark = theme.dark.with(dark);
+    }
     unit.set_theme(&theme, appearance);
     let css = use_memo(use_reactive!(|theme| Unit::stylesheet(&theme)));
     let page_keys = keys == Keys::Page;
