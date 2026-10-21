@@ -1,4 +1,5 @@
-//! Choices: a checkbox, a switch, a radio group and a segmented control.
+//! Choices: a checkbox, a switch, a radio group, a segmented control, a row
+//! of colour swatches and a stepper.
 //!
 //! Each is drawn by the page — a box, a track and knob, rings, segments —
 //! rather than by the renderer's `<input type="checkbox">`, so it looks the
@@ -239,6 +240,177 @@ pub fn Segmented(
                     },
                     "{o}"
                 }
+            }
+        }
+    }
+}
+
+/// One colour a [`Swatches`] offers: what it is called, read out in place
+/// of the colour, its fill, and the ring round it if not the fill's own.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Swatch {
+    pub name: String,
+    pub fill: String,
+    pub edge: Option<String>,
+}
+
+impl Swatch {
+    pub fn new(name: impl Into<String>, fill: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            fill: fill.into(),
+            edge: None,
+        }
+    }
+
+    /// A ring of its own: a darker tone of the fill, say.
+    pub fn edge(mut self, edge: impl Into<String>) -> Self {
+        self.edge = Some(edge.into());
+        self
+    }
+}
+
+/// Colour swatches: one of `swatches`, chosen — a cover's tone, a
+/// highlighter's ink. Chosen as a radio group: a tap, or the arrows once it
+/// has the keys. `children` go before the swatches, in a swatch's shape: a
+/// [`SwatchAction`] such as Random, or a choice of the page's own such as
+/// Automatic.
+#[component]
+pub fn Swatches(
+    swatches: Vec<Swatch>,
+    selected: Option<usize>,
+    onchange: EventHandler<usize>,
+    /// What the swatches choose, read before them.
+    label: Option<String>,
+    #[props(default)] disabled: bool,
+    children: Element,
+) -> Element {
+    let n = swatches.len();
+    let focus = use_focus(Kind::Widget, move |key, mods| {
+        !disabled && group_keys(key, mods, selected, n, Orientation::Horizontal, onchange)
+    });
+    rsx! {
+        div {
+            class: "unit-swatches{focus.class()}",
+            role: "radiogroup",
+            tabindex: if disabled { "-1" } else { "0" },
+            "aria-label": label,
+            "aria-disabled": disabled.then_some("true"),
+            onpointerdown: move |_| focus.press(),
+            onfocus: move |_| focus.dom_focus(),
+            onblur: move |_| focus.dom_blur(),
+            {children}
+            for (i, s) in swatches.into_iter().enumerate() {
+                div {
+                    key: "{i}",
+                    class: if selected == Some(i) { "unit-swatch on" } else { "unit-swatch" },
+                    role: "radio",
+                    "aria-checked": if selected == Some(i) { "true" } else { "false" },
+                    "aria-label": "{s.name}",
+                    style: "background: {s.fill}; border-color: {s.edge.as_deref().unwrap_or(&s.fill)}",
+                    onclick: move |e: MouseEvent| {
+                        e.stop_propagation();
+                        if !disabled {
+                            onchange.call(i);
+                        }
+                    },
+                }
+            }
+        }
+    }
+}
+
+/// A swatch's place that is not a colour: an icon, or a letter, that acts
+/// (Random) or stands for a choice of the page's own (`on`: Automatic).
+#[component]
+pub fn SwatchAction(
+    /// What it does, read out.
+    label: String,
+    /// An icon's path ([`crate::icon::paths`]); else `children`.
+    icon: Option<&'static str>,
+    #[props(default)] on: bool,
+    onpress: EventHandler<()>,
+    children: Element,
+) -> Element {
+    rsx! {
+        div {
+            class: if on { "unit-swatch unit-swatch-action on" } else { "unit-swatch unit-swatch-action" },
+            role: "button",
+            "aria-label": "{label}",
+            "aria-pressed": on.then_some("true"),
+            onclick: move |e: MouseEvent| {
+                e.stop_propagation();
+                onpress.call(());
+            },
+            if let Some(d) = icon {
+                crate::icon::Icon { d, size: 18.0 }
+            } else {
+                {children}
+            }
+        }
+    }
+}
+
+/// A stepper: a value made one step less or more — an hour, a count. Its
+/// two halves step; with the keys, the arrows and Page Up and Down do. The
+/// page shows the value; `value_text` is what assistive tech reads for it.
+#[component]
+pub fn Stepper(
+    ondecrement: EventHandler<()>,
+    onincrement: EventHandler<()>,
+    /// What it sets, read before the value.
+    label: Option<String>,
+    value_text: Option<String>,
+    #[props(default = true)] can_decrement: bool,
+    #[props(default = true)] can_increment: bool,
+    #[props(default)] disabled: bool,
+) -> Element {
+    let down = can_decrement && !disabled;
+    let up = can_increment && !disabled;
+    let focus = use_focus(Kind::Widget, move |key, _| match key {
+        Key::Named(NamedKey::ArrowUp | NamedKey::ArrowRight | NamedKey::PageUp) if up => {
+            onincrement.call(());
+            true
+        }
+        Key::Named(NamedKey::ArrowDown | NamedKey::ArrowLeft | NamedKey::PageDown) if down => {
+            ondecrement.call(());
+            true
+        }
+        _ => false,
+    });
+    rsx! {
+        div {
+            class: "unit-stepper{focus.class()}",
+            role: "spinbutton",
+            tabindex: if disabled { "-1" } else { "0" },
+            "aria-label": label,
+            "aria-valuetext": value_text,
+            "aria-disabled": disabled.then_some("true"),
+            onpointerdown: move |_| focus.press(),
+            onfocus: move |_| focus.dom_focus(),
+            onblur: move |_| focus.dom_blur(),
+            div {
+                class: if down { "unit-step" } else { "unit-step off" },
+                "aria-hidden": "true",
+                onclick: move |e: MouseEvent| {
+                    e.stop_propagation();
+                    if down {
+                        ondecrement.call(());
+                    }
+                },
+                crate::icon::Icon { d: crate::icon::paths::MINUS, size: 18.0 }
+            }
+            span { class: "unit-stepper-rule", "aria-hidden": "true" }
+            div {
+                class: if up { "unit-step" } else { "unit-step off" },
+                "aria-hidden": "true",
+                onclick: move |e: MouseEvent| {
+                    e.stop_propagation();
+                    if up {
+                        onincrement.call(());
+                    }
+                },
+                crate::icon::Icon { d: crate::icon::paths::PLUS, size: 18.0 }
             }
         }
     }

@@ -70,7 +70,9 @@ mod unit;
 pub use actions::{ActionSheet, SheetAction};
 pub use components::bars::{BarItem, NavBar, TabBar, Tree, TreeRow};
 pub use components::button::{Button, ToggleButton, Variant};
-pub use components::choice::{Checkbox, Orientation, RadioGroup, Segmented, Switch};
+pub use components::choice::{
+    Checkbox, Orientation, RadioGroup, Segmented, Stepper, Swatch, SwatchAction, Swatches, Switch,
+};
 pub use components::hold::{Hold, LongPress, use_hold};
 pub use components::layout::{
     Align, Axis, Badge, Callout, Card, Divider, Field, Heading, Progress, Spacer, Stack, Text,
@@ -99,9 +101,9 @@ pub mod prelude {
         Callout, Card, Checkbox, Chips, Choice, ContextMenu, Density, Dialog, Disclosure, Divider,
         Entry, Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton,
         Modal, NavBar, Orientation, Placement, Progress, RadioGroup, Row, Section, Segmented,
-        Select, SheetAction, Slider, Spacer, Stack, Switch, TabBar, Tabs, Text, TextArea,
-        TextField, Theme, Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant,
-        use_unit,
+        Select, SheetAction, Slider, Spacer, Stack, Stepper, Swatch, SwatchAction, Swatches,
+        Switch, TabBar, Tabs, Text, TextArea, TextField, Theme, Toast, ToggleButton, Tone, Tree,
+        TreeRow, Unit, UnitRoot, Variant, use_unit,
     };
 }
 

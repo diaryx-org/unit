@@ -347,6 +347,72 @@ fn checkboxes_switches_and_radios_change_on_a_tap() {
 }
 
 #[test]
+fn a_swatch_and_a_step_change_on_a_tap() {
+    let mut doc = page(1200, 800);
+    let only = |doc: &DioxusDocument, selector: &str| {
+        doc.inner
+            .borrow()
+            .query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("no {selector}"))
+    };
+    let sky = only(&doc, "[role=radio][aria-label=Sky]");
+    assert_eq!(attr(&doc, sky, "aria-checked").as_deref(), Some("false"));
+    tap(&mut doc, sky);
+    assert_eq!(attr(&doc, sky, "aria-checked").as_deref(), Some("true"));
+    // Random moves the choice on from Sky to Ink.
+    let random = only(&doc, ".unit-swatch-action");
+    tap(&mut doc, random);
+    let ink = only(&doc, "[role=radio][aria-label=Ink]");
+    assert_eq!(attr(&doc, ink, "aria-checked").as_deref(), Some("true"));
+    // The stepper's second half is +.
+    let stepper = only(&doc, "[role=spinbutton]");
+    assert_eq!(
+        attr(&doc, stepper, "aria-valuetext").as_deref(),
+        Some("9:00")
+    );
+    let plus = doc.inner.borrow().query_selector_all(".unit-step").unwrap()[1];
+    tap(&mut doc, plus);
+    assert_eq!(
+        attr(&doc, stepper, "aria-valuetext").as_deref(),
+        Some("10:00")
+    );
+    // Its keys, once it is pressed: Down steps back.
+    key(&mut doc, Key::Named(NamedKey::ArrowDown));
+    assert_eq!(
+        attr(&doc, stepper, "aria-valuetext").as_deref(),
+        Some("9:00")
+    );
+}
+
+#[test]
+fn a_tree_row_shows_its_count_and_opens_its_menu_on_a_right_click() {
+    let mut doc = page(1200, 800);
+    let journal = doc
+        .inner
+        .borrow()
+        .query_selector("[role=treeitem][aria-label=Journal]")
+        .unwrap()
+        .unwrap();
+    assert!(
+        doc.inner
+            .borrow()
+            .get_node(journal)
+            .unwrap()
+            .text_content()
+            .contains('2')
+    );
+    let (x, y, w, h) = rect(&doc, journal);
+    let (x, y) = (x + w / 2.0, y + h / 2.0);
+    let mut right = pointer(BlitzPointerId::Mouse, x, y, MouseEventButtons::Secondary);
+    right.button = MouseEventButton::Secondary;
+    doc.handle_ui_event(UiEvent::PointerDown(right.clone()));
+    doc.handle_ui_event(UiEvent::PointerUp(right));
+    settle(&mut doc);
+    assert_eq!(said(&doc), "Journal's menu.");
+}
+
+#[test]
 fn touch_density_draws_menu_rows_the_height_their_geometry_assumes() {
     let mut doc = page(390, 844);
     let touch = find(&doc, ".unit-segment", "Touch");

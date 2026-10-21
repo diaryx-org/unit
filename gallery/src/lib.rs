@@ -107,6 +107,8 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut wrap = use_signal(|| false);
     let mut size = use_signal(|| Some(1usize));
     let mut view = use_signal(|| Some(0usize));
+    let mut tone = use_signal(|| Some(1usize));
+    let mut hour = use_signal(|| 9u32);
     let mut volume = use_signal(|| 0.4f64);
     let mut stepped = use_signal(|| 3.0f64);
     let mut name = use_signal(String::new);
@@ -239,6 +241,28 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         selected: view(),
                         onchange: move |i| view.set(Some(i)),
                     }
+                    Divider {}
+                    Swatches {
+                        label: "Colour",
+                        swatches: vec![
+                            Swatch::new("Rose", "#f7c9c9").edge("#d99a9a"),
+                            Swatch::new("Sage", "#cfe3cc").edge("#93b38e"),
+                            Swatch::new("Sky", "#a9dcf7").edge("#6fb3d8"),
+                            Swatch::new("Ink", "#3a3a3c"),
+                        ],
+                        selected: tone(),
+                        onchange: move |i| tone.set(Some(i)),
+                        SwatchAction { label: "Random", icon: paths::SHUFFLE,
+                                       onpress: move |_| tone.set(Some((tone().unwrap_or(0) + 1) % 4)) }
+                    }
+                    Stack { axis: Axis::Horizontal, align: Align::Center,
+                        Text { "Every day at {hour()}:00" }
+                        Spacer {}
+                        Stepper { label: "Hour", value_text: format!("{}:00", hour()),
+                                  can_decrement: hour() > 0, can_increment: hour() < 23,
+                                  ondecrement: move |_| hour.set(hour() - 1),
+                                  onincrement: move |_| hour.set(hour() + 1) }
+                    }
                 }
                 Card { title: "Sliders",
                     Field { label: "Volume", note: format!("{:.0}%", volume() * 100.0),
@@ -361,7 +385,10 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                              ] }
                     Tree { label: "Folders",
                         TreeRow { label: "Journal", expanded: journal(), selected: folder() == "Journal",
-                                  ontoggle: move |v| journal.set(v), onpress: move |_| folder.set("Journal".into()) }
+                                  leading: rsx! { span { style: "display: block; width: 10px; height: 10px; border-radius: 3px; background: #a9dcf7" } },
+                                  detail: "2",
+                                  ontoggle: move |v| journal.set(v), onpress: move |_| folder.set("Journal".into()),
+                                  onmenu: move |_| said.set("Journal's menu.".into()) }
                         if journal() {
                             for f in ["2026", "Drafts"] {
                                 TreeRow { key: "{f}", label: f, depth: 1, selected: folder() == f,
