@@ -132,6 +132,10 @@ pub fn Tree(label: Option<String>, #[props(default)] class: String, children: El
 /// under it, shown or not, and an arrow that opens and closes it
 /// (`ontoggle`, given the new state); the page draws the rows under it when
 /// it is open, after it. `onpress` is pressing the row itself.
+///
+/// `leading` is drawn before the label in place of an icon (a colour mark),
+/// `detail` after it, dim (a count). `onmenu` is the row's menu: a
+/// right-click, or the Menu key or Shift-F10 once the row has the keys.
 #[component]
 pub fn TreeRow(
     label: String,
@@ -139,17 +143,28 @@ pub fn TreeRow(
     expanded: Option<bool>,
     #[props(default)] selected: bool,
     icon: Option<&'static str>,
+    leading: Option<Element>,
+    detail: Option<String>,
     onpress: EventHandler<()>,
     ontoggle: Option<EventHandler<bool>>,
+    onmenu: Option<EventHandler<()>>,
 ) -> Element {
     let toggle = move |to: bool| {
         if let Some(t) = ontoggle {
             t.call(to);
         }
     };
-    let focus = use_focus(Kind::Widget, move |key, _| match key {
+    let focus = use_focus(Kind::Widget, move |key, mods| match key {
         _ if is_press(key) => {
             onpress.call(());
+            true
+        }
+        Key::Named(NamedKey::ContextMenu) | Key::Named(NamedKey::F10)
+            if onmenu.is_some() && (*key == Key::Named(NamedKey::ContextMenu) || mods.shift()) =>
+        {
+            if let Some(m) = onmenu {
+                m.call(());
+            }
             true
         }
         Key::Named(NamedKey::ArrowRight) if expanded == Some(false) => {
@@ -182,6 +197,13 @@ pub fn TreeRow(
                 e.stop_propagation();
                 onpress.call(());
             },
+            oncontextmenu: move |e: MouseEvent| {
+                if let Some(m) = onmenu {
+                    e.prevent_default();
+                    e.stop_propagation();
+                    m.call(());
+                }
+            },
             match expanded {
                 Some(open) => rsx! {
                     span { class: "unit-tree-arrow", "aria-hidden": "true",
@@ -195,10 +217,15 @@ pub fn TreeRow(
                 },
                 None => rsx! { span { class: "unit-tree-arrow" } },
             }
-            if let Some(d) = icon {
+            if let Some(lead) = leading {
+                span { class: "unit-tree-lead", "aria-hidden": "true", {lead} }
+            } else if let Some(d) = icon {
                 Icon { d, ink: if selected { Ink::AccentText } else { Ink::Accent }, size: 16.0 }
             }
             span { class: "unit-tree-label", "{label}" }
+            if let Some(d) = detail {
+                span { class: "unit-tree-detail", "{d}" }
+            }
         }
     }
 }

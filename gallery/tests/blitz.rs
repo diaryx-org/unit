@@ -386,6 +386,33 @@ fn a_swatch_and_a_step_change_on_a_tap() {
 }
 
 #[test]
+fn a_tree_row_shows_its_count_and_opens_its_menu_on_a_right_click() {
+    let mut doc = page(1200, 800);
+    let journal = doc
+        .inner
+        .borrow()
+        .query_selector("[role=treeitem][aria-label=Journal]")
+        .unwrap()
+        .unwrap();
+    assert!(
+        doc.inner
+            .borrow()
+            .get_node(journal)
+            .unwrap()
+            .text_content()
+            .contains('2')
+    );
+    let (x, y, w, h) = rect(&doc, journal);
+    let (x, y) = (x + w / 2.0, y + h / 2.0);
+    let mut right = pointer(BlitzPointerId::Mouse, x, y, MouseEventButtons::Secondary);
+    right.button = MouseEventButton::Secondary;
+    doc.handle_ui_event(UiEvent::PointerDown(right.clone()));
+    doc.handle_ui_event(UiEvent::PointerUp(right));
+    settle(&mut doc);
+    assert_eq!(said(&doc), "Journal's menu.");
+}
+
+#[test]
 fn touch_density_draws_menu_rows_the_height_their_geometry_assumes() {
     let mut doc = page(390, 844);
     let touch = find(&doc, ".unit-segment", "Touch");

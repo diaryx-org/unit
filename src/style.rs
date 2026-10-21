@@ -308,6 +308,9 @@ pub const CSS: &str = r#"
 .unit-tree-row.on { background: var(--unit-accent); color: var(--unit-accent-text); }
 .unit-tree-arrow { display: flex; align-items: center; justify-content: center; width: 14px; flex: none; }
 .unit-tree-label { flex: 1; overflow: hidden; }
+.unit-tree-lead { display: flex; align-items: center; flex: none; }
+.unit-tree-detail { flex: none; color: var(--unit-dim); font-size: 0.85em; padding-right: 6px; }
+.unit-tree-row.on .unit-tree-detail { color: inherit; opacity: 0.8; }
 
 /* A modal of the page's own */
 .unit-modal-place { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 90;

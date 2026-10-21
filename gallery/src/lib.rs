@@ -385,7 +385,10 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                              ] }
                     Tree { label: "Folders",
                         TreeRow { label: "Journal", expanded: journal(), selected: folder() == "Journal",
-                                  ontoggle: move |v| journal.set(v), onpress: move |_| folder.set("Journal".into()) }
+                                  leading: rsx! { span { style: "display: block; width: 10px; height: 10px; border-radius: 3px; background: #a9dcf7" } },
+                                  detail: "2",
+                                  ontoggle: move |v| journal.set(v), onpress: move |_| folder.set("Journal".into()),
+                                  onmenu: move |_| said.set("Journal's menu.".into()) }
                         if journal() {
                             for f in ["2026", "Drafts"] {
                                 TreeRow { key: "{f}", label: f, depth: 1, selected: folder() == f,
