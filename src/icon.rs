@@ -132,6 +132,8 @@ pub mod paths {
     pub const ARROW_DOWN: &str = "M12 5v14M19 12l-7 7-7-7";
     /// Lucide's `arrow-right`.
     pub const ARROW_RIGHT: &str = "M5 12h14M12 5l7 7-7 7";
+    /// Lucide's `arrow-up-right`. Leads out: a link that opens somewhere else.
+    pub const ARROW_UP_RIGHT: &str = "M7 7h10v10M7 17L17 7";
     /// Lucide's `minus`.
     pub const MINUS: &str = "M5 12h14";
     /// Lucide's `bookmark`. Drawn `filled` when it is set.
@@ -199,6 +201,7 @@ pub mod paths {
         ("ARROW_UP", ARROW_UP),
         ("ARROW_DOWN", ARROW_DOWN),
         ("ARROW_RIGHT", ARROW_RIGHT),
+        ("ARROW_UP_RIGHT", ARROW_UP_RIGHT),
         ("MINUS", MINUS),
         ("BOOKMARK", BOOKMARK),
         ("GEAR", GEAR),
