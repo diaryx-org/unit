@@ -69,7 +69,7 @@ mod unit;
 
 pub use actions::{ActionSheet, SheetAction};
 pub use components::bars::{BarItem, NavBar, TabBar, Tree, TreeRow};
-pub use components::button::{Button, ToggleButton, Variant};
+pub use components::button::{Button, Pressable, ToggleButton, Variant};
 pub use components::choice::{
     Checkbox, Orientation, RadioGroup, Segmented, Stepper, Swatch, SwatchAction, Swatches, Switch,
 };
@@ -101,10 +101,10 @@ pub mod prelude {
         Accent, Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem, Button,
         Callout, Card, Checkbox, Chips, Choice, CodeField, ContextMenu, Density, Dialog,
         Disclosure, Divider, Entry, Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox,
-        LongPress, MenuButton, Modal, NavBar, Orientation, Placement, Progress, RadioGroup, Row,
-        Section, Segmented, Select, SheetAction, Slider, Spacer, Stack, Stepper, Swatch,
-        SwatchAction, Swatches, Switch, TabBar, Tabs, Text, TextArea, TextField, Theme, Toast,
-        ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
+        LongPress, MenuButton, Modal, NavBar, Orientation, Placement, Pressable, Progress,
+        RadioGroup, Row, Section, Segmented, Select, SheetAction, Slider, Spacer, Stack, Stepper,
+        Swatch, SwatchAction, Swatches, Switch, TabBar, Tabs, Text, TextArea, TextField, Theme,
+        Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
     };
 }
 
@@ -369,5 +369,67 @@ mod tests {
             assert!(!unit.key(&enter, Default::default()));
         });
         assert_eq!(PRESSED.with(Cell::get), 1);
+    }
+
+    /// A pressable of the page's own is a button Tab reaches, with the
+    /// page's attributes on it, a role of the page's in place of its own,
+    /// and the ring while it has the keys; Return presses it.
+    #[test]
+    fn a_pressable_is_a_button_tab_reaches() {
+        use std::cell::{Cell, RefCell};
+        thread_local! {
+            static UNIT: RefCell<Option<Unit>> = const { RefCell::new(None) };
+            static PRESSED: Cell<u32> = const { Cell::new(0) };
+        }
+        fn Page() -> Element {
+            rsx! {
+                UnitRoot { keys: Keys::Host,
+                    Grab {}
+                    Pressable { class: "row", "aria-label": "Shelf", style: "color: red",
+                        onpress: |_| PRESSED.with(|p| p.set(p.get() + 1)), "Shelf" }
+                    Pressable { inline: true, role: "tab", class: "chip", onpress: |_| {}, "Tab" }
+                    Pressable { disabled: true, class: "off", onpress: |_| {}, "Off" }
+                }
+            }
+        }
+        #[component]
+        fn Grab() -> Element {
+            let u = use_unit();
+            UNIT.with(|c| *c.borrow_mut() = Some(u));
+            rsx! {}
+        }
+        let mut dom = VirtualDom::new(Page);
+        dom.rebuild_in_place();
+        let html = dioxus_ssr::render(&dom);
+        let el = |class: &str| {
+            let at = html.find(&format!("class=\"{class}\"")).expect(class);
+            let start = html[..at].rfind('<').unwrap();
+            html[start..start + html[start..].find('>').unwrap()].to_string()
+        };
+        let row = el("row");
+        assert!(row.starts_with("<div"), "{row}");
+        for a in [
+            "role=\"button\"",
+            "tabindex=\"0\"",
+            "aria-label=\"Shelf\"",
+            "color: red",
+        ] {
+            assert!(row.contains(a), "{a}: {row}");
+        }
+        let tab = el("chip");
+        assert!(tab.starts_with("<span"), "{tab}");
+        assert!(
+            tab.contains("role=\"tab\"") && !tab.contains("role=\"button\""),
+            "{tab}"
+        );
+        let off = el("off");
+        assert!(
+            off.contains("tabindex=\"-1\"") && off.contains("aria-disabled=\"true\""),
+            "{off}"
+        );
+        assert!(
+            !row.contains("data-unit-focused"),
+            "no ring without the keys: {row}"
+        );
     }
 }

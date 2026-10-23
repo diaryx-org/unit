@@ -26,7 +26,7 @@ unit = { git = "https://github.com/diaryx-org/unit", branch = "main" }
 
 | | |
 |---|---|
-| Buttons | `Button` (default, primary, ghost, danger), `ToggleButton`, each with an `icon` |
+| Buttons | `Button` (default, primary, ghost, danger), `ToggleButton`, each with an `icon`; `Pressable`, a page's own row or tile that Tab reaches and Return and Space press |
 | Icons | `Icon`: a path on a 24-unit grid stroked in `currentColor`, the text's or an `Ink` of the theme's; `icon::paths` |
 | Choices | `Checkbox`, `Switch`, `RadioGroup`, `Segmented`, `Slider`, `Chips` (each with a colour's dot and a count, if it has them) |
 | Text | `TextField` (text, search, email, URL, password, number; with an `action` at its end, pressed by Return too), `TextArea`, `CodeField` (a one-time code: a cell for each digit, one field to assistive tech, a whole code pasted or filled in at once) |

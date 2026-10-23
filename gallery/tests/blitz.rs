@@ -1453,3 +1453,41 @@ fn a_code_is_typed_or_pasted_whole_into_one_field_and_keeps_only_its_digits() {
     assert!(cells.is_hidden());
     assert_eq!(cells.children().len(), 6);
 }
+
+/// A pressable of the page's own is reached by Tab from the button before
+/// it, drawn with the ring, and pressed by Return and by Space; pressed by
+/// the mouse, it has no ring.
+#[test]
+fn tab_reaches_a_pressable_and_return_presses_it() {
+    let mut doc = page(1200, 800);
+    let bold = find(&doc, "button", "B");
+    click(&mut doc, bold);
+    key(&mut doc, Key::Named(NamedKey::Tab));
+    let tile = find(&doc, "[role=button]", "Tile");
+    assert_eq!(
+        doc.inner.borrow().get_focussed_node_id(),
+        Some(tile),
+        "Tab passes Italic, which refuses the keys, to the tile"
+    );
+    assert!(attr(&doc, tile, "data-unit-focused").is_some(), "the ring");
+    key(&mut doc, Key::Named(NamedKey::Enter));
+    assert_eq!(said(&doc), "Tile pressed.");
+    let other = find(&doc, "button", "Default");
+    click(&mut doc, other);
+    assert_eq!(said(&doc), "Default pressed.");
+    // Primary, Ghost, Delete, Add, Share, Bold: Disabled and Italic passed by.
+    for _ in 0..7 {
+        key(&mut doc, Key::Named(NamedKey::Tab));
+    }
+    assert_eq!(doc.inner.borrow().get_focussed_node_id(), Some(tile));
+    key(&mut doc, Key::Character(" ".into()));
+    assert_eq!(said(&doc), "Tile pressed.");
+    // Pressed by the mouse, it has the keys but no ring.
+    click(&mut doc, other);
+    click(&mut doc, tile);
+    assert_eq!(said(&doc), "Tile pressed.");
+    assert!(
+        attr(&doc, tile, "data-unit-focused").is_none(),
+        "no ring after a press"
+    );
+}

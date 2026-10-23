@@ -333,15 +333,11 @@ pub fn SwatchAction(
     children: Element,
 ) -> Element {
     rsx! {
-        div {
+        crate::Pressable {
             class: if on { "unit-swatch unit-swatch-action on" } else { "unit-swatch unit-swatch-action" },
-            role: "button",
             "aria-label": "{label}",
             "aria-pressed": on.then_some("true"),
-            onclick: move |e: MouseEvent| {
-                e.stop_propagation();
-                onpress.call(());
-            },
+            onpress: move |_| onpress.call(()),
             if let Some(d) = icon {
                 crate::icon::Icon { d, size: 18.0 }
             } else {

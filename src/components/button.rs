@@ -172,3 +172,95 @@ pub fn ToggleButton(
         }
     }
 }
+
+/// Something pressed that is drawn as the page's own and not as a button: a
+/// sheet's row, a tile, a bar's item, a chip. It is a `div` with
+/// `role="button"` (a `span` if `inline`) that Tab reaches, drawn with the
+/// ring while it has the keys, and pressed by a click, a tap, assistive
+/// tech's press, or Return or Space ([`Kind::Button`]). The ring shows
+/// only when the keys came by a key ([`Focus::ring`](crate::Focus::ring)).
+///
+/// It takes any global attribute — `class`, `style`, `aria-label`,
+/// `aria-expanded`, `title`, `role` for another role a press suits (`tab`,
+/// `link`) — and puts it on its element. The ring is an attribute,
+/// `data-unit-focused`, rather than a class, so the page's selectors for its
+/// own classes go on matching as they did.
+#[component]
+pub fn Pressable(
+    onpress: EventHandler<()>,
+    /// Not pressed, and passed by: Tab goes past it.
+    #[props(default)]
+    disabled: bool,
+    /// A `span`, for a press inside a line of text.
+    #[props(default)]
+    inline: bool,
+    /// The secondary button: the page's own menu for it.
+    oncontextmenu: Option<EventHandler<MouseEvent>>,
+    /// The mouse held, moved and let go: a press held for a menu.
+    onmousedown: Option<EventHandler<MouseEvent>>,
+    onmousemove: Option<EventHandler<MouseEvent>>,
+    onmouseup: Option<EventHandler<MouseEvent>>,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
+    children: Element,
+) -> Element {
+    let focus = use_focus(Kind::Button, move |key, _| {
+        if is_press(key) && !disabled {
+            onpress.call(());
+            return true;
+        }
+        false
+    });
+    // Only after a key: a page's own rows and tiles are pressed by the
+    // mouse and a finger far more than they are reached by Tab.
+    let ring = focus.ring().then_some("true");
+    let tabindex = if disabled { "-1" } else { "0" };
+    // A role the page gives replaces the button's: an element with two is
+    // read by its first.
+    let role = (!attributes.iter().any(|a| a.name == "role")).then_some("button");
+    let disabled_attr = disabled.then_some("true");
+    let onclick = move |e: MouseEvent| {
+        e.stop_propagation();
+        if !disabled {
+            onpress.call(());
+        }
+    };
+    if inline {
+        rsx! {
+            span {
+                role,
+                tabindex,
+                "aria-disabled": disabled_attr,
+                "data-unit-focused": ring,
+                onpointerdown: move |_| if !disabled { focus.press() },
+                onfocus: move |_| focus.dom_focus(),
+                onblur: move |_| focus.dom_blur(),
+                onclick: onclick,
+                oncontextmenu: move |e| if let Some(h) = oncontextmenu { h.call(e) },
+                onmousedown: move |e| if let Some(h) = onmousedown { h.call(e) },
+                onmousemove: move |e| if let Some(h) = onmousemove { h.call(e) },
+                onmouseup: move |e| if let Some(h) = onmouseup { h.call(e) },
+                ..attributes,
+                {children}
+            }
+        }
+    } else {
+        rsx! {
+            div {
+                role,
+                tabindex,
+                "aria-disabled": disabled_attr,
+                "data-unit-focused": ring,
+                onpointerdown: move |_| if !disabled { focus.press() },
+                onfocus: move |_| focus.dom_focus(),
+                onblur: move |_| focus.dom_blur(),
+                onclick: onclick,
+                oncontextmenu: move |e| if let Some(h) = oncontextmenu { h.call(e) },
+                onmousedown: move |e| if let Some(h) = onmousedown { h.call(e) },
+                onmousemove: move |e| if let Some(h) = onmousemove { h.call(e) },
+                onmouseup: move |e| if let Some(h) = onmouseup { h.call(e) },
+                ..attributes,
+                {children}
+            }
+        }
+    }
+}

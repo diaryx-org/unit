@@ -15,7 +15,7 @@ pub const CSS: &str = r#"
    under the root lays out by the box model it chose. */
 .unit-root [class*="unit-"], .unit-root [class*="unit-"] *,
 .unit-root [class*="unit-"]::before, .unit-root [class*="unit-"]::after { box-sizing: border-box; }
-.unit-focused { outline: 2px solid var(--unit-focus); outline-offset: 1px; }
+.unit-focused, [data-unit-focused] { outline: 2px solid var(--unit-focus); outline-offset: 1px; }
 
 /* The overlay */
 .unit-layer { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 100;

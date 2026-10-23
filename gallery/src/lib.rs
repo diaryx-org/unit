@@ -223,6 +223,9 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                                            said.set(format!("Italic {}.", if v { "on" } else { "off" }));
                                        },
                                        i { "I" } }
+                        // Drawn as the page's own, and a button to Tab and Return.
+                        Pressable { class: "gallery-tile", "aria-label": "A tile",
+                                    onpress: move |_| said.set("Tile pressed.".into()), "Tile" }
                     }
                 }
                 Card { title: "Choices",
