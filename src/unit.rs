@@ -91,6 +91,10 @@ pub struct Unit {
     /// Set by a control's press, so the root's handler for the same press,
     /// which bubbles to it after, knows not to take the keys away.
     claimed: CopyValue<bool>,
+    /// Whether the last of the user's input was a key rather than a press:
+    /// a ring drawn only then ([`Focus::ring`]) shows where Tab went and
+    /// not where a pointer just pressed.
+    keyed: Signal<bool>,
     pub(crate) clipboard: CopyValue<Option<Rc<dyn Clipboard>>>,
     pub(crate) keys: CopyValue<Keys>,
     activates: CopyValue<bool>,
@@ -141,6 +145,7 @@ pub fn use_unit_provider(keys: Keys, activates: bool) -> Unit {
         focused: Signal::new(None),
         focus: CopyValue::new(None),
         claimed: CopyValue::new(false),
+        keyed: Signal::new(false),
         clipboard: CopyValue::new(None),
         keys: CopyValue::new(keys),
         activates: CopyValue::new(activates),
@@ -254,12 +259,20 @@ impl Unit {
     /// them.
     pub(crate) fn claim(&self) {
         self.claimed.clone().set(true);
+        self.keyed(false);
+    }
+
+    fn keyed(&self, keyed: bool) {
+        if *self.keyed.peek() != keyed {
+            self.keyed.clone().set(keyed);
+        }
     }
 
     /// The root's own handler for a press, after any control's.
     pub(crate) fn pressed_root(&self) {
         let claimed = *self.claimed.peek();
         self.claimed.clone().set(false);
+        self.keyed(false);
         if !claimed {
             self.blur();
         }
@@ -271,6 +284,7 @@ impl Unit {
     /// dialog takes every key. With neither, the control with the keys has
     /// it.
     pub fn key(&self, key: &Key, mods: Modifiers) -> bool {
+        self.keyed(true);
         if self.layer.peek().is_open() {
             return self.layer_key(key, mods);
         }
@@ -412,6 +426,13 @@ impl Focus {
     /// The renderer blurred the control.
     pub fn dom_blur(&self) {
         self.unit.blurred(self.id);
+    }
+
+    /// Whether the control has the keys and the last input was a key: where
+    /// a ring shows that Tab put them, as a browser's `:focus-visible`
+    /// does, and not on every row a finger or the mouse presses.
+    pub fn ring(&self) -> bool {
+        self.is_focused() && *self.unit.keyed.read()
     }
 
     /// The class the control's element adds while it has the keys.
