@@ -83,6 +83,7 @@ pub use components::list::{Accessory, Row, Section};
 pub use components::menus::{Chips, Choice, ContextMenu, MenuButton, Select, left_top};
 pub use components::modal::{Modal, Placement};
 pub use components::navigation::{Disclosure, ListBox, Tabs};
+pub use components::scrollbar::ScrollBar;
 pub use components::slider::Slider;
 pub use components::text_field::{InputKind, TextArea, TextField};
 pub use dialog::{Answer, Dialog};
@@ -103,9 +104,9 @@ pub mod prelude {
         Callout, Card, Checkbox, Chips, Choice, CodeField, ContextMenu, Density, Dialog,
         Disclosure, Divider, Entry, Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox,
         LongPress, MenuButton, Modal, NavBar, Orientation, Placement, Pressable, Progress,
-        RadioGroup, Row, Section, Segmented, Select, SheetAction, Slider, Spacer, Stack, Stepper,
-        Swatch, SwatchAction, Swatches, Switch, TabBar, Tabs, Text, TextArea, TextField, Theme,
-        Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
+        RadioGroup, Row, ScrollBar, Section, Segmented, Select, SheetAction, Slider, Spacer, Stack,
+        Stepper, Swatch, SwatchAction, Swatches, Switch, TabBar, Tabs, Text, TextArea, TextField,
+        Theme, Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
     };
 }
 

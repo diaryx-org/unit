@@ -11,5 +11,6 @@ pub mod list;
 pub mod menus;
 pub mod modal;
 pub mod navigation;
+pub mod scrollbar;
 pub mod slider;
 pub mod text_field;

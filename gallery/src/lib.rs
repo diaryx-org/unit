@@ -414,6 +414,9 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                                   onpress: move |_| folder.set("Archive".into()) }
                     }
                 }
+                Card { title: "Scrolling",
+                    Scrolled {}
+                }
                 Card { title: "Overlays",
                     Stack { axis: Axis::Horizontal, wrap: true,
                         Button { onpress: move |_| {
@@ -497,6 +500,41 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                 inset: 8.0, clear: 66.0, max_height: 0.7, close_button: false, class: "gallery-floating",
                 onclose: move |_| floating.set(false),
             Text { "Held off the window's edges, above the page's own bar." }
+        }
+    }
+}
+
+/// A box of forty lines, scrolled by the wheel and by its bar: what a view
+/// that keeps its own scroll does with `unit::scroll`.
+#[allow(non_snake_case)]
+fn Scrolled() -> Element {
+    const LINES: usize = 40;
+    const LINE: f64 = 20.0;
+    const HEIGHT: f64 = 160.0;
+    let mut scroll =
+        use_signal(|| unit::scroll::Scroll::new((0.0, HEIGHT), (0.0, LINES as f64 * LINE)));
+    let s = scroll();
+    let top = -s.y;
+    rsx! {
+        div { class: "gallery-scrolled",
+            style: "position: relative; height: {HEIGHT}px; overflow: hidden;",
+            onwheel: move |e: WheelEvent| {
+                let (dx, dy) = unit::scroll::wheel_delta(e.delta(), HEIGHT);
+                scroll.write().wheel(dx, dy);
+            },
+            div { style: "position: absolute; left: 0; right: 14px; top: {top}px;",
+                for i in 1..=LINES {
+                    div { key: "{i}", class: "gallery-line", style: "height: {LINE}px;", "Line {i}" }
+                }
+            }
+            ScrollBar { axis: Axis::Vertical, scroll: s,
+                label: "Lines".to_string(),
+                onscroll: move |y| {
+                    let mut s = scroll.write();
+                    s.y = y;
+                    s.clamp();
+                },
+            }
         }
     }
 }
