@@ -212,6 +212,7 @@ pub const CSS: &str = r#"
 .unit-root[data-density="touch"] .unit-step { width: 46px; border-radius: 8px; }
 
 /* Slider: the thumb's and the stops' room inside its own box */
+.unit-scrollbar:hover .unit-scrollbar-thumb { opacity: 0.85 !important; }
 .unit-slider { position: relative; height: var(--unit-control-height); min-width: 120px; width: 100%; }
 .unit-slider-rail { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; }
 .unit-slider-line { position: absolute; left: 0; right: 0; top: 50%;

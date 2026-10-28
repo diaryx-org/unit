@@ -1491,3 +1491,86 @@ fn tab_reaches_a_pressable_and_return_presses_it() {
         "no ring after a press"
     );
 }
+
+/// The first element matching `selector`.
+fn first(doc: &DioxusDocument, selector: &str) -> NodeId {
+    doc.inner
+        .borrow()
+        .query_selector(selector)
+        .unwrap()
+        .unwrap_or_else(|| panic!("no {selector}"))
+}
+
+/// A press at (`x`, `y`), a drag with the button held to (`x2`, `y2`), and
+/// the release there: the mouse's.
+fn drag(doc: &mut DioxusDocument, (x, y): (f64, f64), (x2, y2): (f64, f64)) {
+    let id = BlitzPointerId::Mouse;
+    doc.handle_ui_event(UiEvent::PointerMove(pointer(
+        id,
+        x,
+        y,
+        MouseEventButtons::None,
+    )));
+    doc.handle_ui_event(UiEvent::PointerDown(pointer(
+        id,
+        x,
+        y,
+        MouseEventButtons::Primary,
+    )));
+    settle(doc);
+    for i in 1..=4 {
+        let t = i as f64 / 4.0;
+        let at = (x + (x2 - x) * t, y + (y2 - y) * t);
+        doc.handle_ui_event(UiEvent::PointerMove(pointer(
+            id,
+            at.0,
+            at.1,
+            MouseEventButtons::Primary,
+        )));
+        settle(doc);
+    }
+    doc.handle_ui_event(UiEvent::PointerUp(pointer(
+        id,
+        x2,
+        y2,
+        MouseEventButtons::None,
+    )));
+    settle(doc);
+}
+
+/// The scroll box's bar, laid out and pressed by Blitz: a drag of its thumb
+/// scrolls the lines, and goes on when the pointer leaves the thin bar; a
+/// press on the track below the thumb scrolls the box a screen on.
+#[test]
+fn a_scroll_bars_thumb_drags_and_its_track_pages() {
+    let mut doc = page(900, 6000);
+    let thumb = first(&doc, ".unit-scrollbar-thumb");
+    let bar = first(&doc, ".unit-scrollbar");
+    let line = find(&doc, ".gallery-line", "Line 1");
+    let (tx, ty, tw, th) = rect(&doc, thumb);
+    let (_, y0, _, _) = rect(&doc, line);
+    assert!(th > 20.0 && tw > 0.0, "a thumb a hand can take: {th}");
+
+    // Down 40 pixels, wandering off the bar to the left on the way.
+    let from = (tx + tw / 2.0, ty + th / 2.0);
+    drag(&mut doc, from, (from.0 - 200.0, from.1 + 40.0));
+    let (_, ty2, _, _) = rect(&doc, thumb);
+    let (_, y1, _, _) = rect(&doc, line);
+    assert!(
+        (ty2 - ty - 40.0).abs() < 1.0,
+        "the thumb followed: {ty} -> {ty2}"
+    );
+    assert!(y1 < y0 - 40.0, "the lines scrolled up: {y0} -> {y1}");
+
+    // A press on the track, below the thumb: a screen on.
+    let (bx, by, bw, bh) = rect(&doc, bar);
+    drag(
+        &mut doc,
+        (bx + bw / 2.0, by + bh - 3.0),
+        (bx + bw / 2.0, by + bh - 3.0),
+    );
+    let (_, ty3, _, _) = rect(&doc, thumb);
+    let (_, y2, _, _) = rect(&doc, line);
+    assert!(ty3 > ty2, "the thumb moved on: {ty2} -> {ty3}");
+    assert!(y2 < y1, "the lines scrolled on: {y1} -> {y2}");
+}

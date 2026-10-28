@@ -18,10 +18,20 @@
 //!
 //! A wheel's delta is Blitz's (winit's) convention: positive moves toward
 //! the top and the left.
+//!
+//! [`ScrollBar`](crate::ScrollBar) draws a scroll's bar along either axis
+//! from the same model: [`Scroll::thumb`] is where its thumb is, and
+//! [`Scroll::offset_at`] the offset a thumb dragged somewhere stands for.
 
 use std::collections::VecDeque;
 
 use dioxus::html::geometry::WheelDelta;
+
+use crate::Axis;
+
+/// The shortest a scroll bar's thumb is drawn, in CSS pixels, however long
+/// the content.
+pub const SHORTEST_THUMB: f64 = 24.0;
 
 /// One line of a wheel that counts in lines, in CSS pixels.
 pub const LINE: f64 = 20.0;
@@ -161,6 +171,51 @@ impl Scroll {
     /// Where the content's point (`x`, `y`) (at zoom 1) is in the viewport.
     pub fn to_view(&self, x: f64, y: f64) -> (f64, f64) {
         (x * self.zoom - self.x, y * self.zoom - self.y)
+    }
+
+    /// The offset along `axis`, the least and the most it may be, the
+    /// viewport's length and the content's (its room past the end
+    /// counted).
+    fn along(&self, axis: Axis) -> (f64, (f64, f64), f64, f64) {
+        let (across, down) = self.range();
+        let (w, h) = self.zoomed();
+        match axis {
+            Axis::Vertical => (self.y, down, self.view.1, h + self.slack),
+            Axis::Horizontal => (self.x, across, self.view.0, w),
+        }
+    }
+
+    /// Where a scroll bar's thumb is along `axis`: its start and length on a
+    /// track as long as the viewport, or `None` when there is nothing to
+    /// scroll that way.
+    pub fn thumb(&self, axis: Axis) -> Option<(f64, f64)> {
+        let (pos, (lo, hi), view, content) = self.along(axis);
+        if hi - lo < 0.5 || view <= 0.0 {
+            return None;
+        }
+        let len = (view * view / content.max(view)).clamp(SHORTEST_THUMB.min(view), view);
+        let start = ((pos - lo) / (hi - lo)).clamp(0.0, 1.0) * (view - len);
+        Some((start, len))
+    }
+
+    /// The offset along `axis` a thumb whose start is dragged to `start` on
+    /// the track stands for.
+    pub fn offset_at(&self, axis: Axis, start: f64) -> f64 {
+        let (pos, (lo, hi), view, _) = self.along(axis);
+        let Some((_, len)) = self.thumb(axis) else {
+            return pos;
+        };
+        let room = (view - len).max(1.0);
+        lo + (start / room).clamp(0.0, 1.0) * (hi - lo)
+    }
+
+    /// The offset along `axis` a screen on toward the end, or back toward
+    /// the start: what a press on a scroll bar's track asks for.
+    pub fn page(&self, axis: Axis, toward_end: bool) -> f64 {
+        let (pos, (lo, hi), view, _) = self.along(axis);
+        let step = (view - 2.0 * LINE).max(LINE);
+        let to = if toward_end { pos + step } else { pos - step };
+        to.clamp(lo, hi)
     }
 
     /// Move just far enough that the content's box (`x`, `y`, `w`, `h`) (at
@@ -405,6 +460,25 @@ mod tests {
         assert_eq!(s.y, 250.0 + 10.0 + 8.0 - 100.0);
         assert!(s.reveal((0.0, 20.0, 10.0, 10.0), 8.0));
         assert_eq!(s.y, 12.0);
+    }
+
+    /// The thumb is as long as the share of the content in view, and as far
+    /// along the track as the view is along the content; dragged to a
+    /// place, it stands for the offset that puts it there.
+    #[test]
+    fn the_thumb_stands_for_the_view() {
+        let mut s = tall();
+        assert_eq!(s.thumb(Axis::Vertical), Some((0.0, 25.0)));
+        assert_eq!(s.thumb(Axis::Horizontal), None, "nothing to scroll across");
+        s.wheel(0.0, -150.0);
+        assert_eq!(s.thumb(Axis::Vertical), Some((37.5, 25.0)));
+        assert_eq!(s.offset_at(Axis::Vertical, 75.0), 300.0);
+        assert_eq!(s.offset_at(Axis::Vertical, 37.5), 150.0);
+        assert_eq!(s.page(Axis::Vertical, true), 150.0 + 100.0 - 2.0 * LINE);
+        assert_eq!(s.page(Axis::Vertical, false), 150.0 - (100.0 - 2.0 * LINE));
+        // A very long content still has a thumb a hand can take.
+        s.content.1 = 1.0e6;
+        assert_eq!(s.thumb(Axis::Vertical).unwrap().1, SHORTEST_THUMB);
     }
 
     #[test]
