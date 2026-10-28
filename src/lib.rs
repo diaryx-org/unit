@@ -63,6 +63,7 @@ pub mod layer;
 #[cfg(all(feature = "apple", target_os = "macos"))]
 mod macos;
 pub mod menu;
+pub mod scroll;
 mod style;
 pub mod theme;
 mod unit;
