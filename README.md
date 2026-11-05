@@ -12,6 +12,7 @@ cargo run -p unit-gallery                # every component, in a window drawn by
 dx serve -p unit-gallery --platform web --no-default-features --features web
 gallery/web/build.sh                     # the gallery as a static site, as Pages publishes it
 UNIT_APPEARANCE=dark UNIT_DENSITY=touch cargo run -p unit-gallery
+corgi test --workspace                   # the tests, where corgi is installed: its store is shared with diaryx
 ```
 
 The library is at the root, the gallery in `gallery/`. It began in
@@ -105,6 +106,29 @@ Accessibility is ARIA on real elements: `<button>` where it can be, and
 `aria-valuenow`, `aria-modal`, `aria-label`, `aria-labelledby`. A browser
 reads them as it reads any page; Blitz builds its AccessKit tree from the
 same attributes, for VoiceOver, TalkBack and UI automation.
+
+## The audit
+
+`gallery/tests/audit.rs` checks everything the gallery draws, and each overlay
+open, light and dark, at a pointer's density and a finger's, down to a 320-point
+phone, and with labels far longer than the gallery's. It reads what Blitz
+computed and laid out, and the tree assistive tech reads: each control's name
+and state, the size of its target, text and edge contrast, whether Tab reaches
+it and shows a ring, whether anything runs off the page, and whether an overlay
+opens on screen.
+
+A cell is one check of one thing in one mode. `gallery/audit.baseline` lists
+the cells known to fail, and it only shrinks: a cell that newly fails is a red
+build, and one that newly passes is a red build until `UNIT_AUDIT=tighten`
+takes it off the list. So improving unit is a climb: pick a failing cell, fix
+it, tighten, commit. A check and a fix never share a commit, so a climb cannot
+pass by easing its own test. How a component looks is not scored; that is a
+person's to judge.
+
+```sh
+corgi test -p unit-gallery --test audit --force                     # the score and each failure, in target/audit.txt
+UNIT_AUDIT=tighten corgi test -p unit-gallery --test audit --force  # take fixed cells off the list
+```
 
 ## Blitz
 

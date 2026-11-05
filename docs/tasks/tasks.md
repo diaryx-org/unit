@@ -5,6 +5,8 @@ contents:
 - '[Overlays on a scrolled page](/docs/tasks/overlays-on-a-scrolled-page.md)'
 - '[A gooey look](/docs/tasks/a-gooey-look.md)'
 - '[Form attributes under Blitz](/docs/tasks/form-attributes-under-blitz.md)'
+- '[Tab stops in closed overlays](/docs/tasks/tab-stops-in-closed-overlays.md)'
+- '[The climb](/docs/tasks/the-climb.md)'
 ---
 
 # Tasks

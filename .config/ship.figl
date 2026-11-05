@@ -44,6 +44,14 @@ job
 > > name = Tests
 > > run = cargo test --workspace
 > *
+> > # The audit (gallery/tests/audit.rs), a check of its own so that a red
+> > # one says what it is: nothing may join gallery/audit.baseline, and what
+> > # passes must leave it. Then the Blitz tests again, in dark, which the
+> > # Tests job does not draw.
+> > id = audit
+> > name = Audit
+> > run = cargo test -p unit-gallery --test audit && UNIT_APPEARANCE=dark cargo test -p unit-gallery --test blitz
+> *
 > > # A broken intra-doc link is a broken promise to a reader of the docs.
 > > id = docs
 > > name = Docs

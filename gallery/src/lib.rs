@@ -36,7 +36,26 @@ pub fn Gallery() -> Element {
         _ => Density::Regular,
     });
     rsx! {
-        UnitRoot { appearance: appearance(), density: density(), accent: Accent::System, class: "gallery",
+        Shown { appearance, density, accent: Accent::System }
+    }
+}
+
+/// The page at one appearance and density with the theme's own accent: what
+/// the audit (`tests/audit.rs`) walks, the same on any machine and whatever
+/// the environment says, so its tests can run side by side.
+#[component]
+pub fn GalleryAt(appearance: Appearance, density: Density) -> Element {
+    let appearance = use_signal(|| appearance);
+    let density = use_signal(|| density);
+    rsx! {
+        Shown { appearance, density, accent: Accent::Theme }
+    }
+}
+
+#[component]
+fn Shown(appearance: Signal<Appearance>, density: Signal<Density>, accent: Accent) -> Element {
+    rsx! {
+        UnitRoot { appearance: appearance(), density: density(), accent, class: "gallery",
             style { {GALLERY_CSS} }
             Page { appearance, density }
             // The page's own element, outside any component, as a host's
@@ -85,7 +104,7 @@ const GALLERY_CSS: &str = r#"
 html, body { margin: 0; }
 .gallery { min-height: 100vh; padding: 20px 24px 80px; }
 .gallery-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
-.gallery-grid > .unit-card { width: 340px; }
+.gallery-grid > .unit-card { width: 340px; max-width: 100%; }
 .gallery-said { color: var(--unit-dim); margin-top: 8px; }
 .gallery-own { width: 100px; height: 1px; padding: 0 10px; }
 .gallery-dot { width: 10px; height: 10px; border-radius: 5px; background: #b4541a; }
