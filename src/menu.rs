@@ -32,7 +32,7 @@ pub struct Sizes {
 
 impl Sizes {
     pub const REGULAR: Sizes = Sizes {
-        item: 22.0,
+        item: 24.0,
         separator: 9.0,
         pad: 5.0,
         char: 7.0,
@@ -43,7 +43,7 @@ impl Sizes {
 
     /// For a finger: rows tall enough to tap.
     pub const TOUCH: Sizes = Sizes {
-        item: 40.0,
+        item: 44.0,
         separator: 13.0,
         pad: 6.0,
         char: 9.0,
