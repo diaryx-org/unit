@@ -178,14 +178,19 @@ pub const CSS: &str = r#"
 .unit-root[data-density="touch"] .unit-radio-dot { width: 10px; height: 10px; border-radius: 5px; }
 .unit-root[data-density="touch"] .unit-switch-track { width: 51px; height: 31px; border-radius: 16px; }
 .unit-root[data-density="touch"] .unit-switch-knob { width: 27px; height: 27px; border-radius: 14px; }
-.unit-segmented { display: inline-flex; align-self: flex-start; height: var(--unit-control-height);
-                  padding: 2px; gap: 2px; background: var(--unit-track);
-                  border-radius: var(--unit-radius); }
-.unit-segment { display: flex; align-items: center; justify-content: center; padding: 0 10px;
-                border-radius: 4px; }
-.unit-segment:hover { background: var(--unit-control-hover); }
-.unit-segment.on { background: var(--unit-raised); box-shadow: 0 1px 3px var(--unit-shadow); }
-.unit-root[data-density="touch"] .unit-segment { border-radius: 8px; }
+.unit-segmented { display: inline-flex; align-self: flex-start; max-width: 100%;
+                  height: var(--unit-control-height); padding: 0 2px; gap: 2px;
+                  background: var(--unit-track); border-radius: var(--unit-radius); }
+/* A segment is the groove's whole height, which a press lands in; its face is
+   drawn 2px in from the groove's edge. */
+.unit-segment { display: flex; min-width: 0; padding: 2px 0; }
+.unit-segment-face { display: block; flex: 1; min-width: 0; padding: 0 10px; border-radius: 4px;
+                     line-height: calc(var(--unit-control-height) - 4px); text-align: center;
+                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.unit-segment:hover .unit-segment-face { background: var(--unit-control-hover); }
+.unit-segment.on .unit-segment-face { background: var(--unit-raised);
+                                      box-shadow: 0 1px 3px var(--unit-shadow); }
+.unit-root[data-density="touch"] .unit-segment-face { border-radius: 8px; }
 
 /* Swatches: colour circles, the chosen one ringed off from its neighbours */
 .unit-swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
