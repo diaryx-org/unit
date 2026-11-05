@@ -324,10 +324,6 @@ on-screen light/touch/390 alert-scrolled
 on-screen light/touch/390 menu-scrolled
 overflow dark/touch/320 unit-button.unit-ghost.unit-back
 overflow dark/touch/320 unit-chip
-overflow dark/touch/320 unit-code
-overflow dark/touch/320 unit-code-cell
-overflow dark/touch/320 unit-code-cells
-overflow dark/touch/320 unit-code-input
 overflow dark/touch/320 unit-segment
 overflow dark/touch/320 unit-segmented
 overflow dark/touch/320 unit-segment.on
@@ -346,10 +342,6 @@ overflow dark/touch/390 unit-switch-track
 overflow dark/touch/390 unit-tab
 overflow light/touch/320 unit-button.unit-ghost.unit-back
 overflow light/touch/320 unit-chip
-overflow light/touch/320 unit-code
-overflow light/touch/320 unit-code-cell
-overflow light/touch/320 unit-code-cells
-overflow light/touch/320 unit-code-input
 overflow light/touch/320 unit-segment
 overflow light/touch/320 unit-segmented
 overflow light/touch/320 unit-segment.on

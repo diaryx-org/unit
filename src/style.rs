@@ -239,10 +239,12 @@ pub const CSS: &str = r#"
 
 /* A one-time code: a cell for each digit, the field over them unseen, so a
    press anywhere on the cells lands in it */
-.unit-code { position: relative; display: flex; align-self: flex-start; }
-.unit-code-cells { display: flex; gap: 8px; }
-.unit-code-cell { display: flex; align-items: center; justify-content: center; flex: none;
-                  width: 36px; height: 44px; font-size: 1.4em; font-weight: 500;
+.unit-code { position: relative; display: flex; align-self: flex-start; max-width: 100%; }
+/* The cells give way together on a page too narrow for them: a 320-point
+   phone's card holds six at their touch width only just not. */
+.unit-code-cells { display: flex; gap: 8px; min-width: 0; }
+.unit-code-cell { display: flex; align-items: center; justify-content: center; flex: 0 1 auto;
+                  min-width: 0; width: 36px; height: 44px; font-size: 1.4em; font-weight: 500;
                   color: var(--unit-text); background: var(--unit-control);
                   border: 1px solid var(--unit-border); border-radius: var(--unit-radius);
                   box-shadow: 0 1px 2px var(--unit-shadow-soft); }
