@@ -156,7 +156,7 @@ pub const CSS: &str = r#"
                   box-shadow: 0 1px 2px var(--unit-shadow-soft); }
 .unit-check.on .unit-check-box { background: var(--unit-accent); border-color: var(--unit-accent); }
 .unit-check.off, .unit-switch.off, .unit-slider.off { color: var(--unit-dim); }
-.unit-switch-label { flex: 1; }
+.unit-switch-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .unit-switch-track { display: flex; flex: none; width: 32px; height: 18px; padding: 2px;
                      background: var(--unit-border); border-radius: 9px; }
 .unit-switch.on .unit-switch-track { justify-content: flex-end; background: var(--unit-accent); }
@@ -265,6 +265,7 @@ pub const CSS: &str = r#"
 .unit-chip { padding: 3px 10px; margin: 0; font-family: inherit; font-size: inherit;
              color: var(--unit-text); background: var(--unit-control);
              border: 1px solid var(--unit-border); border-radius: 999px; white-space: nowrap;
+             max-width: 100%; overflow: hidden; text-overflow: ellipsis;
              box-shadow: 0 1px 2px var(--unit-shadow-soft); }
 .unit-chip.on { background: var(--unit-accent); color: var(--unit-accent-text);
                 border-color: var(--unit-accent); }
@@ -275,7 +276,10 @@ pub const CSS: &str = r#"
                    background: var(--unit-control-hover); color: var(--unit-dim); }
 .unit-chip.on .unit-chip-badge { background: transparent; color: inherit; }
 .unit-tablist { display: flex; gap: 4px; border-bottom: 1px solid var(--unit-separator); }
-.unit-tab { display: flex; align-items: center; height: var(--unit-control-height); padding: 0 12px;
+/* A tab too long for the row gives way, its label cut short. */
+.unit-tab { display: block; flex: 0 1 auto; min-width: 0; height: var(--unit-control-height);
+            line-height: calc(var(--unit-control-height) - 2px); padding: 0 12px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             color: var(--unit-dim); border-bottom: 2px solid transparent; }
 .unit-tab:hover { color: var(--unit-text); }
 .unit-tab.on { color: var(--unit-text); font-weight: 500; border-bottom-color: var(--unit-accent); }
@@ -334,7 +338,8 @@ pub const CSS: &str = r#"
 .unit-navbar-end { justify-content: flex-end; }
 .unit-navbar-title { flex: 2 1 0; text-align: center; font-family: var(--unit-heading-font);
                      font-weight: 700; white-space: nowrap; overflow: hidden; }
-.unit-button.unit-back { color: var(--unit-accent); padding-left: 2px; }
+.unit-button.unit-back { color: var(--unit-accent); padding-left: 2px; min-width: 0; max-width: 100%; }
+.unit-button.unit-back > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .unit-tabbar { display: flex; background: var(--unit-surface); border-top: 1px solid var(--unit-separator); }
 .unit-tabbar-item { display: flex; flex-direction: column; align-items: center; justify-content: center;
                     flex: 1 1 0; gap: 2px; min-height: 49px; color: var(--unit-dim); }

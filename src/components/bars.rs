@@ -38,7 +38,8 @@ pub fn NavBar(
                     if let Some(b) = back {
                         Button { variant: Variant::Ghost, class: "unit-back", icon: paths::CHEVRON_LEFT,
                                  label: "Back to {b}",
-                                 onpress: move |_| if let Some(f) = onback { f.call(()) }, "{b}" }
+                                 onpress: move |_| if let Some(f) = onback { f.call(()) },
+                                 span { "{b}" } }
                     }
                     {leading}
                 }
