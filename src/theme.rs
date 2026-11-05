@@ -69,7 +69,7 @@ impl Palette {
         danger: "#d93a30",
         success: "#1b843b",
         warning: "#a86400",
-        focus: "#6d9cf0",
+        focus: "#3f7fe6",
         scrim: "rgba(0, 0, 0, 0.25)",
         selection: "#cfe0fb",
         shadow: "rgba(0, 0, 0, 0.16)",
