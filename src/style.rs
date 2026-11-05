@@ -141,6 +141,8 @@ pub const CSS: &str = r#"
 .unit-ink-accent-text { color: var(--unit-accent-text); }
 .unit-ink-danger { color: var(--unit-danger); }
 .unit-button[disabled] { color: var(--unit-dim); box-shadow: none; }
+/* A toggle is often one glyph, B or I: never narrower than it is tall. */
+.unit-toggle { min-width: var(--unit-control-height); }
 .unit-toggle.on { background: var(--unit-selection); border-color: var(--unit-accent); }
 .unit-select { justify-content: space-between; padding: 0 8px 0 10px; min-width: 120px; }
 .unit-select-label { flex: 1; text-align: left; padding-right: 10px; }
@@ -268,7 +270,8 @@ pub const CSS: &str = r#"
              box-shadow: 0 1px 2px var(--unit-shadow-soft); }
 .unit-chip.on { background: var(--unit-accent); color: var(--unit-accent-text);
                 border-color: var(--unit-accent); }
-.unit-root[data-density="touch"] .unit-chip { padding: 8px 14px; }
+/* A finger's chip is a control's height, as tall as a button beside it. */
+.unit-root[data-density="touch"] .unit-chip { padding: 0 14px; min-height: var(--unit-control-height); }
 .unit-chip.unit-marked { display: inline-flex; align-items: center; gap: 6px; }
 .unit-chip-dot { width: 8px; height: 8px; border-radius: 4px; flex: none; }
 .unit-chip-badge { font-size: 0.8em; padding: 0 6px; border-radius: 8px;
