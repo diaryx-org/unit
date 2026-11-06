@@ -238,7 +238,7 @@ pub fn Segmented(
                             onchange.call(i);
                         }
                     },
-                    "{o}"
+                    span { class: "unit-segment-face", "{o}" }
                 }
             }
         }
