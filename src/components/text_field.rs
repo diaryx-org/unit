@@ -171,6 +171,11 @@ pub fn TextArea(
                 onfocus: move |_| focus.dom_focus(),
                 onblur: move |_| focus.dom_blur(),
                 oninput: move |e: FormEvent| oninput.call(e.value()),
+                // Its text as its content too: a `<textarea>` starts from
+                // its content, in a browser's HTML and in Blitz's editor,
+                // which takes no `value` until it is made. `value` keeps
+                // it in step after that.
+                "{value}"
             }
         }
     }
