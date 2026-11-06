@@ -29,7 +29,7 @@ pub const CSS: &str = r#"
              background: var(--unit-surface); color: var(--unit-text);
              border: 1px solid var(--unit-border); border-radius: 8px;
              box-shadow: 0 8px 24px var(--unit-shadow); }
-.unit-item { display: flex; height: 22px; line-height: 22px; margin: 0 5px; padding: 0 8px 0 0;
+.unit-item { display: flex; height: 24px; line-height: 24px; margin: 0 5px; padding: 0 8px 0 0;
              border-radius: 4px; }
 .unit-item.hot { background: var(--unit-accent); color: var(--unit-accent-text); }
 .unit-item.off { color: var(--unit-dim); }
@@ -43,7 +43,7 @@ pub const CSS: &str = r#"
 .unit-sep { height: 9px; padding: 4px 10px; }
 .unit-rule { height: 1px; background: var(--unit-separator); }
 .unit-root[data-density="touch"] .unit-menu { padding: 6px 0; font-size: 17px; border-radius: 12px; }
-.unit-root[data-density="touch"] .unit-item { height: 40px; line-height: 40px; border-radius: 8px; }
+.unit-root[data-density="touch"] .unit-item { height: 44px; line-height: 44px; border-radius: 8px; }
 .unit-root[data-density="touch"] .unit-tick { width: 28px; }
 .unit-root[data-density="touch"] .unit-sep { height: 13px; padding: 6px 12px; }
 .unit-root[data-density="cell"] { line-height: 24px; }
