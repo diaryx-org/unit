@@ -1574,3 +1574,52 @@ fn a_scroll_bars_thumb_drags_and_its_track_pages() {
     assert!(ty3 > ty2, "the thumb moved on: {ty2} -> {ty3}");
     assert!(y2 < y1, "the lines scrolled on: {y1} -> {y2}");
 }
+
+/// A page with nothing on it but a text area already holding a note.
+#[allow(non_snake_case)]
+fn AWrittenNote() -> Element {
+    use unit::prelude::*;
+    let mut note = use_signal(|| "Bought the bread.\nForgot the milk.".to_string());
+    rsx! {
+        UnitRoot {
+            TextArea { label: "Notes", value: note(), rows: 3, oninput: move |v| note.set(v) }
+        }
+    }
+}
+
+/// A text area shows what it already holds from its first frame, not
+/// only once it is tapped: Blitz's editor takes a `<textarea>`'s text from
+/// its content, as a browser's does, and not from a `value`.
+#[test]
+fn a_text_area_shows_what_it_already_holds() {
+    let mut doc = DioxusDocument::new(VirtualDom::new(AWrittenNote), DocumentConfig::default());
+    doc.inner
+        .borrow_mut()
+        .set_viewport(Viewport::new(800, 600, 1.0, ColorScheme::Light));
+    doc.initial_build();
+    settle(&mut doc);
+    let area = first(&doc, "textarea");
+    let shown = |doc: &DioxusDocument| {
+        doc.inner
+            .borrow()
+            .get_node(area)
+            .and_then(|n| n.element_data())
+            .and_then(|e| e.text_input_data())
+            .map(|t| t.editor.raw_text().to_string())
+            .unwrap_or_default()
+    };
+    assert_eq!(shown(&doc), "Bought the bread.\nForgot the milk.");
+
+    // Typed in twice, what was typed stays: the page's new value, written
+    // back into the area, neither empties it nor types it again.
+    use blitz_traits::events::BlitzImeEvent;
+    tap(&mut doc, area);
+    for typed in ["!", "?"] {
+        doc.handle_ui_event(UiEvent::Ime(BlitzImeEvent::Commit(typed.into())));
+        settle(&mut doc);
+    }
+    let after = shown(&doc);
+    assert_eq!(after.len(), "Bought the bread.\nForgot the milk.".len() + 2);
+    assert_eq!(after.matches('!').count(), 1, "{after:?}");
+    assert_eq!(after.matches('?').count(), 1, "{after:?}");
+}
