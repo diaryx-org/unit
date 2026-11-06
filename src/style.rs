@@ -29,7 +29,7 @@ pub const CSS: &str = r#"
              background: var(--unit-surface); color: var(--unit-text);
              border: 1px solid var(--unit-border); border-radius: 8px;
              box-shadow: 0 8px 24px var(--unit-shadow); }
-.unit-item { display: flex; height: 22px; line-height: 22px; margin: 0 5px; padding: 0 8px 0 0;
+.unit-item { display: flex; height: 24px; line-height: 24px; margin: 0 5px; padding: 0 8px 0 0;
              border-radius: 4px; }
 .unit-item.hot { background: var(--unit-accent); color: var(--unit-accent-text); }
 .unit-item.off { color: var(--unit-dim); }
@@ -43,7 +43,7 @@ pub const CSS: &str = r#"
 .unit-sep { height: 9px; padding: 4px 10px; }
 .unit-rule { height: 1px; background: var(--unit-separator); }
 .unit-root[data-density="touch"] .unit-menu { padding: 6px 0; font-size: 17px; border-radius: 12px; }
-.unit-root[data-density="touch"] .unit-item { height: 40px; line-height: 40px; border-radius: 8px; }
+.unit-root[data-density="touch"] .unit-item { height: 44px; line-height: 44px; border-radius: 8px; }
 .unit-root[data-density="touch"] .unit-tick { width: 28px; }
 .unit-root[data-density="touch"] .unit-sep { height: 13px; padding: 6px 12px; }
 .unit-root[data-density="cell"] { line-height: 24px; }
@@ -141,6 +141,8 @@ pub const CSS: &str = r#"
 .unit-ink-accent-text { color: var(--unit-accent-text); }
 .unit-ink-danger { color: var(--unit-danger); }
 .unit-button[disabled] { color: var(--unit-dim); box-shadow: none; }
+/* A toggle is often one glyph, B or I: never narrower than it is tall. */
+.unit-toggle { min-width: var(--unit-control-height); }
 .unit-toggle.on { background: var(--unit-selection); border-color: var(--unit-accent); }
 .unit-select { justify-content: space-between; padding: 0 8px 0 10px; min-width: 120px; }
 .unit-select-label { flex: 1; text-align: left; padding-right: 10px; }
@@ -178,14 +180,19 @@ pub const CSS: &str = r#"
 .unit-root[data-density="touch"] .unit-radio-dot { width: 10px; height: 10px; border-radius: 5px; }
 .unit-root[data-density="touch"] .unit-switch-track { width: 51px; height: 31px; border-radius: 16px; }
 .unit-root[data-density="touch"] .unit-switch-knob { width: 27px; height: 27px; border-radius: 14px; }
-.unit-segmented { display: inline-flex; align-self: flex-start; height: var(--unit-control-height);
-                  padding: 2px; gap: 2px; background: var(--unit-track);
-                  border-radius: var(--unit-radius); }
-.unit-segment { display: flex; align-items: center; justify-content: center; padding: 0 10px;
-                border-radius: 4px; }
-.unit-segment:hover { background: var(--unit-control-hover); }
-.unit-segment.on { background: var(--unit-raised); box-shadow: 0 1px 3px var(--unit-shadow); }
-.unit-root[data-density="touch"] .unit-segment { border-radius: 8px; }
+.unit-segmented { display: inline-flex; align-self: flex-start; max-width: 100%;
+                  height: var(--unit-control-height); padding: 0 2px; gap: 2px;
+                  background: var(--unit-track); border-radius: var(--unit-radius); }
+/* A segment is the groove's whole height, which a press lands in; its face is
+   drawn 2px in from the groove's edge. */
+.unit-segment { display: flex; min-width: 0; padding: 2px 0; }
+.unit-segment-face { display: block; flex: 1; min-width: 0; padding: 0 10px; border-radius: 4px;
+                     line-height: calc(var(--unit-control-height) - 4px); text-align: center;
+                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.unit-segment:hover .unit-segment-face { background: var(--unit-control-hover); }
+.unit-segment.on .unit-segment-face { background: var(--unit-raised);
+                                      box-shadow: 0 1px 3px var(--unit-shadow); }
+.unit-root[data-density="touch"] .unit-segment-face { border-radius: 8px; }
 
 /* Swatches: colour circles, the chosen one ringed off from its neighbours */
 .unit-swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
@@ -239,10 +246,12 @@ pub const CSS: &str = r#"
 
 /* A one-time code: a cell for each digit, the field over them unseen, so a
    press anywhere on the cells lands in it */
-.unit-code { position: relative; display: flex; align-self: flex-start; }
-.unit-code-cells { display: flex; gap: 8px; }
-.unit-code-cell { display: flex; align-items: center; justify-content: center; flex: none;
-                  width: 36px; height: 44px; font-size: 1.4em; font-weight: 500;
+.unit-code { position: relative; display: flex; align-self: flex-start; max-width: 100%; }
+/* The cells give way together on a page too narrow for them: a 320-point
+   phone's card holds six at their touch width only just not. */
+.unit-code-cells { display: flex; gap: 8px; min-width: 0; }
+.unit-code-cell { display: flex; align-items: center; justify-content: center; flex: 0 1 auto;
+                  min-width: 0; width: 36px; height: 44px; font-size: 1.4em; font-weight: 500;
                   color: var(--unit-text); background: var(--unit-control);
                   border: 1px solid var(--unit-border); border-radius: var(--unit-radius);
                   box-shadow: 0 1px 2px var(--unit-shadow-soft); }
@@ -269,7 +278,8 @@ pub const CSS: &str = r#"
              box-shadow: 0 1px 2px var(--unit-shadow-soft); }
 .unit-chip.on { background: var(--unit-accent); color: var(--unit-accent-text);
                 border-color: var(--unit-accent); }
-.unit-root[data-density="touch"] .unit-chip { padding: 8px 14px; }
+/* A finger's chip is a control's height, as tall as a button beside it. */
+.unit-root[data-density="touch"] .unit-chip { padding: 0 14px; min-height: var(--unit-control-height); }
 .unit-chip.unit-marked { display: inline-flex; align-items: center; gap: 6px; }
 .unit-chip-dot { width: 8px; height: 8px; border-radius: 4px; flex: none; }
 .unit-chip-badge { font-size: 0.8em; padding: 0 6px; border-radius: 8px;
