@@ -19,6 +19,11 @@
 //! A wheel's delta is Blitz's (winit's) convention: positive moves toward
 //! the top and the left.
 //!
+//! A view that takes the wheel cancels its event (`prevent_default`), or the
+//! renderer scrolls whatever round the view scrolls as well, the page
+//! itself among them: a browser and Blitz both skip their own scrolling
+//! for a wheel event a handler cancelled.
+//!
 //! [`ScrollBar`](crate::ScrollBar) draws a scroll's bar along either axis
 //! from the same model: [`Scroll::thumb`] is where its thumb is, and
 //! [`Scroll::offset_at`] the offset a thumb dragged somewhere stands for.

@@ -2093,3 +2093,86 @@ fn assistive_tech_reads_the_collections() {
         "the photo is read by what is in it"
     );
 }
+
+/// A press with the mouse or a finger draws no ring; Tab does, as a
+/// browser's `:focus-visible` shows it only after a key.
+#[test]
+fn a_ring_shows_after_a_key_and_not_after_a_press() {
+    let mut doc = page(1200, 800);
+    let default = find(&doc, "button", "Default");
+    click(&mut doc, default);
+    assert!(
+        !class_of(&doc, default).contains("unit-focused"),
+        "no ring from a click"
+    );
+    let ghost = find(&doc, "button", "Ghost");
+    tap(&mut doc, ghost);
+    assert!(
+        !class_of(&doc, ghost).contains("unit-focused"),
+        "nor from a tap"
+    );
+    key(&mut doc, Key::Named(NamedKey::Tab));
+    let delete = find(&doc, "button", "Delete");
+    assert!(
+        class_of(&doc, delete).contains("unit-focused"),
+        "a ring after Tab"
+    );
+    // A list pressed has none, until the arrows move it.
+    let cherry = find(&doc, "[role=option]", "Cherry");
+    click(&mut doc, cherry);
+    let list = first(&doc, ".unit-listbox");
+    assert!(!class_of(&doc, list).contains("unit-focused"));
+    key(&mut doc, Key::Named(NamedKey::ArrowDown));
+    assert!(class_of(&doc, list).contains("unit-focused"));
+    // A text field shows where typing goes from a press.
+    let name = labelled(&doc, "input", "Name");
+    click(&mut doc, name);
+    assert!(class_of(&doc, name).contains("unit-focused"));
+}
+
+/// The wheel over a box that scrolls itself scrolls the box, and not the
+/// page round it.
+#[test]
+fn the_wheel_over_a_scroll_box_scrolls_it_and_not_the_page() {
+    use blitz_traits::events::{BlitzWheelDelta, BlitzWheelEvent};
+    let mut doc = page(1200, 800);
+    let line = find(&doc, ".gallery-line", "Line 1");
+    let (x, y, w, _) = rect(&doc, line);
+    // On screen, with the page scrolled as far as it takes to show it.
+    let to = blitz_dom::Point {
+        x: 0.0,
+        y: (y - 200.0).max(0.0),
+    };
+    doc.inner.borrow_mut().set_viewport_scroll(to);
+    settle(&mut doc);
+    let before = doc.inner.borrow().viewport_scroll().y;
+    let (_, y, _, _) = rect(&doc, line);
+    let (px, py) = (x + w / 2.0, y + 30.0);
+    let mut over = pointer(BlitzPointerId::Mouse, px, py, MouseEventButtons::None);
+    over.coords.page_y += before as f32;
+    doc.handle_ui_event(UiEvent::PointerMove(over));
+    settle(&mut doc);
+    let (px, py) = (px as f32, py as f32);
+    doc.handle_ui_event(UiEvent::Wheel(BlitzWheelEvent {
+        delta: BlitzWheelDelta::Pixels(0.0, -60.0),
+        coords: PointerCoords {
+            page_x: px,
+            page_y: py + before as f32,
+            screen_x: px,
+            screen_y: py,
+            client_x: px,
+            client_y: py,
+        },
+        buttons: MouseEventButtons::None,
+        mods: Modifiers::empty(),
+        element: Default::default(),
+    }));
+    settle(&mut doc);
+    let (_, moved, _, _) = rect(&doc, line);
+    assert_eq!(moved, y - 60.0, "the box's lines went up");
+    assert_eq!(
+        doc.inner.borrow().viewport_scroll().y,
+        before,
+        "the page stayed"
+    );
+}

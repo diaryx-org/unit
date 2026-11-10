@@ -455,9 +455,12 @@ impl Focus {
         self.is_focused() && *self.unit.keyed.read()
     }
 
-    /// The class the control's element adds while it has the keys.
+    /// The class the control's element adds while it shows the ring: while
+    /// it has the keys and they came by a key ([`Focus::ring`]), as a
+    /// browser's `:focus-visible`; a press with the mouse or a finger draws
+    /// none. A text field shows it from a press too, as where typing goes.
     pub fn class(&self) -> &'static str {
-        if self.is_focused() {
+        if self.ring() || (self.kind == Kind::Text && self.is_focused()) {
             " unit-focused"
         } else {
             ""

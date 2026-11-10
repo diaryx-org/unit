@@ -655,6 +655,9 @@ fn Scrolled() -> Element {
         div { class: "gallery-scrolled",
             style: "position: relative; height: {HEIGHT}px; overflow: hidden;",
             onwheel: move |e: WheelEvent| {
+                // The box's own: the page under it does not scroll too.
+                e.prevent_default();
+                e.stop_propagation();
                 let (dx, dy) = unit::scroll::wheel_delta(e.delta(), HEIGHT);
                 scroll.write().wheel(dx, dy);
             },
