@@ -1,11 +1,13 @@
-//! Moving among things: tabs, a list to choose from, and a section that
-//! opens and closes.
+//! Moving among things: tabs, a list to choose from, a section that opens
+//! and closes, and the path to where the page is.
 
 use dioxus::html::{Key, Modifiers, NamedKey};
 use dioxus::prelude::*;
 
 use crate::components::button::is_press;
+use crate::components::button::{Button, Variant};
 use crate::components::choice::{Orientation, arrow_step};
+use crate::icon::{Icon, Ink, paths};
 use crate::unit::{Kind, next_id, use_focus};
 
 /// Tabs: a row of titles, one chosen, and the chosen one's content under
@@ -188,6 +190,42 @@ pub fn Disclosure(title: String, #[props(default)] open: bool, children: Element
             div { class: "unit-disclosure-body", id: "unit-{id}",
                 style: if is_open { "display: block" } else { "display: none" },
                 {children}
+            }
+        }
+    }
+}
+
+/// The path to where the page is, from the top: a file browser's folders
+/// down to the one open. Each folder above is a button, given to `onpick`
+/// by its place in `path`; the last is where the page is, read as the
+/// current page and not pressed. A path too long for its row scrolls along
+/// it rather than squeezing its folders' names.
+#[component]
+pub fn Breadcrumbs(
+    path: Vec<String>,
+    onpick: EventHandler<usize>,
+    /// What assistive tech calls it.
+    #[props(default = "Path".to_string())]
+    label: String,
+    #[props(default)] class: String,
+) -> Element {
+    let last = path.len().saturating_sub(1);
+    rsx! {
+        nav { class: "unit-breadcrumbs {class}", "aria-label": "{label}",
+            div { class: "unit-crumbs", role: "list",
+                for (i, name) in path.into_iter().enumerate() {
+                    div { key: "{i}", class: "unit-crumb", role: "listitem",
+                        if i > 0 {
+                            Icon { d: paths::CHEVRON_RIGHT, ink: Ink::Dim, size: 12.0 }
+                        }
+                        if i < last {
+                            Button { variant: Variant::Ghost, class: "unit-crumb-button",
+                                     onpress: move |_| onpick.call(i), "{name}" }
+                        } else {
+                            span { class: "unit-crumb-here", "aria-current": "page", "{name}" }
+                        }
+                    }
+                }
             }
         }
     }

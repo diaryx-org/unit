@@ -19,6 +19,12 @@ box as if it were absolute to the root. The audit scrolls the page and sees it
 headless, a menu too: the `on-screen ... -scrolled` cells in
 `gallery/audit.baseline`.
 
+The `PhotoViewer` is fixed too, and meets it the same way: opened from the
+gallery's Photos card with the page scrolled, it is drawn over the document's
+first screen, above the window, and the page under it stays pressable (seen
+in a window on a Linux headless desktop, 2026-11-10). The audit opens it
+unscrolled only.
+
 A page whose root does not scroll, and whose content scrolls in a box of its
 own (as Diaryx's app does), does not meet it.
 

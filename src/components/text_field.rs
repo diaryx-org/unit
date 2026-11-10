@@ -1,4 +1,4 @@
-//! Text fields: one line, and several.
+//! Text fields: one line, several, and a search.
 //!
 //! These are the renderer's own `<input>` and `<textarea>`: a browser and
 //! Blitz each type in them with the system's input method and soft keyboard,
@@ -9,6 +9,7 @@
 use dioxus::prelude::*;
 
 use crate::components::button::{Button, Variant};
+use crate::icon::{Icon, Ink, paths};
 use crate::unit::{Kind, next_id, use_focus};
 
 /// What a one-line field holds, which a phone's keyboard is chosen by.
@@ -176,6 +177,64 @@ pub fn TextArea(
                 // which takes no `value` until it is made. `value` keeps
                 // it in step after that.
                 "{value}"
+            }
+        }
+    }
+}
+
+/// A search: a field with a magnifier at its start and, while it holds
+/// text, a button at its end that empties it, as Escape in it does.
+/// `oninput` is given the whole text after each change, as a filter wants;
+/// `onsubmit` is Return, for a search that runs only when asked.
+#[component]
+pub fn SearchField(
+    value: String,
+    oninput: EventHandler<String>,
+    /// What assistive tech calls it.
+    #[props(default = "Search".to_string())]
+    label: String,
+    #[props(default = "Search".to_string())] placeholder: String,
+    onsubmit: Option<EventHandler<String>>,
+    #[props(default)] class: String,
+) -> Element {
+    let focus = use_focus(Kind::Text, |_, _| false);
+    let empty = value.is_empty();
+    rsx! {
+        div { class: "unit-search {class}", role: "search",
+            span { class: "unit-search-icon", "aria-hidden": "true",
+                Icon { d: paths::SEARCH, ink: Ink::Dim, size: 14.0 }
+            }
+            input {
+                class: "unit-input{focus.class()}",
+                r#type: "search",
+                value: "{value}",
+                placeholder: "{placeholder}",
+                "aria-label": "{label}",
+                onpointerdown: move |_| focus.press(),
+                onfocus: move |_| focus.dom_focus(),
+                onblur: move |_| focus.dom_blur(),
+                oninput: move |e: FormEvent| oninput.call(e.value()),
+                onkeydown: {
+                    let value = value.clone();
+                    move |e: KeyboardEvent| match e.key() {
+                        dioxus::html::Key::Named(dioxus::html::NamedKey::Enter) => {
+                            if let Some(s) = onsubmit {
+                                s.call(value.clone());
+                            }
+                        }
+                        // Emptied first; only an empty field lets Escape
+                        // go on, to close what it is in.
+                        dioxus::html::Key::Named(dioxus::html::NamedKey::Escape) if !value.is_empty() => {
+                            e.stop_propagation();
+                            oninput.call(String::new());
+                        }
+                        _ => {}
+                    }
+                },
+            }
+            if !empty {
+                Button { variant: Variant::Ghost, class: "unit-icon", label: "Clear {label}",
+                         icon: paths::CLOSE, onpress: move |_| oninput.call(String::new()) }
             }
         }
     }

@@ -3,7 +3,7 @@
 
 use dioxus::prelude::*;
 
-use crate::icon::paths;
+use crate::icon::{Icon, Ink, paths};
 use crate::layer::Tone;
 use crate::{Button, Variant};
 
@@ -183,6 +183,34 @@ pub fn Callout(
             if let Some(d) = ondismiss {
                 Button { variant: Variant::Ghost, class: "unit-icon", label: "Dismiss",
                          icon: paths::CLOSE, onpress: move |_| d.call(()) }
+            }
+        }
+    }
+}
+
+/// What a page shows where a list would be and there is nothing in it: a
+/// folder with no files, a search that found nothing. A large dim icon, a
+/// title, what to do about it, and a button that does it. Read as a status,
+/// so assistive tech says so when a search empties the list.
+#[component]
+pub fn EmptyState(
+    title: String,
+    /// A path for [`Icon`], drawn large over the title.
+    icon: Option<&'static str>,
+    action: Option<String>,
+    onaction: Option<EventHandler<()>>,
+    #[props(default)] class: String,
+    children: Element,
+) -> Element {
+    rsx! {
+        div { class: "unit-empty {class}", role: "status",
+            if let Some(d) = icon {
+                Icon { d, ink: Ink::Dim, size: 40.0 }
+            }
+            div { class: "unit-empty-title", "{title}" }
+            div { class: "unit-empty-message", {children} }
+            if let Some(a) = action {
+                Button { onpress: move |_| if let Some(f) = onaction { f.call(()) }, "{a}" }
             }
         }
     }

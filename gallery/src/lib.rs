@@ -14,6 +14,9 @@ const WRAP: usize = 4;
 const H1: usize = 10;
 const H2: usize = 11;
 const DELETE: usize = 12;
+const OPEN: usize = 20;
+const RENAME: usize = 21;
+const TRASH: usize = 22;
 
 /// The page, at the appearance and density the page itself chooses.
 #[allow(non_snake_case)]
@@ -105,6 +108,7 @@ html, body { margin: 0; }
 .gallery { min-height: 100vh; padding: 20px 24px 80px; }
 .gallery-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
 .gallery-grid > .unit-card { width: 340px; max-width: 100%; }
+.gallery-grid > .unit-card.gallery-wide { width: 696px; }
 .gallery-said { color: var(--unit-dim); margin-top: 8px; }
 .gallery-own { width: 100px; height: 1px; padding: 0 10px; }
 .gallery-dot { width: 10px; height: 10px; border-radius: 5px; background: #b4541a; }
@@ -153,6 +157,19 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut place = use_signal(|| 0usize);
     let mut journal = use_signal(|| false);
     let mut folder = use_signal(|| String::from("Archive"));
+    // The file browser: where it is, how it shows the folder, what it has
+    // chosen, how it is sorted, and what the search holds.
+    let mut path = use_signal(|| vec![String::from("Home"), String::from("Journal")]);
+    let mut icons = use_signal(|| true);
+    let mut chosen = use_signal(|| Selection::only("Notes.md"));
+    let mut sort = use_signal(|| Sort {
+        column: 0,
+        ascending: true,
+    });
+    let mut query = use_signal(String::new);
+    // The photos: which are chosen, and the one the viewer shows.
+    let mut picked_photos = use_signal(Selection::new);
+    let mut viewing = use_signal(|| None::<usize>);
 
     let edit = vec![
         Item::new(CUT, "Cut").shortcut("⌘X").into(),
@@ -190,6 +207,48 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let fruit: Vec<String> = ["Apple", "Apricot", "Banana", "Cherry", "Damson"]
         .map(String::from)
         .into();
+    let here = path().last().cloned().unwrap_or_default();
+    let files = listing(&here, &query(), sort());
+    let shown: Vec<String> = files.iter().map(|f| f.name.clone()).collect();
+    let tiles: Vec<Tile> = files.iter().map(File::tile).collect();
+    let rows: Vec<TableRow> = files.iter().map(File::row).collect();
+    let file_menu = vec![
+        Item::new(OPEN, "Open").into(),
+        Item::new(RENAME, "Rename…").into(),
+        Entry::Separator,
+        Item::new(TRASH, "Move to Trash")
+            .icon(paths::TRASH)
+            .destructive()
+            .into(),
+    ];
+    let on_file = move |id: usize| {
+        let n = chosen.peek().len();
+        let what = if n == 1 {
+            "1 item".to_string()
+        } else {
+            format!("{n} items")
+        };
+        said.set(match id {
+            OPEN => format!("Open {what}."),
+            RENAME => format!("Rename {what}."),
+            _ => format!("Move {what} to the Trash."),
+        });
+    };
+    let open_file = move |key: String| {
+        if folders().contains(&key.as_str()) {
+            path.write().push(key);
+            chosen.set(Selection::new());
+            query.set(String::new());
+        } else {
+            said.set(format!("Opened {key}."));
+        }
+    };
+    let photos = photos();
+    let photo_tiles: Vec<Tile> = photos
+        .iter()
+        .enumerate()
+        .map(|(i, p)| Tile::new(format!("photo-{i}"), p.alt.clone()).image(p.src.clone()))
+        .collect();
 
     rsx! {
         Stack { gap: 16.0,
@@ -433,6 +492,62 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                                   onpress: move |_| folder.set("Archive".into()) }
                     }
                 }
+                Card { title: "Files", class: "gallery-wide",
+                    Stack { axis: Axis::Horizontal, align: Align::Center, wrap: true,
+                        Breadcrumbs { path: path(), label: "Folders",
+                                      onpick: move |i: usize| {
+                                          path.write().truncate(i + 1);
+                                          chosen.set(Selection::new());
+                                      } }
+                        Spacer {}
+                        Segmented { label: "Show", options: vec!["Icons".into(), "List".into()],
+                                    selected: Some(if icons() { 0 } else { 1 }),
+                                    onchange: move |i| icons.set(i == 0) }
+                    }
+                    SearchField { label: "Search files", placeholder: "Search {here}", value: query(),
+                                  oninput: move |q: String| {
+                                      let folder = path.peek().last().cloned().unwrap_or_default();
+                                      let names: Vec<String> = listing(&folder, &q, *sort.peek())
+                                          .into_iter().map(|f| f.name).collect();
+                                      chosen.write().retain(&names);
+                                      query.set(q);
+                                  } }
+                    if shown.is_empty() && query().is_empty() {
+                        EmptyState { icon: paths::LIBRARY, title: "{here} is empty",
+                                     "Files saved here will show up here." }
+                    } else if shown.is_empty() {
+                        EmptyState { icon: paths::SEARCH, title: "No files match",
+                                     action: "Clear Search", onaction: move |_| query.set(String::new()),
+                                     "Nothing in {here} has \u{201c}{query}\u{201d} in its name." }
+                    } else if icons() {
+                        TileGrid { label: "Files in {here}", tiles, size: 96.0, selection: chosen(),
+                                   onselect: move |s| chosen.set(s), onactivate: open_file,
+                                   menu: file_menu.clone(), onpick: on_file }
+                    } else {
+                        Table { label: "Files in {here}", rows, selection: chosen(),
+                                columns: vec![
+                                    Column::new("Name").sortable(),
+                                    Column::new("Size").width(76.0).end().sortable(),
+                                    Column::new("Modified").width(104.0).sortable().secondary(),
+                                ],
+                                sort: sort(), onsort: move |s| sort.set(s),
+                                onselect: move |s| chosen.set(s), onactivate: open_file,
+                                menu: file_menu.clone(), onpick: on_file }
+                    }
+                    Text { dim: true, "{chosen().len()} of {shown.len()} chosen." }
+                }
+                Card { title: "Photos", class: "gallery-wide",
+                    TileGrid { label: "Photos", tiles: photo_tiles, size: 88.0, selection: picked_photos(),
+                               onselect: move |s| picked_photos.set(s),
+                               onactivate: move |k: String| {
+                                   viewing.set(k.trim_start_matches("photo-").parse().ok());
+                               } }
+                    Stack { axis: Axis::Horizontal, align: Align::Center,
+                        Text { dim: true, "Open one to see it whole." }
+                        Spacer {}
+                        Button { onpress: move |_| viewing.set(Some(0)), "View Photos…" }
+                    }
+                }
                 Card { title: "Scrolling",
                     Scrolled {}
                 }
@@ -512,6 +627,8 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
             Switch { on: wrap(), onchange: move |v| wrap.set(v), "Wrap lines" }
             Slider { label: "Volume", value: volume(), onchange: move |v| volume.set(v) }
         }
+        PhotoViewer { open: viewing().is_some(), photos: photos.clone(), index: viewing().unwrap_or(0),
+                      onchange: move |i| viewing.set(Some(i)), onclose: move |_| viewing.set(None) }
         // A card held off the edges and over a bar of the page's own along
         // the bottom, with no close button: it goes by a drag, the scrim or
         // Escape.
@@ -556,4 +673,187 @@ fn Scrolled() -> Element {
             }
         }
     }
+}
+
+/// The folders the file browser has.
+fn folders() -> [&'static str; 4] {
+    ["Home", "Journal", "Photos", "Drafts"]
+}
+
+/// One file or folder in the file browser.
+#[derive(Clone, Debug, PartialEq)]
+struct File {
+    name: String,
+    folder: bool,
+    /// Bytes.
+    size: u64,
+    modified: &'static str,
+}
+
+impl File {
+    fn new(name: &str, size: u64, modified: &'static str) -> File {
+        File {
+            name: name.to_string(),
+            folder: folders().contains(&name),
+            size,
+            modified,
+        }
+    }
+
+    fn icon(&self) -> &'static str {
+        match () {
+            _ if self.folder => paths::LIBRARY,
+            _ if self.name.ends_with(".jpg") => paths::PHOTO,
+            _ => paths::DOCUMENT,
+        }
+    }
+
+    fn size_text(&self) -> String {
+        match self.size {
+            _ if self.folder => "\u{2014}".to_string(),
+            s if s >= 1_000_000 => format!("{:.1} MB", s as f64 / 1e6),
+            s => format!("{} KB", s.div_ceil(1000)),
+        }
+    }
+
+    fn tile(&self) -> Tile {
+        let tile = Tile::new(self.name.clone(), self.name.clone()).icon(self.icon());
+        if self.folder {
+            tile
+        } else {
+            tile.detail(self.size_text())
+        }
+    }
+
+    fn row(&self) -> TableRow {
+        TableRow::new(
+            self.name.clone(),
+            vec![
+                self.name.clone(),
+                self.size_text(),
+                self.modified.to_string(),
+            ],
+        )
+        .icon(self.icon())
+    }
+}
+
+/// What is in `folder` whose name has `query` in it, sorted by `sort`.
+fn listing(folder: &str, query: &str, sort: Sort) -> Vec<File> {
+    let mut files = match folder {
+        "Home" => vec![
+            File::new("Journal", 0, "2026-11-09"),
+            File::new("Photos", 0, "2026-10-30"),
+            File::new("Drafts", 0, "2026-08-14"),
+            File::new("Reading list.md", 2_400, "2026-07-02"),
+        ],
+        "Journal" => vec![
+            File::new("Notes.md", 12_300, "2026-11-09"),
+            File::new("Harbour.md", 48_900, "2026-11-04"),
+            File::new("Low tide.md", 6_100, "2026-10-21"),
+            File::new("Boats.jpg", 2_310_000, "2026-10-21"),
+            File::new("Letters.md", 31_000, "2026-09-12"),
+            File::new("Plans.md", 3_800, "2026-06-01"),
+            File::new("Drafts", 0, "2026-08-14"),
+        ],
+        "Photos" => (1..=6)
+            .map(|i| {
+                File::new(
+                    &format!("IMG_00{i}.jpg"),
+                    1_800_000 + i * 90_000,
+                    "2026-10-30",
+                )
+            })
+            .collect(),
+        _ => vec![],
+    };
+    let q = query.to_lowercase();
+    files.retain(|f| f.name.to_lowercase().contains(&q));
+    files.sort_by(|a, b| {
+        let by = match sort.column {
+            1 => a.size.cmp(&b.size),
+            2 => a.modified.cmp(b.modified),
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        };
+        if sort.ascending { by } else { by.reverse() }
+    });
+    files
+}
+
+/// The photos: a sky, a hill and a sun drawn in SVG at a few times of day,
+/// in the page itself, so the gallery needs no files and no network.
+fn photos() -> Vec<Photo> {
+    const DAYS: [(&str, &str, &str, &str, &str); 6] = [
+        (
+            "Dawn over the harbour",
+            "#f6c6a8",
+            "#fbe7d3",
+            "#3b5b6b",
+            "#ffd27a",
+        ),
+        (
+            "Noon on the hill",
+            "#7ec3f0",
+            "#d8eefc",
+            "#4d8a4a",
+            "#fff6b0",
+        ),
+        (
+            "A grey afternoon",
+            "#9aa5ad",
+            "#d3d8dc",
+            "#5d6b62",
+            "#eef0f2",
+        ),
+        (
+            "Sunset from the pier",
+            "#f08a5d",
+            "#f9c784",
+            "#3d3a5c",
+            "#ffdd8a",
+        ),
+        (
+            "Dusk, the lights coming on",
+            "#3b3f75",
+            "#8a6fa8",
+            "#1f2a3a",
+            "#f3c97a",
+        ),
+        (
+            "Night, the moon up",
+            "#0d1b2a",
+            "#1b263b",
+            "#0b1320",
+            "#e0e1dd",
+        ),
+    ];
+    DAYS.iter()
+        .map(|(alt, top, bottom, hill, sun)| {
+            let svg = format!(
+                "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>\
+                 <defs><linearGradient id='s' x1='0' y1='0' x2='0' y2='1'>\
+                 <stop offset='0' stop-color='{top}'/><stop offset='1' stop-color='{bottom}'/>\
+                 </linearGradient></defs>\
+                 <rect width='400' height='300' fill='url(#s)'/>\
+                 <circle cx='290' cy='110' r='34' fill='{sun}'/>\
+                 <path d='M0 230 Q110 160 220 215 T400 200 V300 H0Z' fill='{hill}'/></svg>"
+            );
+            let src = format!("data:image/svg+xml,{}", percent(&svg));
+            Photo::new(src, *alt).caption(*alt)
+        })
+        .collect()
+}
+
+/// `text` with what a URL cannot hold as it is written out as `%XX`.
+fn percent(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() * 2);
+    for c in text.chars() {
+        match c {
+            '<' | '>' | '#' | '%' | '"' | '{' | '}' | ' ' => {
+                out.push_str(&format!("%{:02X}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out
 }

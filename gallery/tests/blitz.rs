@@ -1623,3 +1623,473 @@ fn a_text_area_shows_what_it_already_holds() {
     assert_eq!(after.matches('!').count(), 1, "{after:?}");
     assert_eq!(after.matches('?').count(), 1, "{after:?}");
 }
+
+/// The option of a grid named `name`, its detail after it or not.
+fn option_named(doc: &DioxusDocument, name: &str) -> NodeId {
+    let all = doc
+        .inner
+        .borrow()
+        .query_selector_all("[role=option]")
+        .unwrap();
+    *all.iter()
+        .find(|&&id| {
+            attr(doc, id, "aria-label")
+                .is_some_and(|l| l == name || l.starts_with(&format!("{name}, ")))
+        })
+        .unwrap_or_else(|| panic!("no option named {name:?}"))
+}
+
+/// The row of a table whose first cell is `name`.
+fn row_named(doc: &DioxusDocument, name: &str) -> NodeId {
+    let inner = doc.inner.borrow();
+    let all = inner.query_selector_all(".unit-tr").unwrap();
+    *all.iter()
+        .find(|&&id| {
+            let first = inner.get_node(id).unwrap().children[0];
+            inner.get_node(first).unwrap().text_content().trim() == name
+        })
+        .unwrap_or_else(|| panic!("no row {name:?}"))
+}
+
+/// The first cell of each of a table's rows, in order.
+fn table_names(doc: &DioxusDocument) -> Vec<String> {
+    let inner = doc.inner.borrow();
+    inner
+        .query_selector_all(".unit-tr")
+        .unwrap()
+        .iter()
+        .map(|&id| {
+            let first = inner.get_node(id).unwrap().children[0];
+            inner
+                .get_node(first)
+                .unwrap()
+                .text_content()
+                .trim()
+                .to_string()
+        })
+        .collect()
+}
+
+fn selected(doc: &DioxusDocument, node: NodeId) -> bool {
+    attr(doc, node, "aria-selected").as_deref() == Some("true")
+}
+
+/// What the file browser says it has chosen.
+fn chosen(doc: &DioxusDocument) -> String {
+    let inner = doc.inner.borrow();
+    let all = inner.query_selector_all(".unit-text").unwrap();
+    all.iter()
+        .map(|&id| inner.get_node(id).unwrap().text_content())
+        .find(|t| t.contains(" chosen."))
+        .expect("the file browser's count")
+        .trim()
+        .to_string()
+}
+
+/// A click at (`x`, `y`) with `mods` held: the mouse's.
+fn click_at(doc: &mut DioxusDocument, x: f64, y: f64, mods: Modifiers) {
+    let id = BlitzPointerId::Mouse;
+    let at = |buttons| {
+        let mut p = pointer(id, x, y, buttons);
+        p.mods = mods;
+        p
+    };
+    doc.handle_ui_event(UiEvent::PointerMove(at(MouseEventButtons::None)));
+    doc.handle_ui_event(UiEvent::PointerDown(at(MouseEventButtons::Primary)));
+    settle(doc);
+    doc.handle_ui_event(UiEvent::PointerUp(at(MouseEventButtons::None)));
+    settle(doc);
+}
+
+fn click_with(doc: &mut DioxusDocument, node: NodeId, mods: Modifiers) {
+    let (x, y, w, h) = rect(doc, node);
+    click_at(doc, x + w / 2.0, y + h / 2.0, mods);
+}
+
+fn right_click(doc: &mut DioxusDocument, node: NodeId) {
+    let (x, y, w, h) = rect(doc, node);
+    let (x, y) = (x + w / 2.0, y + h / 2.0);
+    let mut right = pointer(BlitzPointerId::Mouse, x, y, MouseEventButtons::Secondary);
+    right.button = MouseEventButton::Secondary;
+    doc.handle_ui_event(UiEvent::PointerDown(right.clone()));
+    doc.handle_ui_event(UiEvent::PointerUp(right));
+    settle(doc);
+}
+
+fn key_with(doc: &mut DioxusDocument, key: Key, modifiers: Modifiers) {
+    let event = |state| BlitzKeyEvent {
+        key: key.clone(),
+        code: Code::Unidentified,
+        modifiers,
+        location: Location::Standard,
+        is_auto_repeating: false,
+        is_composing: false,
+        state,
+        text: None,
+    };
+    doc.handle_ui_event(UiEvent::KeyDown(event(KeyState::Pressed)));
+    doc.handle_ui_event(UiEvent::KeyUp(event(KeyState::Released)));
+    settle(doc);
+}
+
+/// Where the file browser is: the breadcrumb read as the current page.
+fn folder_here(doc: &DioxusDocument) -> String {
+    let inner = doc.inner.borrow();
+    let here = inner
+        .query_selector("[aria-current=page]")
+        .unwrap()
+        .expect("a current folder");
+    inner
+        .get_node(here)
+        .unwrap()
+        .text_content()
+        .trim()
+        .to_string()
+}
+
+#[test]
+fn a_tile_grid_chooses_as_a_file_browser_does() {
+    let mut doc = page(1200, 800);
+    let notes = option_named(&doc, "Notes.md");
+    assert!(selected(&doc, notes), "chosen from the start");
+    let letters = option_named(&doc, "Letters.md");
+    click(&mut doc, letters);
+    assert!(
+        selected(&doc, letters) && !selected(&doc, notes),
+        "a press chooses one alone"
+    );
+    // ⌘ adds, on any system.
+    let harbour = option_named(&doc, "Harbour.md");
+    click_with(&mut doc, harbour, Modifiers::META);
+    assert!(selected(&doc, letters) && selected(&doc, harbour));
+    assert_eq!(chosen(&doc), "2 of 7 chosen.");
+    // Shift chooses the range from the last pressed, in the order shown:
+    // Harbour, Letters, Low tide, Notes, Plans.
+    let plans = option_named(&doc, "Plans.md");
+    click_with(&mut doc, plans, Modifiers::SHIFT);
+    assert_eq!(chosen(&doc), "5 of 7 chosen.");
+    assert!(selected(&doc, option_named(&doc, "Low tide.md")));
+    assert!(!selected(&doc, option_named(&doc, "Boats.jpg")));
+    // A press on the grid's ground, past its last tile, chooses nothing.
+    let grid = labelled(&doc, "[role=listbox]", "Files in Journal");
+    let (x, y, w, h) = rect(&doc, grid);
+    click_at(&mut doc, x + w - 6.0, y + h - 6.0, Modifiers::empty());
+    assert_eq!(chosen(&doc), "0 of 7 chosen.");
+}
+
+#[test]
+fn the_arrows_move_through_a_grid_by_its_rows_and_return_opens_a_folder() {
+    let mut doc = page(1200, 800);
+    let boats = option_named(&doc, "Boats.jpg");
+    click(&mut doc, boats);
+    // As many to a row as the grid's width holds at 96px and 8px apart.
+    let grid = labelled(&doc, "[role=listbox]", "Files in Journal");
+    let (_, _, w, _) = rect(&doc, grid);
+    let columns = ((w - 8.0 + 8.0) / 104.0).floor() as usize;
+    assert!(columns > 1, "{w}");
+    let (bx, by, _, _) = rect(&doc, boats);
+    let below = option_named(&doc, "Plans.md");
+    let (_, py, _, _) = rect(&doc, below);
+    if columns == 6 {
+        assert!(py > by, "Plans.md, the seventh, on the second row");
+    }
+    // The mouse passes over a tile on the next row, as it does on its way
+    // anywhere: Blitz reports no element's size, and the grid learns from
+    // that how many tiles a row holds.
+    let (px, py, pw, ph) = rect(&doc, below);
+    doc.handle_ui_event(UiEvent::PointerMove(pointer(
+        BlitzPointerId::Mouse,
+        px + pw / 2.0,
+        py + ph / 2.0,
+        MouseEventButtons::None,
+    )));
+    settle(&mut doc);
+    key(&mut doc, Key::Named(NamedKey::ArrowDown));
+    let order = [
+        "Boats.jpg",
+        "Drafts",
+        "Harbour.md",
+        "Letters.md",
+        "Low tide.md",
+        "Notes.md",
+        "Plans.md",
+    ];
+    let down = order[columns.min(6)];
+    assert!(
+        selected(&doc, option_named(&doc, down)),
+        "a row down: {down}"
+    );
+    let (dx, _, _, _) = rect(&doc, option_named(&doc, down));
+    assert!((dx - bx).abs() < 1.0 || columns >= 7, "straight down");
+    key(&mut doc, Key::Named(NamedKey::Home));
+    key_with(&mut doc, Key::Named(NamedKey::ArrowRight), Modifiers::SHIFT);
+    assert_eq!(chosen(&doc), "2 of 7 chosen.", "Shift extends");
+    key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    assert!(selected(&doc, option_named(&doc, "Harbour.md")));
+    key(&mut doc, Key::Named(NamedKey::ArrowLeft));
+    // Return opens the folder the cursor is on.
+    key(&mut doc, Key::Named(NamedKey::Enter));
+    assert_eq!(folder_here(&doc), "Drafts");
+    let empty = first(&doc, ".unit-empty");
+    assert!(displayed(&doc, empty), "an empty folder says so");
+    let back = find(&doc, "button", "Journal");
+    click(&mut doc, back);
+    assert_eq!(folder_here(&doc), "Journal");
+    // A double click opens a file.
+    let letters = option_named(&doc, "Letters.md");
+    click(&mut doc, letters);
+    click(&mut doc, letters);
+    assert_eq!(said(&doc), "Opened Letters.md.");
+}
+
+#[test]
+fn a_collections_menu_is_about_its_selection() {
+    let mut doc = page(1200, 800);
+    // A right-click on a tile not chosen chooses it alone first.
+    let letters = option_named(&doc, "Letters.md");
+    right_click(&mut doc, letters);
+    assert!(selected(&doc, letters));
+    assert!(!selected(&doc, option_named(&doc, "Notes.md")));
+    assert!(menu_open(&doc));
+    let trash = find(&doc, ".unit-item", "Move to Trash");
+    click(&mut doc, trash);
+    assert_eq!(said(&doc), "Move 1 item to the Trash.");
+    // On one of several chosen, it keeps them all.
+    let plans = option_named(&doc, "Plans.md");
+    click_with(&mut doc, plans, Modifiers::META);
+    right_click(&mut doc, plans);
+    assert_eq!(chosen(&doc), "2 of 7 chosen.");
+    let open = find(&doc, ".unit-item", "Open");
+    click(&mut doc, open);
+    assert_eq!(said(&doc), "Open 2 items.");
+    // The Menu key opens it too, its first item lit as a key's menu is.
+    let letters = option_named(&doc, "Letters.md");
+    click(&mut doc, letters);
+    key(&mut doc, Key::Named(NamedKey::ContextMenu));
+    assert!(menu_open(&doc));
+    key(&mut doc, Key::Named(NamedKey::Enter));
+    assert_eq!(said(&doc), "Open 1 item.");
+}
+
+#[test]
+fn a_table_sorts_by_its_columns_and_chooses_its_rows() {
+    let mut doc = page(1200, 800);
+    let list = find(&doc, ".unit-segment", "List");
+    click(&mut doc, list);
+    assert_eq!(table_names(&doc)[0], "Boats.jpg", "by name");
+    let size = find(&doc, "button", "Size");
+    let header = parent_of(&doc, size);
+    assert_eq!(attr(&doc, header, "aria-sort").as_deref(), Some("none"));
+    click(&mut doc, size);
+    let header = parent_of(&doc, find(&doc, "button", "Size"));
+    assert_eq!(
+        attr(&doc, header, "aria-sort").as_deref(),
+        Some("ascending")
+    );
+    assert_eq!(
+        &table_names(&doc)[..2],
+        ["Drafts", "Plans.md"],
+        "smallest first"
+    );
+    let size = find(&doc, "button", "Size");
+    click(&mut doc, size);
+    assert_eq!(table_names(&doc)[0], "Boats.jpg", "largest first");
+    // Notes.md is still chosen, wherever the sort put it.
+    assert!(selected(&doc, row_named(&doc, "Notes.md")));
+    let letters = row_named(&doc, "Letters.md");
+    click(&mut doc, letters);
+    assert!(selected(&doc, letters) && !selected(&doc, row_named(&doc, "Notes.md")));
+    key(&mut doc, Key::Named(NamedKey::ArrowDown));
+    let names = table_names(&doc);
+    let next = &names[names.iter().position(|n| n == "Letters.md").unwrap() + 1];
+    assert!(selected(&doc, row_named(&doc, next)), "the row under it");
+    let low = row_named(&doc, "Low tide.md");
+    click(&mut doc, low);
+    click(&mut doc, low);
+    assert_eq!(said(&doc), "Opened Low tide.md.");
+    // Every column fits its row, the date included, at a desktop's width.
+    let modified = find(&doc, "button", "Modified");
+    assert!(displayed(&doc, modified));
+}
+
+fn parent_of(doc: &DioxusDocument, node: NodeId) -> NodeId {
+    doc.inner.borrow().get_node(node).unwrap().parent.unwrap()
+}
+
+#[test]
+fn a_phone_opens_what_it_taps_and_leaves_a_tables_secondary_columns_out() {
+    let mut doc = page(390, 844);
+    let touch = find(&doc, ".unit-segment", "Touch");
+    tap(&mut doc, touch);
+    let drafts = option_named(&doc, "Drafts");
+    let (_, _, w, h) = rect(&doc, drafts);
+    assert!(w >= 44.0 && h >= 44.0, "a finger's target: {w}×{h}");
+    tap(&mut doc, drafts);
+    assert_eq!(folder_here(&doc), "Drafts", "a tap opens");
+    let home = find(&doc, "button", "Home");
+    tap(&mut doc, home);
+    assert_eq!(folder_here(&doc), "Home");
+    let list = find(&doc, ".unit-segment", "List");
+    tap(&mut doc, list);
+    let modified = find(&doc, ".unit-th", "Modified");
+    assert!(!displayed(&doc, modified), "no room on a phone");
+    let photos = row_named(&doc, "Photos");
+    let (_, _, _, rh) = rect(&doc, photos);
+    assert_eq!(rh, 44.0, "a finger's row");
+    tap(&mut doc, photos);
+    assert_eq!(folder_here(&doc), "Photos");
+    let table = first(&doc, ".unit-table");
+    let (tx, _, tw, _) = rect(&doc, table);
+    assert!(tx >= 0.0 && tx + tw <= 390.0, "inside the phone");
+}
+
+#[test]
+fn a_search_narrows_the_files_and_says_when_nothing_matches() {
+    let mut doc = page(1200, 800);
+    let field = labelled(&doc, "input", "Search files");
+    click(&mut doc, field);
+    type_text(&mut doc, "tide");
+    option_named(&doc, "Low tide.md");
+    assert_eq!(
+        chosen(&doc),
+        "0 of 1 chosen.",
+        "Notes.md, hidden, is let go"
+    );
+    let clear = labelled(&doc, "button", "Clear Search files");
+    click(&mut doc, clear);
+    assert_eq!(chosen(&doc), "0 of 7 chosen.");
+    let field = labelled(&doc, "input", "Search files");
+    click(&mut doc, field);
+    type_text(&mut doc, "zzz");
+    let empty = first(&doc, ".unit-empty");
+    assert!(displayed(&doc, empty));
+    assert_eq!(attr(&doc, empty, "role").as_deref(), Some("status"));
+    let again = find(&doc, "button", "Clear Search");
+    click(&mut doc, again);
+    assert_eq!(chosen(&doc), "0 of 7 chosen.");
+    // Escape in the field empties it.
+    let field = labelled(&doc, "input", "Search files");
+    click(&mut doc, field);
+    type_text(&mut doc, "plan");
+    assert_eq!(chosen(&doc), "0 of 1 chosen.");
+    key(&mut doc, Key::Named(NamedKey::Escape));
+    assert_eq!(chosen(&doc), "0 of 7 chosen.");
+}
+
+fn viewer(doc: &DioxusDocument) -> Option<NodeId> {
+    doc.inner.borrow().query_selector(".unit-viewer").unwrap()
+}
+
+fn viewer_count(doc: &DioxusDocument) -> String {
+    let node = first(doc, ".unit-viewer-count");
+    doc.inner
+        .borrow()
+        .get_node(node)
+        .unwrap()
+        .text_content()
+        .trim()
+        .to_string()
+}
+
+#[test]
+fn the_photo_viewer_goes_from_photo_to_photo_and_gives_the_keys_back() {
+    let mut doc = page(1200, 800);
+    assert!(viewer(&doc).is_none(), "in the page only while open");
+    // The keys are with the photos when it opens.
+    let photo = option_named(&doc, "Noon on the hill");
+    click(&mut doc, photo);
+    click(&mut doc, photo);
+    let v = viewer(&doc).expect("a double click opens the viewer");
+    assert_eq!(rect(&doc, v), (0.0, 0.0, 1200.0, 800.0), "the whole window");
+    assert_eq!(viewer_count(&doc), "2 of 6");
+    let image = first(&doc, ".unit-viewer-image");
+    assert_eq!(
+        attr(&doc, image, "alt").as_deref(),
+        Some("Noon on the hill")
+    );
+    key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    assert_eq!(viewer_count(&doc), "3 of 6");
+    let next = labelled(&doc, "button", "Next photo");
+    click(&mut doc, next);
+    assert_eq!(viewer_count(&doc), "4 of 6");
+    // The arrows still go to it after its button is pressed.
+    key(&mut doc, Key::Named(NamedKey::ArrowLeft));
+    assert_eq!(viewer_count(&doc), "3 of 6");
+    // A swipe to the right goes back, one to the left on.
+    drag(&mut doc, (500.0, 400.0), (640.0, 400.0));
+    assert_eq!(viewer_count(&doc), "2 of 6");
+    drag(&mut doc, (640.0, 400.0), (500.0, 400.0));
+    assert_eq!(viewer_count(&doc), "3 of 6");
+    key(&mut doc, Key::Named(NamedKey::Home));
+    assert!(
+        doc.inner
+            .borrow()
+            .query_selector("[aria-label='Previous photo']")
+            .unwrap()
+            .is_none(),
+        "nothing before the first"
+    );
+    key(&mut doc, Key::Named(NamedKey::Escape));
+    assert!(viewer(&doc).is_none(), "Escape closes it");
+    // The keys are back with the photos: the arrows choose among them.
+    key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    assert!(selected(&doc, option_named(&doc, "A grey afternoon")));
+    // And its button opens it at the first, closed by its own button.
+    let view = find(&doc, "button", "View Photos…");
+    click(&mut doc, view);
+    assert_eq!(viewer_count(&doc), "1 of 6");
+    key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    assert_eq!(
+        viewer_count(&doc),
+        "2 of 6",
+        "the keys are its, opened by a button too"
+    );
+    let close = labelled(&doc, ".unit-viewer button", "Close");
+    click(&mut doc, close);
+    assert!(viewer(&doc).is_none());
+}
+
+#[test]
+fn assistive_tech_reads_the_collections() {
+    let mut doc = page(1200, 800);
+    let nodes = tree(&doc);
+    let lists: Vec<_> = with_role(&nodes, Role::ListBox)
+        .into_iter()
+        .filter(|n| n.label() == Some("Files in Journal"))
+        .collect();
+    assert_eq!(lists.len(), 1, "the grid is a list box");
+    let notes = nodes
+        .iter()
+        .map(|(_, n)| n)
+        .find(|n| n.role() == Role::ListBoxOption && n.label() == Some("Notes.md, 13 KB"))
+        .expect("a tile, named by its label and its size");
+    assert_eq!(notes.is_selected(), Some(true));
+    assert!(
+        with_role(&nodes, Role::Navigation)
+            .iter()
+            .any(|n| n.label() == Some("Folders")),
+        "the path is navigation"
+    );
+    let list = find(&doc, ".unit-segment", "List");
+    click(&mut doc, list);
+    let nodes = tree(&doc);
+    assert!(
+        with_role(&nodes, Role::Grid)
+            .iter()
+            .any(|n| n.label() == Some("Files in Journal")),
+        "the table is a grid"
+    );
+    assert_eq!(with_role(&nodes, Role::ColumnHeader).len(), 3);
+    let rows = with_role(&nodes, Role::Row);
+    assert_eq!(rows.len(), 8, "a header and seven files");
+    assert!(rows.iter().any(|r| r.is_selected() == Some(true)));
+    let view = find(&doc, "button", "View Photos…");
+    click(&mut doc, view);
+    let nodes = tree(&doc);
+    assert!(
+        with_role(&nodes, Role::Image)
+            .iter()
+            .any(|n| n.label() == Some("Dawn over the harbour")),
+        "the photo is read by what is in it"
+    );
+}

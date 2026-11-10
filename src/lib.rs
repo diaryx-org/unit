@@ -7,7 +7,10 @@
 //! submenus, context menus, chips, tabs, list boxes, disclosures, rows in
 //! groups, a phone's navigation and tab bars, a tree, dialogs, action
 //! sheets, modals and sheets, toasts, a long press, icons, and the layout
-//! and text round them — in a theme of CSS custom properties, light and
+//! and text round them; and for browsing files and photos, a grid of tiles
+//! and a table of rows that choose as a desktop's file browser does, a
+//! path of folders, a search, a page for nothing found, and a photo
+//! viewer — in a theme of CSS custom properties, light and
 //! dark, at a pointer's density or a finger's.
 //!
 //! # Why it is built the way it is
@@ -64,6 +67,7 @@ pub mod layer;
 mod macos;
 pub mod menu;
 pub mod scroll;
+pub mod selection;
 mod style;
 pub mod theme;
 mod unit;
@@ -75,21 +79,25 @@ pub use components::choice::{
     Checkbox, Orientation, RadioGroup, Segmented, Stepper, Swatch, SwatchAction, Swatches, Switch,
 };
 pub use components::code_field::CodeField;
+pub use components::collection::{Column, Sort, Table, TableRow, Tile, TileGrid};
 pub use components::hold::{Hold, LongPress, use_hold};
 pub use components::layout::{
-    Align, Axis, Badge, Callout, Card, Divider, Field, Heading, Progress, Spacer, Stack, Text,
+    Align, Axis, Badge, Callout, Card, Divider, EmptyState, Field, Heading, Progress, Spacer,
+    Stack, Text,
 };
 pub use components::list::{Accessory, Row, Section};
 pub use components::menus::{Chips, Choice, ContextMenu, MenuButton, Select, left_top};
 pub use components::modal::{Modal, Placement};
-pub use components::navigation::{Disclosure, ListBox, Tabs};
+pub use components::navigation::{Breadcrumbs, Disclosure, ListBox, Tabs};
 pub use components::scrollbar::ScrollBar;
 pub use components::slider::Slider;
-pub use components::text_field::{InputKind, TextArea, TextField};
+pub use components::text_field::{InputKind, SearchField, TextArea, TextField};
+pub use components::viewer::{Photo, PhotoViewer};
 pub use dialog::{Answer, Dialog};
 pub use icon::{Icon, Ink};
 pub use layer::{Toast, Tone};
 pub use menu::{Entry, Item};
+pub use selection::{Pick, Selection};
 pub use style::CSS;
 pub use theme::{Accent, Appearance, Density, Metrics, Palette, Theme};
 pub use unit::{
@@ -100,13 +108,15 @@ pub use unit::{
 /// Everything a page uses, at once.
 pub mod prelude {
     pub use crate::{
-        Accent, Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem, Button,
-        Callout, Card, Checkbox, Chips, Choice, CodeField, ContextMenu, Density, Dialog,
-        Disclosure, Divider, Entry, Field, Heading, Icon, Ink, InputKind, Item, Keys, ListBox,
-        LongPress, MenuButton, Modal, NavBar, Orientation, Placement, Pressable, Progress,
-        RadioGroup, Row, ScrollBar, Section, Segmented, Select, SheetAction, Slider, Spacer, Stack,
-        Stepper, Swatch, SwatchAction, Swatches, Switch, TabBar, Tabs, Text, TextArea, TextField,
-        Theme, Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
+        Accent, Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem,
+        Breadcrumbs, Button, Callout, Card, Checkbox, Chips, Choice, CodeField, Column,
+        ContextMenu, Density, Dialog, Disclosure, Divider, EmptyState, Entry, Field, Heading, Icon,
+        Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal, NavBar, Orientation,
+        Photo, PhotoViewer, Pick, Placement, Pressable, Progress, RadioGroup, Row, ScrollBar,
+        SearchField, Section, Segmented, Select, Selection, SheetAction, Slider, Sort, Spacer,
+        Stack, Stepper, Swatch, SwatchAction, Swatches, Switch, TabBar, Table, TableRow, Tabs,
+        Text, TextArea, TextField, Theme, Tile, TileGrid, Toast, ToggleButton, Tone, Tree, TreeRow,
+        Unit, UnitRoot, Variant, use_unit,
     };
 }
 

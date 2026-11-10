@@ -105,7 +105,7 @@ const MODES: [Mode; 6] = [
 
 /// An overlay opened by the button reading `button`, and whether the page
 /// is scrolled to that button first.
-const SCENES: [(&str, &str, bool); 10] = [
+const SCENES: [(&str, &str, bool); 11] = [
     ("menu", "Edit ▾", false),
     ("menu-scrolled", "Edit ▾", true),
     ("prompt", "Prompt…", false),
@@ -116,10 +116,12 @@ const SCENES: [(&str, &str, bool); 10] = [
     ("toast", "Toast", false),
     ("alert-scrolled", "Confirm…", true),
     ("actions-scrolled", "Actions…", true),
+    ("viewer", "View Photos…", false),
 ];
 
 /// What opens over the page: each must be on screen once it is open.
-const OVERLAYS: &str = ".unit-dialog, .unit-actions, .unit-menu, .unit-modal, .unit-toast";
+const OVERLAYS: &str =
+    ".unit-dialog, .unit-actions, .unit-menu, .unit-modal, .unit-toast, .unit-viewer";
 
 /// The controls whose edge is what shows where they are (WCAG 1.4.11).
 const EDGED: &str = ".unit-check-box, .unit-radio-ring, .unit-switch-track, .unit-input, \

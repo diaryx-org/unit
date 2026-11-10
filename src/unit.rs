@@ -237,6 +237,20 @@ impl Unit {
         }
     }
 
+    /// The control with the keys, to give them back to later.
+    pub(crate) fn current(&self) -> Option<Focused> {
+        *self.focus.peek()
+    }
+
+    /// Give the keys back to `f`, as [`Unit::current`] read it, or to
+    /// nothing.
+    pub(crate) fn restore(&self, f: Option<Focused>) {
+        match f {
+            Some(f) => self.take_focus(f),
+            None => self.blur(),
+        }
+    }
+
     /// The control `id` was blurred by the renderer.
     pub(crate) fn blurred(&self, id: u64) {
         if self.focus.peek().is_some_and(|f| f.id == id) {
@@ -410,6 +424,12 @@ impl Focus {
             .peek()
             .is_some_and(|f| f.id == self.id && f.dom);
         self.unit.take_focus(self.focused(dom));
+    }
+
+    /// The control takes the keys with no press: what opens over the page
+    /// and is driven by them, a photo viewer.
+    pub(crate) fn take(&self) {
+        self.unit.take_focus(self.focused(false));
     }
 
     /// The control was pressed, and refuses the keys: they stay with
