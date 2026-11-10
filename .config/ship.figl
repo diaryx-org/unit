@@ -11,6 +11,11 @@ release_branch = main
 # a name for a commit and sets nothing off.
 publishes = false
 
+# The lanes that compile go through scripts/cargo.sh: corgi where it is
+# installed, sharing one build store with every other checkout on the machine,
+# and cargo where it is not, as on GitHub's runners. Formatting and the docs
+# are cargo's everywhere; corgi does neither.
+#
 # CI. `.github/workflows/ci.yml` asks `ship ci --matrix` for these and runs one
 # per runner, as `ship ci <id>`; `ship ci` runs them all here, in this order,
 # and stops at the first that fails. Changing CI is an edit here and nowhere
@@ -26,7 +31,7 @@ job
 > *
 > > id = clippy
 > > name = Clippy
-> > run = cargo clippy --workspace --all-targets -- -D warnings
+> > run = scripts/cargo.sh clippy --workspace --all-targets -- -D warnings
 > > runner
 > > > components = clippy
 > *
@@ -34,7 +39,7 @@ job
 > > # library and the page compile to wasm32 with no Blitz in them.
 > > id = web
 > > name = Web
-> > run = cargo clippy -p unit-gallery --target wasm32-unknown-unknown --no-default-features --features web -- -D warnings
+> > run = scripts/cargo.sh clippy -p unit-gallery --target wasm32-unknown-unknown --no-default-features --features web -- -D warnings
 > > runner
 > > > components = clippy
 > *
@@ -42,7 +47,7 @@ job
 > > # Blitz with no window, pressed and tapped, its accessibility tree read.
 > > id = test
 > > name = Tests
-> > run = cargo test --workspace
+> > run = scripts/cargo.sh test --workspace
 > *
 > > # The audit (gallery/tests/audit.rs), a check of its own so that a red
 > > # one says what it is: nothing may join gallery/audit.baseline, and what
@@ -50,7 +55,7 @@ job
 > > # Tests job does not draw.
 > > id = audit
 > > name = Audit
-> > run = cargo test -p unit-gallery --test audit && UNIT_APPEARANCE=dark cargo test -p unit-gallery --test blitz
+> > run = scripts/cargo.sh test -p unit-gallery --test audit && UNIT_APPEARANCE=dark scripts/cargo.sh test -p unit-gallery --test blitz
 > *
 > > # A broken intra-doc link is a broken promise to a reader of the docs.
 > > id = docs
