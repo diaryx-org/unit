@@ -22,13 +22,29 @@ use crate::components::button::{Button, Variant};
 use crate::icon::paths;
 use crate::scroll::{Tracker, wheel_delta, zoom_factor};
 use crate::unit::{Kind, Unit, next_id, use_focus, use_unit};
-use crate::zoom::{MOST, PAGE_GAP, Pages, Zoom};
+use crate::zoom::{Dismiss, MOST, PAGE_GAP, Pages, Zoom};
 
 /// How far a pointer may move and its lifting still be a tap, in CSS
 /// pixels; how soon a second tap follows the first to make a double tap,
 /// in milliseconds, and how near it lands.
 const TAP: f64 = 10.0;
 const DOUBLE_TAP_TIME: f64 = 300.0;
+
+/// How far a finger moves before what it is doing is settled: sliding to
+/// the next photo, or dragging this one down to close.
+const LOCK: f64 = 8.0;
+
+/// What a single finger on a photo that fits is doing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Lock {
+    /// Not far enough yet to tell.
+    #[default]
+    Undecided,
+    /// Sideways: from photo to photo.
+    Pages,
+    /// Down: the photo, picked up to close the viewer.
+    Dismiss,
+}
 
 /// How long the wheel is still, in milliseconds, before a trackpad's swipe
 /// (and the momentum the system carries it on with) has ended.
@@ -104,6 +120,8 @@ struct Touches {
     start: Option<(f64, f64)>,
     /// When and where the last tap was, for a second to make a double tap.
     tap: Option<(f64, (f64, f64))>,
+    /// What a single finger on a photo that fits is doing.
+    lock: Lock,
 }
 
 impl Touches {
@@ -233,7 +251,7 @@ type Key3 = (usize, u64, u64);
 /// tapped, the wheel with ⌘ or Ctrl, or `+`, `-` and `0`; up to `most`
 /// times the size that fits. Zoomed, a drag or a trackpad's two-finger
 /// swipe moves it; fitting, either slides it aside with the next beside it
-/// ([`Pages`]). That needs the
+/// ([`Pages`]); dragged down, it closes the viewer ([`Dismiss`]). That needs the
 /// window's size, which the host gives ([`Unit::set_viewport`]); a
 /// browser's root sets it itself. Without it, the photo fits and does not
 /// zoom or slide, and the arrows go from photo to photo.
@@ -278,6 +296,8 @@ pub fn PhotoViewer(
     let zoom = use_signal(|| None::<(Key3, Zoom)>);
     // How far the photos are slid, from where the photo it names rests.
     let pages = use_signal(|| (index, Pages::default()));
+    // The photo dragged down to close the viewer.
+    let dismiss = use_signal(Dismiss::default);
     let running = use_signal(|| false);
     let touches = use_hook(|| CopyValue::new(Touches::default()));
     let swipe = use_hook(|| CopyValue::new(None::<WheelSwipe>));
@@ -333,11 +353,18 @@ pub fn PhotoViewer(
     };
     let kick = move || {
         frames(unit, running, move |dt| {
-            let (mut zoom, mut pages) = (zoom, pages);
+            let (mut zoom, mut pages, mut dismiss) = (zoom, pages, dismiss);
             let swiping = swipe_ended(false);
             let zooming = zoom.write().as_mut().is_some_and(|(_, z)| z.step(dt));
             let sliding = pages.write().1.step(dt);
-            swiping || zooming || sliding
+            let dismissing = dismiss.write().step(dt);
+            // Dragged down and gone: the viewer closes.
+            if dismiss.peek().is_gone() {
+                dismiss.set(Dismiss::default());
+                onclose.call(());
+                return false;
+            }
+            swiping || zooming || sliding || dismissing
         });
     };
     let change = move |f: &mut dyn FnMut(&mut Zoom) -> bool| {
@@ -406,6 +433,7 @@ pub fn PhotoViewer(
     let before = use_hook(|| CopyValue::new(None));
     use_effect(use_reactive!(|open| {
         if open {
+            dismiss.clone().set(Dismiss::default());
             before.clone().set(unit.current());
             focus.take();
         } else if unit.focused() == Some(focus.id) {
@@ -417,6 +445,18 @@ pub fn PhotoViewer(
         return rsx! {};
     };
     let count = format!("{} of {n}", index + 1);
+    // Dragged down: the photo smaller, and the viewer's black and its bar
+    // fading, the page under it showing through.
+    let d = *dismiss.read();
+    let fade = d.fade(stage.1);
+    let lifted = d.is_active().then(|| {
+        format!(
+            "; transform: translate({}px, {}px) scale({})",
+            d.at.0,
+            d.at.1,
+            d.scale(stage.1)
+        )
+    });
     // Where a pointer is on the stage.
     let local = move |e: &PointerEvent| {
         let c = e.client_coordinates();
@@ -442,6 +482,7 @@ pub fn PhotoViewer(
     rsx! {
         div {
             class: "unit-viewer {class}",
+            style: "background: rgba(0, 0, 0, {fade})",
             role: "dialog",
             "aria-modal": "true",
             "aria-label": "{photo.alt}, {count}",
@@ -526,7 +567,9 @@ pub fn PhotoViewer(
                     t.track.1.reset();
                     t.track(p);
                     t.start = (t.down.len() == 1).then_some(p);
+                    t.lock = Lock::Undecided;
                     let mut pages = pages;
+                    let mut dismiss = dismiss;
                     match t.down.len() {
                         1 => {
                             let zoomed = current().is_some_and(|z| z.is_zoomed() || z.is_moving());
@@ -544,7 +587,12 @@ pub fn PhotoViewer(
                             }
                         }
                         _ => {
-                            // A second finger: a pinch, and no slide.
+                            // A second finger: a pinch, and no slide, and the
+                            // photo put back.
+                            if dismiss.peek().is_dragging() {
+                                dismiss.write().cancel();
+                                kick();
+                            }
                             if pages.peek().1.is_dragging() {
                                 pages.write().1.release(0.0, stride, false, false);
                                 kick();
@@ -568,11 +616,31 @@ pub fn PhotoViewer(
                     slot.1 = p;
                     t.track(p);
                     let mut pages = pages;
+                    let mut dismiss = dismiss;
+                    // Far enough to tell: down picks the photo up to close
+                    // the viewer; any other way slides to the next.
+                    if t.lock == Lock::Undecided && pages.peek().1.is_dragging()
+                        && let Some(start) = t.start
+                    {
+                        let (dx, dy) = (p.0 - start.0, p.1 - start.1);
+                        if dx.abs().max(dy.abs()) > LOCK {
+                            if dy > dx.abs() {
+                                t.lock = Lock::Dismiss;
+                                pages.write().1.release(0.0, stride, false, false);
+                                dismiss.write().drag_start(start);
+                                kick();
+                            } else {
+                                t.lock = Lock::Pages;
+                            }
+                        }
+                    }
                     if let Some((centre, apart)) = t.centre_and_apart() {
                         change(&mut |z| {
                             z.pinch_move(centre, apart);
                             false
                         });
+                    } else if dismiss.peek().is_dragging() {
+                        dismiss.write().drag_move(p, stage.1);
                     } else if pages.peek().1.is_dragging() {
                         pages.write().1.drag_move(p.0, stride, prev, next);
                     } else if current().is_some_and(|z| z.is_held()) {
@@ -613,6 +681,12 @@ pub fn PhotoViewer(
                                     z.double_tap(p)
                                 });
                                 kick();
+                            } else if dismiss.peek().is_dragging() {
+                                // Down far or fast enough: on down, and closed;
+                                // else back where it rests.
+                                let mut dismiss = dismiss;
+                                dismiss.write().release(speed);
+                                kick();
                             } else if pages.peek().1.is_dragging() {
                                 // On to the next photo, or back to this one,
                                 // sliding from where the finger left it.
@@ -641,6 +715,11 @@ pub fn PhotoViewer(
                         pages.write().1.release(0.0, stride, false, false);
                         kick();
                     }
+                    let mut dismiss = dismiss;
+                    if dismiss.peek().is_dragging() {
+                        dismiss.write().cancel();
+                        kick();
+                    }
                     if t.down.is_empty() && current().is_some_and(|z| z.is_held()) {
                         change(&mut |z| z.release((0.0, 0.0)));
                     }
@@ -648,7 +727,7 @@ pub fn PhotoViewer(
                 if staged {
                     for (i, x, (fx, fy, fw, fh)) in slots {
                         div { key: "{i}", class: "unit-viewer-page",
-                              style: "left: {x}px; width: {stage.0}px",
+                              style: "left: {x}px; width: {stage.0}px{lifted.as_deref().filter(|_| i == index).unwrap_or_default()}",
                               "aria-hidden": (i != index).then_some("true"),
                             div { class: if i == index { "unit-viewer-photo current" } else { "unit-viewer-photo" },
                                   style: "left: {fx}px; top: {fy}px; width: {fw}px; height: {fh}px",
@@ -664,22 +743,22 @@ pub fn PhotoViewer(
                     img { class: "unit-viewer-image unit-viewer-whole", src: "{photo.src}", alt: "{photo.alt}",
                           "aria-label": "{photo.alt}", draggable: "false" }
                 }
-                if prev && !zoomed {
+                if prev && !zoomed && !d.is_active() {
                     Button { variant: Variant::Ghost, class: "unit-icon unit-viewer-prev", label: "Previous photo",
                              icon: paths::CHEVRON_LEFT, refuses_keys: true, onpress: move |_| slide_to(index - 1) }
                 }
-                if next && !zoomed {
+                if next && !zoomed && !d.is_active() {
                     Button { variant: Variant::Ghost, class: "unit-icon unit-viewer-next", label: "Next photo",
                              icon: paths::CHEVRON_RIGHT, refuses_keys: true, onpress: move |_| slide_to(index + 1) }
                 }
             }
-            div { class: "unit-viewer-bar", style: "padding-top: {safe.top + 6.0}px; padding-left: {safe.left + 16.0}px; padding-right: {safe.right + 8.0}px",
+            div { class: "unit-viewer-bar", style: "padding-top: {safe.top + 6.0}px; padding-left: {safe.left + 16.0}px; padding-right: {safe.right + 8.0}px; opacity: {fade}",
                 span { class: "unit-viewer-count", "{count}" }
                 Button { variant: Variant::Ghost, class: "unit-icon", label: "Close", icon: paths::CLOSE,
                          refuses_keys: true, onpress: move |_| onclose.call(()) }
             }
             if let Some(c) = &photo.caption {
-                div { class: "unit-viewer-caption", style: "padding-bottom: {safe.bottom + 14.0}px",
+                div { class: "unit-viewer-caption", style: "padding-bottom: {safe.bottom + 14.0}px; opacity: {fade}",
                     "{c}"
                 }
             }

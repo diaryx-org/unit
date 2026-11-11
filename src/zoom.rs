@@ -514,6 +514,141 @@ impl Pages {
     }
 }
 
+// ── Dragging a photo down to close it ─────────────────────────────────────
+
+/// How far down a photo is dragged, in CSS pixels, before letting it go
+/// closes the viewer.
+pub const DISMISS_DISTANCE: f64 = 100.0;
+
+/// How fast down a finger must be going as it lifts, in CSS pixels a
+/// millisecond, for a short drag to close the viewer all the same.
+pub const DISMISS_SPEED: f64 = 0.5;
+
+/// How long a photo let go to close goes on down, fading, in milliseconds.
+const LEAVING: f64 = 200.0;
+
+/// A photo that fits, dragged down to close the viewer as the Photos app
+/// closes one: it follows the finger every way, smaller the further down
+/// it goes, and what is behind it shows through as the viewer fades. Let
+/// go more than [`DISMISS_DISTANCE`] down, or flicked down, it goes on down
+/// and the viewer closes; else it springs back.
+///
+/// `at` is how far the photo is from where it rests.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Dismiss {
+    pub at: (f64, f64),
+    speed: (f64, f64),
+    /// Where the finger and the photo were when it went down.
+    drag: Option<((f64, f64), (f64, f64))>,
+    /// Let go to close: how long it has still to go.
+    leaving: Option<f64>,
+    gone: bool,
+}
+
+impl Dismiss {
+    /// A finger at `finger` picks the photo up.
+    pub fn drag_start(&mut self, finger: (f64, f64)) {
+        self.drag = Some((finger, self.at));
+        self.speed = (0.0, 0.0);
+    }
+
+    /// The finger moved to `finger`. Above where it rests, the photo gives
+    /// as a rubber band does: it closes only going down.
+    pub fn drag_move(&mut self, finger: (f64, f64), height: f64) {
+        let Some((f0, a0)) = self.drag else {
+            return;
+        };
+        let raw = (a0.0 + finger.0 - f0.0, a0.1 + finger.1 - f0.1);
+        self.at = (raw.0, rubber(raw.1, 0.0, f64::MAX, height.max(1.0)));
+    }
+
+    pub fn is_dragging(&self) -> bool {
+        self.drag.is_some()
+    }
+
+    /// Whether the photo is off where it rests, held or moving.
+    pub fn is_active(&self) -> bool {
+        self.drag.is_some() || self.leaving.is_some() || self.at != (0.0, 0.0)
+    }
+
+    /// Whether it is moving on its own, and wants frames.
+    pub fn is_moving(&self) -> bool {
+        self.drag.is_none() && (self.leaving.is_some() || self.at != (0.0, 0.0))
+    }
+
+    /// Whether it has gone, and the viewer is to close.
+    pub fn is_gone(&self) -> bool {
+        self.gone
+    }
+
+    /// How far down it is, as a share of `height`: 0 at rest, 1 a whole
+    /// stage down.
+    pub fn progress(&self, height: f64) -> f64 {
+        (self.at.1.max(0.0) / height.max(1.0)).min(1.0)
+    }
+
+    /// How large it is drawn: smaller the further down, to 70% a stage down.
+    pub fn scale(&self, height: f64) -> f64 {
+        1.0 - 0.3 * self.progress(height)
+    }
+
+    /// How much of the viewer's black, and its bar and caption, still
+    /// shows: gone by the time the photo is 40% of a stage down.
+    pub fn fade(&self, height: f64) -> f64 {
+        (1.0 - self.progress(height) / 0.4).clamp(0.0, 1.0)
+    }
+
+    /// The finger lifted, going at `speed`. Whether it closes the viewer.
+    pub fn release(&mut self, speed: (f64, f64)) -> bool {
+        self.drag = None;
+        let far = self.at.1 > DISMISS_DISTANCE && speed.1 > -0.1;
+        if far || speed.1 > DISMISS_SPEED {
+            self.leaving = Some(LEAVING);
+            // On down, at least as fast as a flick, the way it was going.
+            self.speed = (speed.0, speed.1.max(1.5));
+            true
+        } else {
+            self.speed = speed;
+            false
+        }
+    }
+
+    /// Put it back where it rests at once: a second finger's pinch.
+    pub fn cancel(&mut self) {
+        self.drag = None;
+        self.speed = (0.0, 0.0);
+    }
+
+    /// Move on by `dt` milliseconds. Whether it is still moving.
+    pub fn step(&mut self, dt: f64) -> bool {
+        if !self.is_moving() {
+            return false;
+        }
+        let dt = dt.clamp(0.0, 100.0);
+        if let Some(left) = self.leaving {
+            self.at.0 += self.speed.0 * dt;
+            self.at.1 += self.speed.1 * dt;
+            let left = left - dt;
+            if left <= 0.0 {
+                self.leaving = None;
+                self.gone = true;
+                return false;
+            }
+            self.leaving = Some(left);
+            return true;
+        }
+        let (x, vx) = spring(self.at.0, self.speed.0, dt);
+        let (y, vy) = spring(self.at.1, self.speed.1, dt);
+        if x.abs() < NEAR && y.abs() < NEAR && vx.abs().max(vy.abs()) < STOPPED {
+            *self = Dismiss::default();
+            return false;
+        }
+        self.at = (x, y);
+        self.speed = (vx, vy);
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -706,5 +841,42 @@ mod tests {
         assert_eq!(p.offset, 0.0);
         p.slide(-1, STRIDE);
         assert_eq!(p.offset, -STRIDE, "from the left");
+    }
+
+    #[test]
+    fn a_photo_dragged_down_shrinks_and_fades_and_far_enough_goes() {
+        let mut d = Dismiss::default();
+        d.drag_start((200.0, 300.0));
+        d.drag_move((230.0, 500.0), 800.0);
+        assert_eq!(d.at, (30.0, 200.0), "it follows the finger every way");
+        assert!((d.scale(800.0) - (1.0 - 0.3 * 0.25)).abs() < 1e-9);
+        assert!((d.fade(800.0) - (1.0 - 0.25 / 0.4)).abs() < 1e-9);
+        assert!(d.release((0.0, 0.0)), "200 down: it goes");
+        let mut frames = 0;
+        while d.step(16.0) {
+            frames += 1;
+        }
+        assert!(d.is_gone() && frames < 20, "{frames}");
+        assert!(d.at.1 > 200.0, "on down as it went");
+    }
+
+    #[test]
+    fn a_short_drag_springs_back_and_a_flick_down_goes() {
+        let mut d = Dismiss::default();
+        d.drag_start((200.0, 300.0));
+        d.drag_move((200.0, 360.0), 800.0);
+        assert!(!d.release((0.0, 0.05)), "60 down, slowly: back");
+        while d.step(16.0) {}
+        assert_eq!(d, Dismiss::default());
+        d.drag_start((200.0, 300.0));
+        d.drag_move((200.0, 340.0), 800.0);
+        assert!(d.release((0.0, 1.0)), "a flick down");
+        // Dragged up, it gives, and does not go.
+        let mut up = Dismiss::default();
+        up.drag_start((200.0, 300.0));
+        up.drag_move((200.0, 100.0), 800.0);
+        assert!(up.at.1 < 0.0 && up.at.1 > -200.0, "{}", up.at.1);
+        assert_eq!(up.fade(800.0), 1.0);
+        assert!(!up.release((0.0, -1.0)));
     }
 }

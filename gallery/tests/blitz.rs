@@ -2565,3 +2565,90 @@ fn a_trackpads_swipe_slides_the_photos_and_goes_on_or_springs_back() {
     assert_eq!(viewer_count(&doc), "2 of 6");
     assert!(near(photo_frame(&doc), FITS));
 }
+
+/// The mouse pressed at (`x`, `y`), moved by `dy` in `steps` steps `ms`
+/// apart, held still `hold` milliseconds, and let go.
+fn drag_down(
+    doc: &mut DioxusDocument,
+    (x, y): (f64, f64),
+    dy: f64,
+    steps: u32,
+    ms: u64,
+    hold: u64,
+) {
+    let mouse = |y: f64, buttons| pointer(BlitzPointerId::Mouse, x, y, buttons);
+    doc.handle_ui_event(UiEvent::PointerMove(mouse(y, MouseEventButtons::None)));
+    doc.handle_ui_event(UiEvent::PointerDown(mouse(y, MouseEventButtons::Primary)));
+    settle(doc);
+    for i in 1..=steps {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+        let at = y + dy * i as f64 / steps as f64;
+        doc.handle_ui_event(UiEvent::PointerMove(mouse(at, MouseEventButtons::Primary)));
+        settle(doc);
+    }
+    std::thread::sleep(std::time::Duration::from_millis(hold));
+    doc.handle_ui_event(UiEvent::PointerUp(mouse(y + dy, MouseEventButtons::None)));
+    settle(doc);
+}
+
+#[test]
+fn dragging_a_photo_down_closes_the_viewer_and_a_short_drag_puts_it_back() {
+    let mut doc = page(1200, 800);
+    open_photos(&mut doc);
+    // A short slow drag down, held still: the photo goes back, and the
+    // viewer stays.
+    drag_down(&mut doc, (600.0, 300.0), 60.0, 4, 30, 120);
+    assert!(viewer(&doc).is_some(), "still open");
+    // Back where it rests: no transform left on it.
+    for _ in 0..50 {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        settle(&mut doc);
+        let current = parent_of(&doc, first(&doc, ".unit-viewer-photo.current"));
+        if !attr(&doc, current, "style").unwrap().contains("transform") {
+            break;
+        }
+    }
+    let current = parent_of(&doc, first(&doc, ".unit-viewer-photo.current"));
+    assert!(!attr(&doc, current, "style").unwrap().contains("transform"));
+    assert!(near(photo_frame(&doc), FITS), "{:?}", photo_frame(&doc));
+    assert_eq!(viewer_count(&doc), "1 of 6", "and no other photo");
+    // Held part way down: smaller, the black fading.
+    let mouse = |y: f64, buttons| pointer(BlitzPointerId::Mouse, 600.0, y, buttons);
+    doc.handle_ui_event(UiEvent::PointerMove(mouse(300.0, MouseEventButtons::None)));
+    doc.handle_ui_event(UiEvent::PointerDown(mouse(
+        300.0,
+        MouseEventButtons::Primary,
+    )));
+    settle(&mut doc);
+    for y in [320.0, 360.0, 420.0, 460.0] {
+        doc.handle_ui_event(UiEvent::PointerMove(mouse(y, MouseEventButtons::Primary)));
+        settle(&mut doc);
+    }
+    // 160 down the 800 stage: drawn at 94%, where the finger took it.
+    // (Blitz measures the box a transform starts from, so it is read from
+    // the style.)
+    let current = parent_of(&doc, first(&doc, ".unit-viewer-photo.current"));
+    let style = attr(&doc, current, "style").unwrap();
+    assert!(
+        style.contains("transform: translate(0px, 160px) scale(0.94)"),
+        "{style}"
+    );
+    let style = attr(&doc, viewer(&doc).unwrap(), "style").unwrap();
+    assert!(!style.contains("rgba(0, 0, 0, 1)"), "fading: {style}");
+    // Let go 160 down: it goes on down, and the viewer closes.
+    doc.handle_ui_event(UiEvent::PointerUp(mouse(460.0, MouseEventButtons::None)));
+    settle(&mut doc);
+    for _ in 0..40 {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        settle(&mut doc);
+        if viewer(&doc).is_none() {
+            break;
+        }
+    }
+    assert!(viewer(&doc).is_none(), "closed");
+    // Opened again, it is whole.
+    open_photos(&mut doc);
+    assert!(near(photo_frame(&doc), FITS));
+    let style = attr(&doc, viewer(&doc).unwrap(), "style").unwrap();
+    assert!(style.contains("rgba(0, 0, 0, 1)"), "{style}");
+}
