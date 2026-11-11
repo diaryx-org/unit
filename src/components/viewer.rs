@@ -7,12 +7,6 @@
 //! closes. It is in the page only while it is open, as nothing of it is
 //! drawn otherwise.
 //!
-//! It is `position: fixed`, which Blitz places against the top of the
-//! document rather than the window: on a page whose root scrolls it opens
-//! off screen once the page is scrolled (`docs/tasks/overlays-on-a-scrolled-page.md`),
-//! as a `Modal` does. A page that scrolls in a box of its own does not
-//! meet it.
-//!
 //! It is drawn on black whatever the page's appearance, and sets the
 //! theme's text, dim and hover colours for what is in it to match.
 
@@ -119,6 +113,14 @@ pub fn PhotoViewer(
                 e.stop_propagation();
                 focus.press();
             },
+            // A press inside it, a swipe across its photo, leaves the
+            // renderer's focus where it was: Blitz focuses what a click
+            // lands on as the click's default action, and with nothing
+            // focusable under it, the document's root, from where keys no
+            // longer reach the page's. A browser does the same on
+            // `mousedown`. Its keys are the page's own (`use_focus`).
+            onmousedown: move |e: MouseEvent| e.prevent_default(),
+            onclick: move |e: MouseEvent| e.prevent_default(),
             div { class: "unit-viewer-bar",
                 span { class: "unit-viewer-count", "{count}" }
                 Button { variant: Variant::Ghost, class: "unit-icon", label: "Close", icon: paths::CLOSE,

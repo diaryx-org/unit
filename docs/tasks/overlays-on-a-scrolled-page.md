@@ -1,7 +1,7 @@
 ---
 title: Overlays on a scrolled page
 part_of: '[Tasks](/docs/tasks/tasks.md)'
-status: open
+status: done
 created: 2026-10-20
 ---
 # Overlays on a scrolled page
@@ -31,3 +31,9 @@ own (as Diaryx's app does), does not meet it.
 **Done when.** A fixed box is placed against the viewport in Blitz however
 far the document is scrolled (a fix on the fork's `leaf`, or upstream), and
 those cells pass.
+
+**Done, 2026-11-10.** Blitz found the root element as the box with no
+containing block, which dioxus-native's root element is not: fixed boxes
+were drawn, hit and measured as if they scrolled. Fixed on the fork's `leaf`
+(diaryx-org/blitz#30), taken here; every `on-screen ... -scrolled` cell
+passes and is off the baseline.

@@ -522,9 +522,6 @@ fn with_role(nodes: &[(AxId, Node)], role: Role) -> Vec<&Node> {
 #[test]
 fn assistive_tech_reads_every_control_as_what_it_is() {
     let mut doc = page(1200, 800);
-    // A closed dialog is hidden, and out of the tree: open one.
-    let confirm = find(&doc, "button", "Confirm…");
-    click(&mut doc, confirm);
     let nodes = tree(&doc);
     for role in [
         Role::Button,
@@ -540,13 +537,14 @@ fn assistive_tech_reads_every_control_as_what_it_is() {
         Role::ListBoxOption,
         Role::ProgressIndicator,
         Role::TextInput,
-        Role::Dialog,
     ] {
         assert!(
             !with_role(&nodes, role).is_empty(),
             "no {role:?} in the tree"
         );
     }
+    // A closed dialog is hidden, and out of the tree.
+    assert!(with_role(&nodes, Role::Dialog).is_empty());
     let bold = with_role(&nodes, Role::Button)
         .into_iter()
         .find(|n| n.label() == Some("Bold"));
@@ -564,15 +562,25 @@ fn assistive_tech_reads_every_control_as_what_it_is() {
             .count(),
         1
     );
+    // An open modal dialog is read, and the page behind it is not: what it
+    // covers cannot be reached until it closes.
+    let confirm = find(&doc, "button", "Confirm…");
+    click(&mut doc, confirm);
+    let nodes = tree(&doc);
+    let dialogs = with_role(&nodes, Role::Dialog);
+    assert_eq!(dialogs.len(), 1, "only the open dialog is in the tree");
+    assert!(dialogs[0].is_modal());
+    assert!(
+        with_role(&nodes, Role::CheckBox).is_empty(),
+        "the page's controls are behind it"
+    );
 }
 
 /// The states ARIA gives a control — ticked, pressed, its value — read as
 /// AccessKit's.
 #[test]
 fn assistive_tech_reads_each_controls_state() {
-    let mut doc = page(1200, 800);
-    let confirm = find(&doc, "button", "Confirm…");
-    click(&mut doc, confirm);
+    let doc = page(1200, 800);
     let nodes = tree(&doc);
     let checks = with_role(&nodes, Role::CheckBox);
     assert!(
@@ -591,9 +599,6 @@ fn assistive_tech_reads_each_controls_state() {
         .expect("the volume slider, its value as words");
     assert_eq!(slider.numeric_value(), Some(0.4));
     assert_eq!(slider.max_numeric_value(), Some(1.0));
-    let dialogs = with_role(&nodes, Role::Dialog);
-    assert_eq!(dialogs.len(), 1, "only the open dialog is in the tree");
-    assert!(dialogs[0].is_modal());
 }
 
 /// The first element matching `selector` named `label` by `aria-label`.
@@ -2021,6 +2026,11 @@ fn the_photo_viewer_goes_from_photo_to_photo_and_gives_the_keys_back() {
     drag(&mut doc, (640.0, 400.0), (500.0, 400.0));
     assert_eq!(viewer_count(&doc), "3 of 6");
     key(&mut doc, Key::Named(NamedKey::Home));
+    assert_eq!(
+        viewer_count(&doc),
+        "1 of 6",
+        "Home goes to the first, after a swipe too"
+    );
     assert!(
         doc.inner
             .borrow()
