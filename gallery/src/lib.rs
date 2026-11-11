@@ -233,6 +233,10 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     // mounts each of its sheets on demand does.
     let mut mounted = use_signal(|| false);
     let mut markup = use_signal(|| 0usize);
+    let mut synced = use_signal(|| vec![true, false]);
+    let mut every = use_signal(|| Some(0usize));
+    let mut advanced = use_signal(|| false);
+    let mut pinned = use_signal(|| false);
     // What a phone would set: its safe area, and the keyboard up.
     let mut edges = use_signal(|| 0usize);
     let mut tip = use_signal(|| true);
@@ -410,6 +414,18 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         // Drawn as the page's own, and a button to Tab and Return.
                         Pressable { class: "gallery-tile", "aria-label": "A tile",
                                     onpress: move |_| said.set("Tile pressed.".into()), "Tile" }
+                        // A toolbar's: Ghost, until pressed.
+                        ToggleButton { variant: Variant::Ghost, pressed: pinned(), label: "Pin", icon: paths::BOOKMARK,
+                                       onchange: move |v| pinned.set(v) }
+                        MenuButton { variant: Variant::Ghost, class: "unit-icon", label: "More", icon: paths::MORE,
+                                     entries: edit.clone(), onpick: pick }
+                        Button { variant: Variant::Link, "title": "Every version kept of this entry",
+                                 onpress: move |_| said.set("Versions pressed.".into()),
+                                 oncontextmenu: move |e: MouseEvent| {
+                                     e.prevent_default();
+                                     said.set("Versions' menu.".into());
+                                 },
+                                 "Versions…" }
                     }
                 }
                 Card { title: "Choices",
@@ -561,6 +577,26 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                               note: "\u{201c}The boats lean over on the mud.\u{201d}",
                               onpress: move |_| said.set("Low tide opened.".into()) }
                     }
+                    Section { title: "Sync", footer: "Each ticked on its own; how often, a choice of three.",
+                        Segmented { label: "How often", options: vec!["Hourly".into(), "Daily".into(), "Weekly".into()],
+                                    selected: every(), onchange: move |i| every.set(Some(i)) }
+                        for (i, m) in ["Journals", "Pictures"].into_iter().enumerate() {
+                            Row { key: "{i}", title: m, accessory: Accessory::Checkbox(synced()[i]),
+                                  onpress: move |_| synced.with_mut(|s| s[i] = !s[i]) }
+                        }
+                        Row { title: "Last synced", subtitle: "Three days ago: some changes are only here",
+                              tone: Tone::Warning, "title": "Sync again to send them",
+                              oncontextmenu: move |e: MouseEvent| {
+                                  e.prevent_default();
+                                  said.set("Last synced's menu.".into());
+                              },
+                              onpress: move |_| said.set("Synced.".into()) }
+                        Row { title: "Advanced", accessory: Accessory::Chevron, expanded: advanced(),
+                              onpress: move |_| advanced.set(!advanced()) }
+                        if advanced() {
+                            Row { title: "Server", detail: "sync.example.com", depth: 1 }
+                        }
+                    }
                     Section { title: "Markup",
                         for (i, m) in ["Markdown", "Plain text", "Org"].into_iter().enumerate() {
                             Row { key: "{i}", title: m, subtitle: (i == 0).then(|| "What the editor writes".to_string()),
@@ -576,6 +612,15 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                              trailing: rsx! {
                                  Button { icon: paths::PLUS, label: "New", variant: Variant::Ghost, class: "unit-icon",
                                           onpress: move |_| said.set("New pressed.".into()) }
+                             } }
+                    NavBar { title: "The Harbour at Low Tide, in October", back: "Library",
+                             onback: move |_| said.set("Back to Library pressed.".into()),
+                             trailing: rsx! {
+                                 for (name, d) in [("Search", paths::SEARCH), ("Share", paths::SHARE),
+                                                   ("Bookmark", paths::BOOKMARK), ("More", paths::MORE)] {
+                                     Button { key: "{name}", icon: d, label: name, variant: Variant::Ghost, class: "unit-icon",
+                                              onpress: move |_| said.set(format!("{name} pressed.")) }
+                                 }
                              } }
                     TabBar { label: "Places", selected: place(), onchange: move |i| place.set(i),
                              trailing: rsx! {

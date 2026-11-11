@@ -2,6 +2,9 @@
 # this, and it only shrinks: UNIT_AUDIT=tighten takes off what now passes, and
 # a cell goes on only by hand, in a commit a reviewer reads.
 #
+# `text-contrast dark ... unit-back-label`, `unit-button.unit-link` and
+# `unit-done` are one cause: the dark palette's accent as text on a surface.
+#
 # `keyboard ... Button:Italic` stays by design: refuses_keys leaves the keys
 # with a host's editor, as a Mac's toolbar buttons do.
 edge-contrast dark/regular/1200 unit-check-box
@@ -90,12 +93,13 @@ target-size light/touch/390 RadioButton:Sky
 target-size light/touch/390 SpinButton:Hour
 text-contrast dark/regular/1200 unit-action
 text-contrast dark/regular/1200 unit-actions-cancel
+text-contrast dark/regular/1200 unit-back-label
 text-contrast dark/regular/1200 unit-badge.unit-danger
 text-contrast dark/regular/1200 unit-badge.unit-success
 text-contrast dark/regular/1200 unit-badge.unit-warning
 text-contrast dark/regular/1200 unit-button.unit-danger
-text-contrast dark/regular/1200 unit-button.unit-ghost.unit-back
 text-contrast dark/regular/1200 unit-button.unit-ghost.unit-done
+text-contrast dark/regular/1200 unit-button.unit-link
 text-contrast dark/regular/1200 unit-button.unit-primary
 text-contrast dark/regular/1200 unit-chip-badge
 text-contrast dark/regular/1200 unit-chip.on
@@ -104,12 +108,13 @@ text-contrast dark/regular/1200 unit-tabbar-label
 text-contrast dark/regular/1200 unit-tree-label
 text-contrast dark/touch/320 unit-action
 text-contrast dark/touch/320 unit-actions-cancel
+text-contrast dark/touch/320 unit-back-label
 text-contrast dark/touch/320 unit-badge.unit-danger
 text-contrast dark/touch/320 unit-badge.unit-success
 text-contrast dark/touch/320 unit-badge.unit-warning
 text-contrast dark/touch/320 unit-button.unit-danger
-text-contrast dark/touch/320 unit-button.unit-ghost.unit-back
 text-contrast dark/touch/320 unit-button.unit-ghost.unit-done
+text-contrast dark/touch/320 unit-button.unit-link
 text-contrast dark/touch/320 unit-button.unit-primary
 text-contrast dark/touch/320 unit-chip-badge
 text-contrast dark/touch/320 unit-chip.on
@@ -118,12 +123,13 @@ text-contrast dark/touch/320 unit-tabbar-label
 text-contrast dark/touch/320 unit-tree-label
 text-contrast dark/touch/390 unit-action
 text-contrast dark/touch/390 unit-actions-cancel
+text-contrast dark/touch/390 unit-back-label
 text-contrast dark/touch/390 unit-badge.unit-danger
 text-contrast dark/touch/390 unit-badge.unit-success
 text-contrast dark/touch/390 unit-badge.unit-warning
 text-contrast dark/touch/390 unit-button.unit-danger
-text-contrast dark/touch/390 unit-button.unit-ghost.unit-back
 text-contrast dark/touch/390 unit-button.unit-ghost.unit-done
+text-contrast dark/touch/390 unit-button.unit-link
 text-contrast dark/touch/390 unit-button.unit-primary
 text-contrast dark/touch/390 unit-chip-badge
 text-contrast dark/touch/390 unit-chip.on

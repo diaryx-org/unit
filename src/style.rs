@@ -134,13 +134,24 @@ pub const CSS: &str = r#"
                color: var(--unit-text); background: var(--unit-control);
                border: 1px solid var(--unit-border); border-radius: var(--unit-radius);
                box-shadow: 0 1px 2px var(--unit-shadow-soft); }
-.unit-button:hover { background: var(--unit-control-hover); }
+/* Hover, on what is not disabled: `:where()` adds nothing to a selector's
+   weight, so a face below still wins over the hover above it. */
+.unit-button:hover:where(:not([disabled])) { background: var(--unit-control-hover); }
 .unit-button.unit-primary { background: var(--unit-accent); color: var(--unit-accent-text);
                             border-color: var(--unit-accent); }
 .unit-button.unit-danger { background: var(--unit-danger); color: var(--unit-accent-text);
                            border-color: var(--unit-danger); }
+/* A face in the accent's or the danger's colour keeps it under the pointer,
+   let a little of what is behind through: whatever colours the theme gives. */
+.unit-button.unit-primary:hover:where(:not([disabled])),
+.unit-button.unit-danger:hover:where(:not([disabled])) { opacity: 0.86; }
 .unit-button.unit-ghost { background: transparent; border-color: transparent; box-shadow: none; }
-.unit-button.unit-ghost:hover { background: var(--unit-control-hover); }
+.unit-button.unit-ghost:hover:where(:not([disabled])) { background: var(--unit-control-hover); }
+/* Words in the accent and nothing round them, as a link in a line is: Show
+   All, Learn More. Underlined under the pointer. */
+.unit-button.unit-link { padding: 0 2px; color: var(--unit-accent);
+                         background: transparent; border-color: transparent; box-shadow: none; }
+.unit-button.unit-link:hover:where(:not([disabled])) { background: transparent; text-decoration: underline; }
 .unit-button.unit-icon { width: var(--unit-control-height); padding: 0; flex: none; }
 .unit-svg { flex: none; }
 .unit-ink-dim { color: var(--unit-dim); }
@@ -151,6 +162,7 @@ pub const CSS: &str = r#"
 /* A toggle is often one glyph, B or I: never narrower than it is tall. */
 .unit-toggle { min-width: var(--unit-control-height); }
 .unit-toggle.on { background: var(--unit-selection); border-color: var(--unit-accent); }
+.unit-toggle.on:hover:where(:not([disabled])) { background: var(--unit-selection); opacity: 0.86; }
 .unit-select { justify-content: space-between; padding: 0 8px 0 10px; min-width: 120px; }
 .unit-select-label { flex: 1; text-align: left; padding-right: 10px; }
 .unit-select-arrows { color: var(--unit-dim); }
@@ -207,6 +219,10 @@ pub const CSS: &str = r#"
 .unit-swatch { width: 24px; height: 24px; border-radius: 12px; border: 2px solid;
                box-sizing: border-box; flex: none; }
 .unit-swatch.on { outline: 2px solid var(--unit-accent); outline-offset: 2px; }
+/* Under the pointer, the ring the chosen one has, in an edge's colour. */
+.unit-swatches:not([aria-disabled]) .unit-swatch:not(.on):hover { outline: 2px solid var(--unit-border);
+                                                                   outline-offset: 2px; }
+.unit-swatch-action:hover { background: var(--unit-control-hover); }
 .unit-swatch-action { display: flex; align-items: center; justify-content: center;
                       background: transparent; border: 1px solid var(--unit-border);
                       color: var(--unit-dim); font-size: 12px; font-weight: 600; }
@@ -283,8 +299,11 @@ pub const CSS: &str = r#"
              border: 1px solid var(--unit-border); border-radius: 999px; white-space: nowrap;
              max-width: 100%; overflow: hidden; text-overflow: ellipsis;
              box-shadow: 0 1px 2px var(--unit-shadow-soft); }
+.unit-chip:hover { background: var(--unit-control-hover); }
 .unit-chip.on { background: var(--unit-accent); color: var(--unit-accent-text);
                 border-color: var(--unit-accent); }
+/* The lit chip stays lit under the pointer, as a Primary button does. */
+.unit-chip.on:hover { opacity: 0.86; }
 /* A finger's chip is a control's height, as tall as a button beside it. */
 .unit-root[data-density="touch"] .unit-chip { padding: 0 14px; min-height: var(--unit-control-height); }
 .unit-chip.unit-marked { display: inline-flex; align-items: center; gap: 6px; }
@@ -324,7 +343,15 @@ pub const CSS: &str = r#"
                      border-radius: var(--unit-radius-large); }
 .unit-section-body > * { border-top: 1px solid var(--unit-separator); }
 .unit-section-body > *:first-child { border-top: none; }
-.unit-section-body > *:not(.unit-row):not(.unit-row-pair) { padding: 6px 14px; }
+.unit-section-body > *:not(.unit-row):not(.unit-row-pair):not(.unit-segmented) { padding: 6px 14px; }
+/* A segmented control is a control's height, its groove its own padding:
+   set in as a row's content is, across the group, its segments shared out. */
+.unit-section-body > .unit-segmented { position: relative; align-self: stretch; margin: 6px 14px;
+                                       border-top: none; }
+.unit-section-body > .unit-segmented::before { content: ""; position: absolute; left: -14px; right: -14px;
+                                               top: -7px; height: 1px; background: var(--unit-separator); }
+.unit-section-body > .unit-segmented:first-child::before { display: none; }
+.unit-section-body > .unit-segmented > .unit-segment { flex: 1 1 0; justify-content: center; }
 .unit-row-pair { display: flex; align-items: center; }
 .unit-row-pair > .unit-row { flex: 1; min-width: 0; }
 .unit-row-beside { display: flex; flex: none; padding-right: 10px; }
@@ -335,6 +362,9 @@ pub const CSS: &str = r#"
 .unit-row.off { color: var(--unit-dim); }
 .unit-row-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .unit-row-subtitle { font-size: 0.85em; color: var(--unit-dim); }
+.unit-row-subtitle.unit-success { color: var(--unit-success); }
+.unit-row-subtitle.unit-warning { color: var(--unit-warning); }
+.unit-row-subtitle.unit-danger { color: var(--unit-danger); }
 .unit-row-note { font-size: 0.85em; color: var(--unit-dim); margin-top: 2px; }
 .unit-row-indent { flex: none; margin-right: -10px; }
 .unit-row-detail { flex: none; color: var(--unit-dim); }
@@ -351,13 +381,25 @@ pub const CSS: &str = r#"
 /* Bars and a tree */
 .unit-navbar { background: var(--unit-surface); border-bottom: 1px solid var(--unit-separator); }
 .unit-navbar-row { display: flex; align-items: center; min-height: 44px; }
-.unit-navbar-side { display: flex; align-items: center; flex: 1 1 0; min-width: 0; }
+/* The sides share what the title leaves them, so a title between equal
+   sides is centred; neither gives way below what it holds, so the title
+   shortens instead. */
+.unit-navbar-side { display: flex; align-items: center; flex: 1 0 0; }
 .unit-navbar-end { justify-content: flex-end; }
-.unit-navbar-title { flex: 2 1 0; text-align: center; font-family: var(--unit-heading-font);
-                     font-weight: 700; white-space: nowrap; overflow: hidden; }
-.unit-button.unit-back { color: var(--unit-accent); padding-left: 2px; min-width: var(--unit-control-height);
-                         max-width: 100%; }
-.unit-button.unit-back > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.unit-navbar-title { flex: 0 1 auto; min-width: 0; text-align: center; font-family: var(--unit-heading-font);
+                     font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.unit-button.unit-navbar-title { display: flex; }
+.unit-navbar-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Back's word is a column that asks for its width and needs none, so the
+   side's least is the chevron's; and it is shown whole or not at all: where
+   it does not fit, the line breaks after an empty box before it, and the
+   word goes onto a second line that is cut off, leaving the chevron. */
+.unit-button.unit-back { display: inline-grid; grid-template-columns: auto minmax(0, max-content);
+                         color: var(--unit-accent); padding-left: 2px; min-width: var(--unit-control-height);
+                         flex: 0 1 auto; }
+.unit-back-label { display: block; min-width: 0; height: 1.35em; line-height: 1.35; white-space: normal;
+                   overflow: hidden; }
+.unit-back-label > span { display: inline-block; white-space: nowrap; vertical-align: top; }
 .unit-tabbar { display: flex; background: var(--unit-surface); border-top: 1px solid var(--unit-separator); }
 .unit-tabbar-tabs { display: flex; flex: 1; min-width: 0; }
 .unit-tabbar-trailing { display: flex; align-items: center; flex: none; padding: 0 12px; }

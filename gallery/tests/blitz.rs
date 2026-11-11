@@ -2847,3 +2847,283 @@ fn a_nav_bar_goes_forward_and_a_tab_bar_holds_a_button_apart_from_its_places() {
         .collect();
     assert_eq!(tabs.len(), 3, "three places, the button not a tab");
 }
+
+/// One computed property of `node`.
+fn css(doc: &DioxusDocument, node: NodeId, property: &str) -> String {
+    doc.inner.borrow().resolved_style_value(node, property)
+}
+
+/// The mouse moved over the middle of `node`, pressing nothing.
+fn hover(doc: &mut DioxusDocument, node: NodeId) {
+    let (x, y, w, h) = rect(doc, node);
+    doc.handle_ui_event(UiEvent::PointerMove(pointer(
+        BlitzPointerId::Mouse,
+        x + w / 2.0,
+        y + h / 2.0,
+        MouseEventButtons::None,
+    )));
+    settle(doc);
+}
+
+#[test]
+fn a_button_or_a_chip_answers_the_pointer_in_its_own_colours() {
+    let mut doc = page(1200, 2400);
+    let primary = find(&doc, "button", "Primary");
+    let face = css(&doc, primary, "background-color");
+    assert_eq!(css(&doc, primary, "opacity"), "1");
+    hover(&mut doc, primary);
+    assert_eq!(
+        css(&doc, primary, "background-color"),
+        face,
+        "still the accent"
+    );
+    assert_ne!(
+        css(&doc, primary, "opacity"),
+        "1",
+        "and lets the ground through"
+    );
+    let delete = find(&doc, "button", "Delete");
+    hover(&mut doc, delete);
+    assert_ne!(css(&doc, delete, "opacity"), "1");
+
+    let default = find(&doc, "button", "Default");
+    let rest = css(&doc, default, "background-color");
+    hover(&mut doc, default);
+    assert_ne!(css(&doc, default, "background-color"), rest);
+    // A disabled button keeps its face under the pointer.
+    let disabled = find(&doc, "button", "Disabled");
+    let rest = css(&doc, disabled, "background-color");
+    hover(&mut doc, disabled);
+    assert_eq!(css(&doc, disabled, "background-color"), rest);
+
+    let unlit = find(&doc, ".unit-chip", "Serif");
+    let rest = css(&doc, unlit, "background-color");
+    hover(&mut doc, unlit);
+    assert_ne!(css(&doc, unlit, "background-color"), rest);
+    let lit = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-chip.on")
+        .unwrap()
+        .unwrap();
+    let face = css(&doc, lit, "background-color");
+    hover(&mut doc, lit);
+    assert_eq!(css(&doc, lit, "background-color"), face, "still lit");
+    assert_ne!(css(&doc, lit, "opacity"), "1");
+
+    let swatch = labelled(&doc, ".unit-swatch", "Rose");
+    assert_eq!(css(&doc, swatch, "outline-style"), "none");
+    hover(&mut doc, swatch);
+    assert_eq!(css(&doc, swatch, "outline-style"), "solid", "ringed");
+}
+
+#[test]
+fn a_link_ghost_toggle_and_menu_button_take_a_variant_and_a_tooltip() {
+    let mut doc = page(1200, 2400);
+    let link = find(&doc, "button", "Versions…");
+    assert!(class_of(&doc, link).contains("unit-link"));
+    assert_eq!(
+        attr(&doc, link, "title").as_deref(),
+        Some("Every version kept of this entry")
+    );
+    assert_eq!(
+        css(&doc, link, "background-color"),
+        "rgba(0, 0, 0, 0)",
+        "no face"
+    );
+    click(&mut doc, link);
+    assert_eq!(said(&doc), "Versions pressed.");
+    right_click(&mut doc, link);
+    assert_eq!(said(&doc), "Versions' menu.");
+
+    let pin = labelled(&doc, "button", "Pin");
+    assert!(class_of(&doc, pin).contains("unit-ghost"));
+    let more = labelled(&doc, "button", "More");
+    assert!(class_of(&doc, more).contains("unit-ghost"));
+    assert_eq!(css(&doc, more, "background-color"), "rgba(0, 0, 0, 0)");
+}
+
+#[test]
+fn a_segmented_control_in_a_section_keeps_its_height_and_spans_it() {
+    let doc = page(390, 1600);
+    let control = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-section-body > .unit-segmented")
+        .unwrap()
+        .unwrap();
+    let (x, _, w, h) = rect(&doc, control);
+    let body = parent_of(&doc, control);
+    let (bx, _, bw, _) = rect(&doc, body);
+    let face = find(&doc, ".unit-segment-face", "Hourly");
+    let (_, _, _, fh) = rect(&doc, face);
+    let line = px(&css(&doc, face, "line-height"));
+    assert_eq!(h, px(&css(&doc, control, "height")), "a control's height");
+    assert!(fh >= line, "a face {fh} high clips its {line} line");
+    assert!(
+        (x - bx - 14.0).abs() < 1.5 && (bx + bw - x - w - 14.0).abs() < 1.5,
+        "set in as a row's content is: {x}..{} in {bx}..{}",
+        x + w,
+        bx + bw
+    );
+}
+
+fn px(value: &str) -> f64 {
+    value.trim_end_matches("px").parse().unwrap_or(0.0)
+}
+
+#[test]
+fn a_row_reads_as_a_checkbox_a_disclosure_and_with_its_own_attributes() {
+    let mut doc = page(390, 1600);
+    let pictures = labelled(&doc, ".unit-row", "Pictures");
+    assert_eq!(attr(&doc, pictures, "role").as_deref(), Some("checkbox"));
+    assert_eq!(
+        attr(&doc, pictures, "aria-checked").as_deref(),
+        Some("false")
+    );
+    tap(&mut doc, pictures);
+    let pictures = labelled(&doc, ".unit-row", "Pictures");
+    assert_eq!(
+        attr(&doc, pictures, "aria-checked").as_deref(),
+        Some("true")
+    );
+    let entries = labelled(&doc, ".unit-row", "Journals");
+    assert_eq!(
+        attr(&doc, entries, "aria-checked").as_deref(),
+        Some("true"),
+        "on its own"
+    );
+    let nodes = tree(&doc);
+    assert!(
+        with_role(&nodes, Role::CheckBox)
+            .iter()
+            .any(|n| n.label() == Some("Pictures") && n.toggled() == Some(Toggled::True))
+    );
+
+    let advanced = labelled(&doc, ".unit-row", "Advanced");
+    assert_eq!(
+        attr(&doc, advanced, "aria-expanded").as_deref(),
+        Some("false")
+    );
+    tap(&mut doc, advanced);
+    let advanced = labelled(&doc, ".unit-row", "Advanced");
+    assert_eq!(
+        attr(&doc, advanced, "aria-expanded").as_deref(),
+        Some("true")
+    );
+    labelled(&doc, ".unit-row", "Server, sync.example.com");
+
+    let last = labelled(&doc, ".unit-row", "Last synced");
+    assert_eq!(
+        attr(&doc, last, "title").as_deref(),
+        Some("Sync again to send them"),
+        "a tooltip, apart from the row's words"
+    );
+    let subtitle = find(
+        &doc,
+        ".unit-row-subtitle",
+        "Three days ago: some changes are only here",
+    );
+    assert!(class_of(&doc, subtitle).contains("unit-warning"));
+    right_click(&mut doc, last);
+    assert_eq!(said(&doc), "Last synced's menu.");
+}
+
+#[test]
+fn a_nav_bar_centres_its_title_and_gives_way_to_its_buttons() {
+    for width in [320, 390, 1200] {
+        let doc = page(width, 1600);
+        let bars = doc
+            .inner
+            .borrow()
+            .query_selector_all(".unit-navbar-row")
+            .unwrap();
+        let sides = |row: NodeId| {
+            let inner = doc.inner.borrow();
+            let kids = inner.get_node(row).unwrap().children.to_vec();
+            drop(inner);
+            let kids: Vec<_> = kids
+                .into_iter()
+                .filter(|&k| doc.inner.borrow().get_node(k).unwrap().is_element())
+                .collect();
+            (kids[0], kids[1], kids[2])
+        };
+        for &row in &bars {
+            let (lead, title, end) = sides(row);
+            let (rx, _, rw, _) = rect(&doc, row);
+            let (lx, _, lw, _) = rect(&doc, lead);
+            let (tx, _, tw, _) = rect(&doc, title);
+            let (ex, _, ew, _) = rect(&doc, end);
+            assert!(
+                lx + lw <= tx + 0.5 && tx + tw <= ex + 0.5,
+                "{width}: overlapping"
+            );
+            assert!(
+                ex + ew <= rx + rw + 0.5,
+                "{width}: the end spills out of the bar"
+            );
+            // Every button at the end is whole.
+            let inner = doc.inner.borrow();
+            let buttons = inner.get_node(end).unwrap().children.to_vec();
+            drop(inner);
+            for b in buttons {
+                if doc.inner.borrow().get_node(b).unwrap().is_element() {
+                    let (_, _, bw, _) = rect(&doc, b);
+                    assert!(bw >= 24.0, "{width}: a button squeezed to {bw}");
+                }
+            }
+        }
+        // With room, the sides are as wide as each other whatever they
+        // hold, and the short title is in the middle.
+        if width >= 390 {
+            let (lead, title, end) = sides(bars[0]);
+            let (rx, _, rw, _) = rect(&doc, bars[0]);
+            let (_, _, lw, _) = rect(&doc, lead);
+            let (_, _, ew, _) = rect(&doc, end);
+            let (tx, _, tw, _) = rect(&doc, title);
+            assert!((lw - ew).abs() < 0.5, "{width}: sides {lw} and {ew}");
+            assert!(
+                ((tx + tw / 2.0) - (rx + rw / 2.0)).abs() < 1.0,
+                "{width}: the title off the middle"
+            );
+        }
+        // The long title shortens, and Back is its word whole or its
+        // chevron alone.
+        let (_, title, _) = sides(bars[1]);
+        let text = doc.inner.borrow().get_node(title).unwrap().text_content();
+        assert_eq!(css(&doc, title, "text-overflow"), "ellipsis", "{text}");
+        let words = doc
+            .inner
+            .borrow()
+            .query_selector_all(".unit-back-label")
+            .unwrap();
+        let shown: Vec<bool> = words
+            .into_iter()
+            .map(|w| {
+                let (_, _, lw, _) = rect(&doc, w);
+                let inner = doc.inner.borrow();
+                let node = inner.get_node(w).unwrap();
+                let word = *node.children.last().unwrap();
+                // One line, the word on it; or a second, under the box,
+                // the word gone onto it and cut off.
+                let lines = node
+                    .element_data()
+                    .and_then(|e| e.inline_layout_data.as_ref())
+                    .map_or(0, |l| l.layout.len());
+                drop(inner);
+                let (_, _, ww, _) = rect(&doc, word);
+                assert!(
+                    lines == 2 || ww <= lw + 0.5,
+                    "{width}: Back's word cut short, {ww} in {lw}"
+                );
+                lines == 1
+            })
+            .collect();
+        // The crowded bar's title has what room there is, and its Back is
+        // the chevron; the short title leaves Back its word.
+        assert!(!shown[1], "{width}: the crowded bar's Back is its chevron");
+        if width >= 390 {
+            assert!(shown[0], "{width}: room for Back's word");
+        }
+    }
+}

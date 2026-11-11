@@ -110,6 +110,9 @@ pub fn MenuButton(
     /// still opens on a press, and its keys are the menu's while it is open.
     #[props(default)]
     refuses_keys: bool,
+    /// How it is drawn: Ghost in a toolbar, as [`crate::Button`]'s.
+    #[props(default)]
+    variant: Variant,
     children: Element,
 ) -> Element {
     let unit = use_unit();
@@ -128,7 +131,7 @@ pub fn MenuButton(
     let entries2 = entries.clone();
     rsx! {
         button {
-            class: "unit-button unit-menu-button{focus.class()} {class}",
+            class: "unit-button unit-menu-button{variant.class()}{focus.class()} {class}",
             r#type: "button",
             disabled,
             "aria-haspopup": "menu",
@@ -170,7 +173,7 @@ pub fn MenuButton(
                 opener.open(entries2.clone(), height, top, true, onpick);
             },
             if let Some(d) = icon {
-                Icon { d, ink: Variant::Default.ink(disabled) }
+                Icon { d, ink: variant.ink(disabled) }
             }
             {children}
         }

@@ -43,7 +43,11 @@ pub fn NavBar(
                         Button { variant: Variant::Ghost, class: "unit-back", icon: paths::CHEVRON_LEFT,
                                  label: "Back to {b}",
                                  onpress: move |_| if let Some(f) = onback { f.call(()) },
-                                 span { "{b}" } }
+                                 // A box with nothing in it, then the
+                                 // word: a line may break between them.
+                                 span { class: "unit-back-label",
+                                        span {}
+                                        span { "{b}" } } }
                     }
                     if let Some(f) = onforward {
                         Button { variant: Variant::Ghost, class: "unit-icon", icon: paths::CHEVRON_RIGHT,
@@ -53,7 +57,8 @@ pub fn NavBar(
                     {leading}
                 }
                 if let Some(f) = ontitle {
-                    Button { variant: Variant::Ghost, class: "unit-navbar-title", onpress: move |_| f.call(()), "{title}" }
+                    Button { variant: Variant::Ghost, class: "unit-navbar-title", onpress: move |_| f.call(()),
+                             span { "{title}" } }
                 } else {
                     div { class: "unit-navbar-title", role: "heading", "aria-level": "1", "{title}" }
                 }

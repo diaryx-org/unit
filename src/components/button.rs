@@ -23,6 +23,9 @@ pub enum Variant {
     Ghost,
     /// Destroys something.
     Danger,
+    /// Words in the accent and no face, as a link is: an action in a line
+    /// of text or under a field (Show All, Forgot Password?).
+    Link,
 }
 
 impl Variant {
@@ -31,16 +34,18 @@ impl Variant {
         match self {
             _ if disabled => Ink::Dim,
             Variant::Primary | Variant::Danger => Ink::AccentText,
+            Variant::Link => Ink::Accent,
             Variant::Default | Variant::Ghost => Ink::Text,
         }
     }
 
-    fn class(self) -> &'static str {
+    pub(crate) fn class(self) -> &'static str {
         match self {
             Variant::Default => "",
             Variant::Primary => " unit-primary",
             Variant::Ghost => " unit-ghost",
             Variant::Danger => " unit-danger",
+            Variant::Link => " unit-link",
         }
     }
 }
@@ -49,8 +54,18 @@ pub(crate) fn is_press(key: &Key) -> bool {
     matches!(key, Key::Named(NamedKey::Enter)) || matches!(key, Key::Character(c) if c == " ")
 }
 
+/// Whether the page gave an attribute of its own by `name`, which then
+/// stands in place of the component's.
+pub(crate) fn given(attributes: &[Attribute], name: &str) -> bool {
+    attributes.iter().any(|a| a.name == name)
+}
+
 /// A button: `onpress` is called when it is clicked, tapped, pressed by
 /// assistive tech, or pressed by Return or Space while it has the keys.
+///
+/// It takes any global attribute — `title` for a tooltip, `aria-label` in
+/// place of `label`, `aria-expanded`, `id` — and puts it on the `<button>`;
+/// `oncontextmenu` is the secondary button's press.
 #[component]
 pub fn Button(
     onpress: EventHandler<()>,
@@ -69,6 +84,9 @@ pub fn Button(
     /// named by `label`.
     icon: Option<&'static str>,
     #[props(default)] class: String,
+    /// The secondary button: the page's own menu for it.
+    oncontextmenu: Option<EventHandler<MouseEvent>>,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
     children: Element,
 ) -> Element {
     let focus = use_focus(Kind::Button, move |key, _| {
@@ -78,6 +96,7 @@ pub fn Button(
         }
         false
     });
+    let label = label.filter(|_| !given(&attributes, "aria-label"));
     rsx! {
         button {
             class: "unit-button{variant.class()}{focus.class()} {class}",
@@ -103,6 +122,8 @@ pub fn Button(
                     onpress.call(());
                 }
             },
+            oncontextmenu: move |e| if let Some(h) = oncontextmenu { h.call(e) },
+            ..attributes,
             if let Some(d) = icon {
                 Icon { d, ink: variant.ink(disabled) }
             }
@@ -117,6 +138,10 @@ pub fn Button(
 pub fn ToggleButton(
     pressed: bool,
     onchange: EventHandler<bool>,
+    /// How it is drawn while not pressed: Ghost in a toolbar. Pressed, it
+    /// has the selection's face whatever its variant.
+    #[props(default)]
+    variant: Variant,
     #[props(default)] disabled: bool,
     /// Takes no keys: a press leaves them where they were, and Tab passes
     /// it by, as a Mac's toolbar buttons do. For a bar over a host's own
@@ -141,7 +166,7 @@ pub fn ToggleButton(
     let on = if pressed { " on" } else { "" };
     rsx! {
         button {
-            class: "unit-button unit-toggle{on}{focus.class()} {class}",
+            class: "unit-button unit-toggle{variant.class()}{on}{focus.class()} {class}",
             r#type: "button",
             disabled,
             "aria-pressed": if pressed { "true" } else { "false" },
@@ -166,7 +191,7 @@ pub fn ToggleButton(
                 }
             },
             if let Some(d) = icon {
-                Icon { d, ink: if disabled { Ink::Dim } else if pressed { Ink::Accent } else { Ink::Text } }
+                Icon { d, ink: if pressed && !disabled { Ink::Accent } else { variant.ink(disabled) } }
             }
             {children}
         }
