@@ -164,6 +164,12 @@ impl Selection {
         }
     }
 
+    /// Take `keys` out of what is chosen, the cursor and the anchor left
+    /// where they are: items that may be opened but not chosen.
+    pub fn exclude(&mut self, keys: &[String]) {
+        self.keys.retain(|k| !keys.contains(k));
+    }
+
     /// Where the cursor is in `order`.
     pub(crate) fn cursor_in(&self, order: &[String]) -> Option<usize> {
         let c = self.cursor.as_ref()?;
@@ -190,10 +196,64 @@ pub(crate) enum Did {
     Menu,
 }
 
+/// A grid's items in sections, each starting a row of its own under its
+/// heading: the index each section starts at (the first 0), and how many
+/// items a row holds.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Shape {
+    pub starts: Vec<usize>,
+    pub columns: usize,
+    pub len: usize,
+}
+
+impl Shape {
+    /// Which section item `i` is in, where it starts, and where it ends.
+    fn section(&self, i: usize) -> (usize, usize, usize) {
+        let s = self.starts.iter().rposition(|&st| st <= i).unwrap_or(0);
+        let end = self.starts.get(s + 1).copied().unwrap_or(self.len);
+        (s, self.starts.get(s).copied().unwrap_or(0), end)
+    }
+
+    /// The item `rows` rows up (negative) or down from `i`, in the same
+    /// column as far as the row there reaches: across into the section
+    /// before or after at its edge, and no further than the first or last.
+    pub fn rows(&self, i: usize, rows: i64) -> usize {
+        let c = self.columns.max(1);
+        let mut at = i;
+        for _ in 0..rows.unsigned_abs() {
+            let (s, start, end) = self.section(at);
+            let k = at - start;
+            let (row, col) = (k / c, k % c);
+            let last_row = (end - start - 1) / c;
+            at = if rows < 0 {
+                if row > 0 {
+                    start + (row - 1) * c + col
+                } else if s > 0 {
+                    // Up into the last row of the section before.
+                    let (pstart, pend) = (self.starts[s - 1], start);
+                    let prow = (pend - pstart - 1) / c;
+                    (pstart + prow * c + col).min(pend - 1)
+                } else {
+                    at
+                }
+            } else if row < last_row {
+                (start + (row + 1) * c + col).min(end - 1)
+            } else if end < self.len {
+                // Down into the first row of the section after.
+                let nend = self.starts.get(s + 2).copied().unwrap_or(self.len);
+                (end + col).min(nend - 1)
+            } else {
+                at
+            };
+        }
+        at
+    }
+}
+
 /// A collection as its keys see it: its items' keys and labels in the order
 /// shown, whether it is a grid (whose items left and right move along), how
 /// many a row holds (a grid's columns, as far as it knows; 1 for a list),
-/// and how many a page is.
+/// how many a page is, and a grid's sections, where it has them.
 pub(crate) struct Keyed<'a> {
     pub order: &'a [String],
     pub labels: &'a [String],
@@ -202,6 +262,7 @@ pub(crate) struct Keyed<'a> {
     pub grid: bool,
     pub columns: usize,
     pub page: usize,
+    pub shape: Option<&'a Shape>,
 }
 
 impl Keyed<'_> {
@@ -219,14 +280,29 @@ impl Keyed<'_> {
         let last = n - 1;
         let back = |by: usize| at.map_or(last, |i| i.saturating_sub(by));
         let on = |by: usize| at.map_or(0, |i| (i + by).min(last));
+        // Rows up or down: a grid's sections, where it has them, and else
+        // a row's worth of items.
+        let rows = |n: i64| match (self.shape, at) {
+            (Some(shape), Some(i)) => shape.rows(i, n),
+            (Some(_), None) => {
+                if n < 0 {
+                    last
+                } else {
+                    0
+                }
+            }
+            (None, _) if n < 0 => back(self.columns * n.unsigned_abs() as usize),
+            (None, _) => on(self.columns * n as usize),
+        };
+        let page_rows = (self.page / self.columns.max(1)).max(1) as i64;
         let grid = self.grid;
         let to = match key {
             Key::Named(NamedKey::ArrowLeft) if grid => back(1),
             Key::Named(NamedKey::ArrowRight) if grid => on(1),
-            Key::Named(NamedKey::ArrowUp) => back(self.columns),
-            Key::Named(NamedKey::ArrowDown) => on(self.columns),
-            Key::Named(NamedKey::PageUp) => back(self.page),
-            Key::Named(NamedKey::PageDown) => on(self.page),
+            Key::Named(NamedKey::ArrowUp) => rows(-1),
+            Key::Named(NamedKey::ArrowDown) => rows(1),
+            Key::Named(NamedKey::PageUp) => rows(-page_rows),
+            Key::Named(NamedKey::PageDown) => rows(page_rows),
             Key::Named(NamedKey::Home) => 0,
             Key::Named(NamedKey::End) => last,
             Key::Named(NamedKey::Enter) => {
@@ -358,6 +434,7 @@ mod tests {
             grid: columns > 1,
             columns,
             page: 10,
+            shape: None,
         }
     }
 
@@ -408,5 +485,29 @@ mod tests {
         assert_eq!(all.len(), 5);
         let typed = selected(k.key(&Key::Character("e".into()), Modifiers::empty()));
         assert_eq!(keys(&typed), ["e"]);
+    }
+
+    #[test]
+    fn up_and_down_keep_their_column_within_and_across_sections() {
+        // Two sections, 3 to a row: 0 1 2 / 3 4 | 5 6 7 / 8 9 10 / 11.
+        let shape = Shape {
+            starts: vec![0, 5],
+            columns: 3,
+            len: 12,
+        };
+        assert_eq!(shape.rows(1, 1), 4, "down a row");
+        assert_eq!(shape.rows(2, 1), 4, "to the last of a short row");
+        assert_eq!(shape.rows(4, 1), 6, "into the next section, same column");
+        assert_eq!(shape.rows(3, 1), 5);
+        assert_eq!(
+            shape.rows(7, -1),
+            4,
+            "up into the last row before, as far as it goes"
+        );
+        assert_eq!(shape.rows(6, -1), 4);
+        assert_eq!(shape.rows(10, 1), 11, "the last row, short");
+        assert_eq!(shape.rows(11, 1), 11, "no further");
+        assert_eq!(shape.rows(0, -1), 0);
+        assert_eq!(shape.rows(1, 3), 9, "three rows on, across");
     }
 }

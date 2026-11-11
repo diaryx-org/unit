@@ -431,7 +431,15 @@ pub const CSS: &str = r#"
    the selection's colour with the text's, which reads in both appearances. */
 .unit-tilegrid { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px; padding: 4px;
                  border-radius: var(--unit-radius); }
+.unit-tilegrid.fill { display: grid; }
+.unit-tilegrid-heading { flex: 0 0 100%; grid-column: 1 / -1; padding: 10px 2px 2px;
+                         font-weight: 600; color: var(--unit-text); }
+.unit-tilegrid-heading:first-child { padding-top: 0; }
 .unit-tile { display: flex; flex-direction: column; flex: none; border-radius: var(--unit-radius); }
+.unit-tilegrid.fill .unit-tile { min-width: 0; }
+.unit-tilegrid.fill .unit-tile-face { width: 100%; }
+.unit-tile-action { position: absolute; right: 4px; top: 4px;
+                    background: var(--unit-surface); box-shadow: 0 1px 3px var(--unit-shadow); }
 .unit-tile-face { display: flex; align-items: center; justify-content: center; position: relative;
                   overflow: hidden; border-radius: var(--unit-radius); background: var(--unit-track);
                   border: 2px solid transparent; }

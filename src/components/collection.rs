@@ -28,7 +28,7 @@ use dioxus::prelude::*;
 use crate::components::menus::left_top;
 use crate::icon::{Icon, Ink, paths};
 use crate::menu::Entry;
-use crate::selection::{Did, Keyed, Pick, Selection};
+use crate::selection::{Did, Keyed, Pick, Selection, Shape};
 use crate::theme::Density;
 use crate::unit::{Kind, Unit, use_focus, use_unit};
 
@@ -68,6 +68,15 @@ pub struct Tile {
     /// A picture's address, drawn to fill the tile's square: a photo's
     /// thumbnail. Read by the tile's label, not as an image of its own.
     pub image: Option<String>,
+    /// The heading of the section it is in: a heading is drawn where a
+    /// tile's section differs from the one before it.
+    pub section: Option<String>,
+    /// Whether it may be chosen. One that may not is opened all the same,
+    /// and left out of every selection: a press, a range, ⌘A.
+    pub selectable: bool,
+    /// A button in the tile's corner, its label and icon: what is done to
+    /// this tile alone (Place, Remove), given to the grid's `onaction`.
+    pub action: Option<(String, &'static str)>,
 }
 
 impl Tile {
@@ -78,7 +87,28 @@ impl Tile {
             detail: None,
             icon: None,
             image: None,
+            section: None,
+            selectable: true,
+            action: None,
         }
+    }
+
+    /// In the section headed `heading`.
+    pub fn section(mut self, heading: impl Into<String>) -> Self {
+        self.section = Some(heading.into());
+        self
+    }
+
+    /// Opened, but never chosen.
+    pub fn unselectable(mut self) -> Self {
+        self.selectable = false;
+        self
+    }
+
+    /// A button in its corner, named `label`, drawn as `icon`.
+    pub fn action(mut self, label: impl Into<String>, icon: &'static str) -> Self {
+        self.action = Some((label.into(), icon));
+        self
     }
 
     pub fn detail(mut self, detail: impl Into<String>) -> Self {
@@ -109,6 +139,8 @@ struct Chooser {
     toggles: bool,
     /// A press alone opens what it lands on, as well as choosing it.
     opens: bool,
+    /// The items that may be opened and not chosen.
+    fixed: Vec<String>,
     menu: Vec<Entry>,
     onpick: Option<EventHandler<usize>>,
 }
@@ -122,14 +154,20 @@ impl Chooser {
         }
     }
 
+    /// Give the page `s`, less what may not be chosen, if it is new.
+    fn select(&self, mut s: Selection) {
+        s.exclude(&self.fixed);
+        if s != self.selection {
+            self.onselect.call(s);
+        }
+    }
+
     /// A click on `key`, with `mods` held.
     fn press(&self, unit: Unit, key: &str, mods: Modifiers) {
         let pick = self.pick(mods);
         let mut s = self.selection.clone();
         s.press(&self.order, key, pick);
-        if s != self.selection {
-            self.onselect.call(s);
-        }
+        self.select(s);
         let finger = *unit.density.peek() == Density::Touch;
         if (finger || self.opens) && pick == Pick::Only {
             self.activate(key);
@@ -145,7 +183,7 @@ impl Chooser {
     /// The menu asked for over `key`, at `at` in the page.
     fn menu(&self, unit: Unit, key: &str, at: (f64, f64)) {
         if !self.selection.contains(key) {
-            self.onselect.call(Selection::only(key));
+            self.select(Selection::only(key));
         }
         self.open(unit, at, false);
     }
@@ -179,9 +217,7 @@ impl Chooser {
     fn key(&self, unit: Unit, did: Option<Did>, at: impl Fn() -> (f64, f64)) -> bool {
         match did {
             Some(Did::Select(s)) => {
-                if s != self.selection {
-                    self.onselect.call(s);
-                }
+                self.select(s);
                 true
             }
             Some(Did::Activate(k)) => {
@@ -201,30 +237,55 @@ impl Chooser {
 /// order, where it starts in the page (which a scroll leaves as it was)
 /// and in the window (where a menu opens). Renderers that report an
 /// element's size tell the grid how many tiles fit a row; Blitz reports
-/// none, and the grid learns it from two tiles seen on different rows.
+/// none, and the grid learns it from where the pointer finds its tiles:
+/// how far apart two on one row are, if the tiles stretch to fill the row,
+/// and from two on different rows of one section, how many a row holds.
 #[derive(Clone, Default)]
 struct Sightings {
     order: Vec<String>,
     seen: Vec<Sighting>,
 }
 
-/// One tile the pointer found: its place in the order, and where it starts
-/// in the page and in the window.
+/// One tile the pointer found: its section and its place in it, and where
+/// it starts in the page and in the window.
 #[derive(Clone, Copy)]
 struct Sighting {
     index: usize,
+    section: usize,
+    within: usize,
     page: (f64, f64),
     window: (f64, f64),
 }
 
 impl Sightings {
-    /// How many tiles a row holds, if two tiles seen on different rows say.
-    fn columns(&self, size: f64, tall: f64) -> Option<usize> {
+    /// How far apart the tiles are across, from two seen on one row of one
+    /// section; `None` until there are two.
+    fn stride(&self) -> Option<f64> {
+        for (k, a) in self.seen.iter().enumerate() {
+            for b in &self.seen[k + 1..] {
+                let apart = b.within as f64 - a.within as f64;
+                if a.section == b.section && (a.page.1 - b.page.1).abs() < 1.0 && apart != 0.0 {
+                    let s = (b.page.0 - a.page.0) / apart;
+                    if s > 0.0 {
+                        return Some(s);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// How many tiles a row holds, if two tiles seen on different rows of
+    /// one section say, the tiles `across` apart and their rows `down`.
+    fn columns(&self, across: f64, down: f64) -> Option<usize> {
         for (k, a) in self.seen.iter().enumerate().rev() {
             for b in self.seen[..k].iter().rev() {
-                let rows = ((b.page.1 - a.page.1) / (tall + GAP)).round() as i64;
-                let cols = ((b.page.0 - a.page.0) / (size + GAP)).round() as i64;
-                let along = b.index as i64 - a.index as i64 - cols;
+                if a.section != b.section {
+                    continue;
+                }
+                let rows = ((b.page.1 - a.page.1) / down).round() as i64;
+                let cols = ((b.page.0 - a.page.0) / across).round() as i64;
+                let along = b.within as i64 - a.within as i64 - cols;
                 if rows != 0 && along % rows == 0 && along / rows > 0 {
                     return Some((along / rows) as usize);
                 }
@@ -243,33 +304,49 @@ impl Sightings {
 }
 
 /// A grid of tiles to choose among and open: a folder's icons, a library
-/// of photos. Every tile is `size` CSS pixels wide, its picture square,
-/// and as many fit a row as the grid's width holds. See the
-/// [module](self) for how it chooses.
+/// of photos. See the [module](self) for how it chooses.
+///
+/// Every tile is `size` CSS pixels wide, its picture square, and as many fit
+/// a row as the grid's width holds; with `fill`, `size` is the least a tile
+/// is, and the tiles stretch to fill the row, as a photo library's do.
+/// `labels: false` draws the pictures alone, each named by its label to
+/// assistive tech: a photo library's grid. A tile's `section` puts a
+/// heading over it where the section changes; the grid is one grid still,
+/// a range and ⌘A running across its sections.
 ///
 /// `onselect` is given each new selection, `onactivate` the key of a tile
-/// opened. `multiple: false` keeps one tile chosen at most; `toggles` makes
-/// every press put a tile in or out; `opens` makes a press alone (a click,
-/// a tap) open the tile, as a photo library's does, where a folder's opens
-/// by a double click.
+/// opened, `onaction` the key of a tile whose corner button was pressed.
+/// `multiple: false` keeps one tile chosen at most; `toggles` makes every
+/// press put a tile in or out; `opens` makes a press alone (a click, a tap)
+/// open the tile, as a photo library's does, where a folder's opens by a
+/// double click.
 ///
-/// The arrows up and down move a row. A browser says how wide the grid is;
-/// under Blitz, which does not, the grid learns how many tiles a row holds
-/// from where the pointer finds them, and until it has, up and down move
-/// one tile, as left and right do.
+/// The arrows up and down move a row, across into the next section in the
+/// same column. A browser says how wide the grid is; under Blitz, which
+/// does not, the grid learns how many tiles a row holds from where the
+/// pointer finds them, and until it has, up and down move one tile, as
+/// left and right do.
 #[component]
 pub fn TileGrid(
     tiles: Vec<Tile>,
     selection: Selection,
     onselect: EventHandler<Selection>,
     onactivate: Option<EventHandler<String>>,
+    onaction: Option<EventHandler<String>>,
     label: Option<String>,
     #[props(default = true)] multiple: bool,
     #[props(default)] toggles: bool,
     #[props(default)] opens: bool,
-    /// A tile's width, and its picture's side, in CSS pixels.
+    /// A tile's width, and its picture's side, in CSS pixels: with `fill`,
+    /// the least they are.
     #[props(default = 112.0)]
     size: f64,
+    /// Tiles that stretch to fill the row, at least `size` wide.
+    #[props(default)]
+    fill: bool,
+    /// Whether each tile's label and detail are drawn under it.
+    #[props(default = true)]
+    labels: bool,
     /// The selection's menu: its items' ids are given to `onpick`.
     #[props(default)]
     menu: Vec<Entry>,
@@ -278,7 +355,7 @@ pub fn TileGrid(
 ) -> Element {
     let unit = use_unit();
     let density = *unit.density.peek();
-    let tall = size + tile_text(density);
+    let text = if labels { tile_text(density) } else { 0.0 };
     // How many tiles a row holds, where the renderer reports the width.
     let mut measured = use_signal(|| None::<usize>);
     let sightings = use_hook(|| CopyValue::new(Sightings::default()));
@@ -290,7 +367,22 @@ pub fn TileGrid(
             seen: Vec::new(),
         });
     }
-    let labels: Vec<String> = tiles.iter().map(|t| t.label.clone()).collect();
+    // Where each section starts, and each tile's section and place in it.
+    let mut starts: Vec<usize> = Vec::new();
+    let mut places: Vec<(usize, usize)> = Vec::with_capacity(tiles.len());
+    for (i, t) in tiles.iter().enumerate() {
+        if i == 0 || tiles[i - 1].section != t.section {
+            starts.push(i);
+        }
+        let s = starts.len() - 1;
+        places.push((s, i - starts[s]));
+    }
+    let labels_said: Vec<String> = tiles.iter().map(|t| t.label.clone()).collect();
+    let fixed: Vec<String> = tiles
+        .iter()
+        .filter(|t| !t.selectable)
+        .map(|t| t.key.clone())
+        .collect();
     let chooser = Chooser {
         order,
         selection: selection.clone(),
@@ -299,49 +391,65 @@ pub fn TileGrid(
         multiple,
         toggles,
         opens,
+        fixed,
         menu,
         onpick,
     };
     let focus = use_focus(Kind::Widget, {
         let chooser = chooser.clone();
+        let starts = starts.clone();
         move |key, mods| {
             let seen = sightings.peek().clone();
-            let columns = measured.peek().or_else(|| seen.columns(size, tall));
+            // Tiles `size` and the gap apart, or as far apart as two on
+            // one row were seen to be where they stretch.
+            let across = if fill {
+                seen.stride().unwrap_or(size + GAP)
+            } else {
+                size + GAP
+            };
+            let down = across + text;
+            let columns = measured.peek().or_else(|| seen.columns(across, down));
             let cols = columns.unwrap_or(1);
+            let shape = Shape {
+                starts: starts.clone(),
+                columns: cols,
+                len: chooser.order.len(),
+            };
             let keyed = Keyed {
                 order: &chooser.order,
-                labels: &labels,
+                labels: &labels_said,
                 selection: &chooser.selection,
                 multiple: chooser.multiple,
                 grid: true,
                 columns: cols,
                 page: cols * 3,
+                shape: Some(&shape),
             };
-            // A menu opened by a key opens under the cursor's tile, found
-            // from the tile the pointer last saw.
+            // A menu opened by a key opens at the cursor's tile, where the
+            // pointer saw it, or at the tile it last saw.
             let at = || {
-                let place = |i: usize| {
-                    let (col, row) = ((i % cols) as f64, (i / cols) as f64);
-                    (col * (size + GAP), row * (tall + GAP))
-                };
                 let to = chooser.selection.cursor_in(&chooser.order).unwrap_or(0);
-                match seen.seen.last() {
-                    Some(s) if columns.is_some() => {
-                        let (a, b) = (place(s.index), place(to));
-                        (s.window.0 + b.0 - a.0, s.window.1 + b.1 - a.1 + size)
-                    }
-                    Some(s) => (s.window.0, s.window.1 + size),
-                    None => (0.0, 0.0),
-                }
+                let s = seen
+                    .seen
+                    .iter()
+                    .find(|s| s.index == to)
+                    .or(seen.seen.last());
+                s.map_or((0.0, 0.0), |s| (s.window.0, s.window.1 + across - GAP))
             };
             chooser.key(unit, keyed.key(key, mods), at)
         }
     });
     let ring = focus.ring();
     let cursor = selection.cursor().map(str::to_string);
+    let layout = if fill {
+        format!("grid-template-columns: repeat(auto-fill, minmax({size}px, 1fr))")
+    } else {
+        String::new()
+    };
     rsx! {
         div {
-            class: "unit-tilegrid {class}",
+            class: if fill { "unit-tilegrid fill {class}" } else { "unit-tilegrid {class}" },
+            style: "{layout}",
             role: "listbox",
             tabindex: "0",
             "aria-label": label,
@@ -352,6 +460,8 @@ pub fn TileGrid(
             onblur: move |_| focus.dom_blur(),
             onresize: move |e: ResizeEvent| {
                 if let Ok(b) = e.get_border_box_size() {
+                    // As many as fit at `size`: what CSS's auto-fill makes
+                    // of `fill`'s columns too.
                     let fit = ((b.width - 2.0 * PAD + GAP) / (size + GAP)).floor().max(1.0) as usize;
                     if *measured.peek() != Some(fit) {
                         measured.set(Some(fit));
@@ -365,14 +475,18 @@ pub fn TileGrid(
             for (i, tile) in tiles.into_iter().enumerate() {
                 TileView {
                     key: "{tile.key}",
+                    heading: tile.section.clone().filter(|_| starts.contains(&i)),
                     selected: selection.contains(&tile.key),
                     cursor: ring && cursor.as_deref() == Some(tile.key.as_str()),
                     tile,
                     index: i,
+                    place: places[i],
                     size,
-                    tall,
+                    fill,
+                    text,
                     sightings,
                     chooser: chooser.clone(),
+                    onaction,
                 }
             }
         }
@@ -381,14 +495,20 @@ pub fn TileGrid(
 
 #[component]
 fn TileView(
+    /// The section's heading, drawn before the tile, where a section
+    /// starts with it.
+    heading: Option<String>,
     tile: Tile,
     index: usize,
+    place: (usize, usize),
     selected: bool,
     cursor: bool,
     size: f64,
-    tall: f64,
+    fill: bool,
+    text: f64,
     sightings: CopyValue<Sightings>,
     chooser: Chooser,
+    onaction: Option<EventHandler<String>>,
 ) -> Element {
     let unit = use_unit();
     let key = tile.key.clone();
@@ -402,24 +522,41 @@ fn TileView(
         let page = e.page_coordinates();
         sightings.clone().write().saw(Sighting {
             index,
+            section: place.0,
+            within: place.1,
             page: (page.x - inside.x, page.y - inside.y),
             window,
         });
     };
     let class = format!(
-        "unit-tile{}{}",
+        "unit-tile{}{}{}",
         if selected { " on" } else { "" },
-        if cursor { " cursor" } else { "" }
+        if cursor { " cursor" } else { "" },
+        if tile.selectable { "" } else { " fixed" }
     );
     let name = match &tile.detail {
         Some(d) => format!("{}, {d}", tile.label),
         None => tile.label.clone(),
     };
+    // Its own size, or its cell's where the tiles stretch, the picture
+    // square either way.
+    let (style, face) = if fill {
+        (String::new(), "aspect-ratio: 1 / 1".to_string())
+    } else {
+        (
+            format!("width: {size}px; height: {}px", size + text),
+            format!("height: {size}px"),
+        )
+    };
+    let glyph = (size * 0.42).round();
     rsx! {
+        if let Some(h) = heading {
+            div { class: "unit-tilegrid-heading", role: "presentation", "{h}" }
+        }
         div {
             class,
             role: "option",
-            style: "width: {size}px; height: {tall}px",
+            style,
             "aria-selected": if selected { "true" } else { "false" },
             "aria-label": "{name}",
             onpointerdown: move |e: PointerEvent| {
@@ -463,16 +600,30 @@ fn TileView(
                     }
                 }
             },
-            div { class: "unit-tile-face", style: "height: {size}px",
+            div { class: "unit-tile-face", style: "{face}",
                 if let Some(src) = &tile.image {
                     img { class: "unit-tile-image", src: "{src}", alt: "", "aria-hidden": "true" }
                 } else {
-                    Icon { d: tile.icon.unwrap_or(paths::DOCUMENT), ink: Ink::Accent, size: (size * 0.42).round() }
+                    Icon { d: tile.icon.unwrap_or(paths::DOCUMENT), ink: Ink::Accent, size: glyph }
+                }
+                if let (Some((label, icon)), Some(f)) = (tile.action.clone(), onaction) {
+                    crate::Button {
+                        variant: crate::Variant::Ghost,
+                        class: "unit-icon unit-tile-action",
+                        label: "{label}",
+                        icon,
+                        onpress: {
+                            let key = key.clone();
+                            move |_| f.call(key.clone())
+                        },
+                    }
                 }
             }
-            div { class: "unit-tile-text",
-                span { class: "unit-tile-label", "{tile.label}" }
-                span { class: "unit-tile-detail", {tile.detail.clone().unwrap_or_default()} }
+            if text > 0.0 {
+                div { class: "unit-tile-text",
+                    span { class: "unit-tile-label", "{tile.label}" }
+                    span { class: "unit-tile-detail", {tile.detail.clone().unwrap_or_default()} }
+                }
             }
         }
     }
@@ -614,6 +765,7 @@ pub fn Table(
         multiple,
         toggles,
         opens: false,
+        fixed: Vec::new(),
         menu,
         onpick,
     };
@@ -628,6 +780,7 @@ pub fn Table(
                 grid: false,
                 columns: 1,
                 page: 10,
+                shape: None,
             };
             let at = || {
                 let (x0, y0) = origin.peek().unwrap_or((0.0, 0.0));

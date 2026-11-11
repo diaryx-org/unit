@@ -251,6 +251,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let mut query = use_signal(String::new);
     // The photos: which are chosen, and the one the viewer shows.
     let mut picked_photos = use_signal(Selection::new);
+    let mut tray_chosen = use_signal(Selection::new);
     let mut viewing = use_signal(|| None::<usize>);
 
     let edit = vec![
@@ -333,7 +334,26 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let photo_tiles: Vec<Tile> = photos
         .iter()
         .enumerate()
-        .map(|(i, p)| Tile::new(format!("photo-{i}"), p.alt.clone()).image(p.src.clone()))
+        .map(|(i, p)| {
+            Tile::new(format!("photo-{i}"), p.alt.clone())
+                .image(p.src.clone())
+                .section(if i < 4 { "Daytime" } else { "Evening" })
+        })
+        .collect();
+    // What is waiting to go into an entry: each placed by its own button,
+    // the one still uploading not yet to be chosen.
+    let tray_tiles: Vec<Tile> = photos
+        .iter()
+        .take(3)
+        .enumerate()
+        .map(|(i, p)| {
+            let tile = Tile::new(format!("tray-{i}"), p.alt.clone()).image(p.src.clone());
+            if i == 2 {
+                tile.detail("Uploading…").unselectable()
+            } else {
+                tile.action("Place", paths::PLUS)
+            }
+        })
         .collect();
 
     rsx! {
@@ -623,7 +643,8 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                     Text { dim: true, "{chosen().len()} of {shown.len()} chosen." }
                 }
                 Card { title: "Photos", class: "gallery-wide",
-                    TileGrid { label: "Photos", tiles: photo_tiles, size: 88.0, selection: picked_photos(), opens: true,
+                    TileGrid { label: "Photos", tiles: photo_tiles, size: 88.0, fill: true, labels: false,
+                               selection: picked_photos(), opens: true,
                                onselect: move |s| picked_photos.set(s),
                                onactivate: move |k: String| {
                                    viewing.set(k.trim_start_matches("photo-").parse().ok());
@@ -633,6 +654,12 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                         Spacer {}
                         Button { onpress: move |_| viewing.set(Some(0)), "View Photos…" }
                     }
+                }
+                Card { title: "Tray",
+                    TileGrid { label: "Tray", tiles: tray_tiles, size: 96.0, selection: tray_chosen(),
+                               onselect: move |s| tray_chosen.set(s),
+                               onaction: move |k: String| said.set(format!("Placed {k}.")) }
+                    Text { dim: true, "{tray_chosen().len()} chosen." }
                 }
                 Card { title: "Scrolling",
                     Scrolled {}

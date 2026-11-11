@@ -2642,3 +2642,151 @@ fn dragging_a_photo_down_closes_the_viewer_and_a_short_drag_puts_it_back() {
     let style = attr(&doc, viewer(&doc).unwrap(), "style").unwrap();
     assert!(style.contains("rgba(0, 0, 0, 1)"), "{style}");
 }
+
+/// The tiles of the grid labelled `grid`, each its box.
+fn tiles_of(doc: &DioxusDocument, grid: &str) -> Vec<(NodeId, (f64, f64, f64, f64))> {
+    let g = labelled(doc, "[role=listbox]", grid);
+    let inner = doc.inner.borrow();
+    let all = inner.query_selector_all("[role=option]").unwrap();
+    drop(inner);
+    all.into_iter()
+        .filter(|&t| parent_of(doc, t) == g)
+        .map(|t| (t, rect(doc, t)))
+        .collect()
+}
+
+#[test]
+fn a_photo_grid_fills_its_rows_with_pictures_alone_under_headings() {
+    let doc = page(1200, 800);
+    let grid = labelled(&doc, "[role=listbox]", "Photos");
+    let (gx, _, gw, _) = rect(&doc, grid);
+    let tiles = tiles_of(&doc, "Photos");
+    assert_eq!(tiles.len(), 6);
+    // As many columns as fit at 88 and 8 apart, stretched to fill the row:
+    // CSS's auto-fill, with no width computed by the page.
+    let inner = gw - 8.0;
+    let cols = ((inner + 8.0) / 96.0).floor();
+    let wide = (inner - (cols - 1.0) * 8.0) / cols;
+    let (_, (x0, y0, w0, h0)) = tiles[0];
+    assert!((w0 - wide).abs() < 1.0, "{w0} for {cols} columns of {wide}");
+    assert!(w0 > 88.0);
+    assert!(
+        (h0 - w0).abs() < 1.0,
+        "square, with no text under it: {w0}×{h0}"
+    );
+    assert!((x0 - (gx + 4.0)).abs() < 1.5);
+    let (_, (x3, y3, _, _)) = tiles[3];
+    assert_eq!(y3, y0, "Daytime's four in one row");
+    assert!((x3 - (x0 + 3.0 * (wide + 8.0))).abs() < 1.5, "{x3}");
+    // Its sections' headings, the second over the evening's two.
+    let headings: Vec<String> = {
+        let inner = doc.inner.borrow();
+        inner
+            .query_selector_all(".unit-tilegrid-heading")
+            .unwrap()
+            .iter()
+            .filter(|&&h| parent_of(&doc, h) == grid)
+            .map(|&h| inner.get_node(h).unwrap().text_content())
+            .collect()
+    };
+    assert_eq!(headings, ["Daytime", "Evening"]);
+    let (_, (_, y4, _, _)) = tiles[4];
+    assert!(y4 > y0 + h0 + 10.0, "under its heading");
+    assert!(
+        doc.inner
+            .borrow()
+            .query_selector("[aria-label=Photos] .unit-tile-label")
+            .unwrap()
+            .is_none(),
+        "no labels drawn"
+    );
+}
+
+#[test]
+fn the_arrows_cross_a_photo_grids_sections_in_their_column() {
+    let mut doc = page(390, 844);
+    let tiles = tiles_of(&doc, "Photos");
+    // Three to a row on a phone: Daytime's four take two rows.
+    let (_, (_, y0, _, _)) = tiles[0];
+    let (_, (_, y3, _, _)) = tiles[3];
+    assert!(y3 > y0, "the fourth on the second row");
+    // The pointer passes over tiles, as it does on its way: on one row,
+    // and on the next, so the grid learns how wide and how many.
+    for i in [0, 1, 3] {
+        let (_, (x, y, w, h)) = tiles[i];
+        doc.handle_ui_event(UiEvent::PointerMove(pointer(
+            BlitzPointerId::Mouse,
+            x + w / 2.0,
+            y + h / 2.0,
+            MouseEventButtons::None,
+        )));
+        settle(&mut doc);
+    }
+    // ⌘ chooses without opening.
+    let (second, _) = tiles[1];
+    click_with(&mut doc, second, Modifiers::META);
+    key(&mut doc, Key::Named(NamedKey::ArrowDown));
+    assert!(
+        selected(&doc, tiles[3].0),
+        "down, to the last of the short row"
+    );
+    key(&mut doc, Key::Named(NamedKey::ArrowDown));
+    assert!(
+        selected(&doc, tiles[4].0),
+        "down into Evening, in the first column"
+    );
+    key(&mut doc, Key::Named(NamedKey::ArrowUp));
+    assert!(selected(&doc, tiles[3].0), "and back up");
+    // ⌘A runs across both sections.
+    key_with(&mut doc, Key::Character("a".into()), Modifiers::META);
+    assert!(tiles.iter().all(|(t, _)| selected(&doc, *t)));
+}
+
+#[test]
+fn a_tile_not_to_be_chosen_is_left_out_and_a_tiles_own_button_is_its_own() {
+    let mut doc = page(1200, 800);
+    let tiles = tiles_of(&doc, "Tray");
+    let tray_count = |doc: &DioxusDocument| {
+        let inner = doc.inner.borrow();
+        let all = inner.query_selector_all(".unit-text").unwrap();
+        all.iter()
+            .map(|&id| inner.get_node(id).unwrap().text_content())
+            .find(|t| t.ends_with(" chosen.") && !t.contains(" of "))
+            .unwrap()
+            .trim()
+            .to_string()
+    };
+    let (uploading, _) = tiles[2];
+    click(&mut doc, uploading);
+    assert_eq!(
+        tray_count(&doc),
+        "0 chosen.",
+        "the one uploading is not chosen"
+    );
+    let (first_tile, _) = tiles[0];
+    click(&mut doc, first_tile);
+    click_with(&mut doc, uploading, Modifiers::SHIFT);
+    assert_eq!(tray_count(&doc), "2 chosen.", "a range passes it by");
+    // Its corner button does what it says, to that tile alone.
+    let place = {
+        let inner = doc.inner.borrow();
+        let all = inner.query_selector_all(".unit-tile-action").unwrap();
+        drop(inner);
+        *all.iter()
+            .find(|&&b| parent_of(&doc, parent_of(&doc, b)) == tiles[1].0)
+            .expect("the second tile's button")
+    };
+    assert_eq!(attr(&doc, place, "aria-label").as_deref(), Some("Place"));
+    click(&mut doc, place);
+    assert_eq!(said(&doc), "Placed tray-1.");
+    assert_eq!(tray_count(&doc), "2 chosen.", "and chose nothing");
+    assert!(
+        doc.inner
+            .borrow()
+            .query_selector_all(".unit-tile-action")
+            .unwrap()
+            .len()
+            == 2,
+        "none on the one uploading"
+    );
+}
