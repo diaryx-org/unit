@@ -302,15 +302,72 @@ fn a_dialog_opens_centred_and_its_buttons_answer() {
         .unwrap()
         .unwrap();
     assert!(displayed(&doc, dialog));
-    let (dx, _, dw, _) = rect(&doc, dialog);
+    let (dx, dy, dw, dh) = rect(&doc, dialog);
     assert!(
         (dx + dw / 2.0 - 600.0).abs() < 2.0,
-        "centred: {dx} + {dw}/2"
+        "centred across: {dx} + {dw}/2"
+    );
+    assert!(
+        (dy + dh / 2.0 - 400.0).abs() < 2.0,
+        "and down, as a modal is: {dy} + {dh}/2"
     );
     let delete = find(&doc, ".unit-dialog button", "Delete");
     tap(&mut doc, delete);
     assert_eq!(said(&doc), "The alert answered Ok(\"\").");
     assert!(!displayed(&doc, place));
+}
+
+#[test]
+fn a_press_on_a_dialogs_scrim_cancels_it_and_the_wheel_there_scrolls_nothing() {
+    use blitz_traits::events::{BlitzWheelDelta, BlitzWheelEvent};
+    let mut doc = page(1200, 800);
+    let confirm = find(&doc, "button", "Confirm…");
+    click(&mut doc, confirm);
+    let place = first(&doc, ".unit-dialog-place");
+    assert!(displayed(&doc, place));
+    // The wheel over the scrim: the page under it stays where it was.
+    let before = doc.inner.borrow().viewport_scroll().y;
+    let (x, y) = (100.0f32, 700.0f32);
+    doc.handle_ui_event(UiEvent::PointerMove(pointer(
+        BlitzPointerId::Mouse,
+        100.0,
+        700.0,
+        MouseEventButtons::None,
+    )));
+    doc.handle_ui_event(UiEvent::Wheel(BlitzWheelEvent {
+        delta: BlitzWheelDelta::Pixels(0.0, -200.0),
+        coords: PointerCoords {
+            page_x: x,
+            page_y: y + before as f32,
+            screen_x: x,
+            screen_y: y,
+            client_x: x,
+            client_y: y,
+        },
+        buttons: MouseEventButtons::None,
+        mods: Modifiers::empty(),
+        element: Default::default(),
+    }));
+    settle(&mut doc);
+    assert_eq!(
+        doc.inner.borrow().viewport_scroll().y,
+        before,
+        "the page stayed"
+    );
+    // A press on the scrim, beside the dialog: Cancel, as Escape is.
+    click_at(&mut doc, 100.0, 700.0, Modifiers::empty());
+    assert_eq!(said(&doc), "The alert answered Cancel.");
+    assert!(!displayed(&doc, place));
+    assert_eq!(
+        said(&doc),
+        "The alert answered Cancel.",
+        "and nothing under it was pressed"
+    );
+    // The same above an action sheet.
+    let actions = find(&doc, "button", "Actions…");
+    click(&mut doc, actions);
+    click_at(&mut doc, 600.0, 100.0, Modifiers::empty());
+    assert_eq!(said(&doc), "Action None chosen.");
 }
 
 #[test]

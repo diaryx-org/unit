@@ -55,7 +55,13 @@ pub const CSS: &str = r#"
 
 /* The overlay's dialog */
 .unit-dialog-place { position: absolute; left: 0; top: 0; right: 0; bottom: 0;
-                     flex-direction: column; align-items: center; padding: 72px 16px 16px; }
+                     flex-direction: column; align-items: center; justify-content: center;
+                     padding: 16px; }
+.unit-root[data-density="cell"] .unit-dialog-place { justify-content: flex-start; }
+/* A finger on a scrim scrolls nothing under it. */
+.unit-backdrop, .unit-modal-place { touch-action: none; }
+/* A modal's content scrolls itself, and not on into the page when it ends. */
+.unit-modal { overscroll-behavior: contain; touch-action: pan-x pan-y; }
 .unit-dialog { width: 380px; max-width: 100%; padding: 16px 18px 14px; white-space: normal;
                background: var(--unit-surface); color: var(--unit-text);
                border: 1px solid var(--unit-border); border-radius: var(--unit-radius-large);

@@ -192,8 +192,15 @@ pub fn Modal(
                 }
             },
             onpointercancel: move |_| drag.set(None),
+            // The page under the scrim stays where it is; the panel's own
+            // content scrolls, and its wheel stops there.
+            onwheel: move |e: WheelEvent| {
+                e.prevent_default();
+                e.stop_propagation();
+            },
             div {
                 class: "{panel}",
+                onwheel: move |e: WheelEvent| e.stop_propagation(),
                 style: "{panel_style}",
                 role: "dialog",
                 "aria-modal": "true",

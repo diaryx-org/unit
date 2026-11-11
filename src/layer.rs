@@ -439,10 +439,18 @@ fn LayerView(unit: Unit) -> Element {
                     unit.set_viewport(size.width, size.height);
                 }
             },
-            // A press anywhere outside a menu closes it, and is not also a
-            // press on whatever is under it.
+            // A press anywhere outside a menu closes it, and outside a dialog
+            // or an action sheet cancels it, as Escape does; it is not also
+            // a press on whatever is under it. (What a dialog or a sheet sits
+            // in lets the pointer through to here.)
             div { class: "unit-backdrop{scrim}", style: "display: {backdrop}",
                 "aria-hidden": "true",
+                // The page under a menu, a dialog or a sheet stays where it
+                // is: the wheel over it is not the page's.
+                onwheel: move |e: WheelEvent| {
+                    e.prevent_default();
+                    e.stop_propagation();
+                },
                 onpointerdown: move |e: PointerEvent| {
                     e.prevent_default();
                     e.stop_propagation();
@@ -451,13 +459,15 @@ fn LayerView(unit: Unit) -> Element {
                         l.write().menu = None;
                     } else if l.peek().actions.is_some() {
                         unit.choose(None);
+                    } else if l.peek().dialog.is_some() {
+                        unit.answer(Answer::Cancel);
                     }
                 },
             }
             for (depth, level) in levels.into_iter().enumerate() {
                 MenuLevel { key: "{depth}", unit, depth, level }
             }
-            DialogView { unit, dialog, top: safe.top }
+            DialogView { unit, dialog, top: safe.top, bottom: safe.bottom.max(keyboard) }
             ActionsView { unit, sheet: actions, bottom: safe.bottom }
             div { class: "unit-toasts", role: "status", "aria-live": "polite",
                 style: "bottom: {toasts_bottom}px",
@@ -583,12 +593,17 @@ fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, hot: bool) -> E
 }
 
 #[component]
-fn DialogView(unit: Unit, dialog: Option<Dialog>, top: f64) -> Element {
+fn DialogView(unit: Unit, dialog: Option<Dialog>, top: f64, bottom: f64) -> Element {
     // One template open or closed, for the reason a menu level has one.
     let ids = use_hook(|| (next_id(), next_id()));
     let display = if dialog.is_some() { "flex" } else { "none" };
     let d = dialog.unwrap_or_else(|| Dialog::new(""));
     let page = *unit.keys.peek() == Keys::Page;
+    let clear = if *unit.density.peek() == crate::Density::Cell {
+        72.0
+    } else {
+        16.0
+    };
     let button = move |label: String, ok: bool, destructive: bool| {
         let class = match (ok, destructive) {
             (true, true) => "unit-button unit-danger",
@@ -616,7 +631,10 @@ fn DialogView(unit: Unit, dialog: Option<Dialog>, top: f64) -> Element {
     };
     let (title_id, message_id) = (format!("unit-{}", ids.0), format!("unit-{}", ids.1));
     rsx! {
-        div { class: "unit-dialog-place", style: "display: {display}; padding-top: {top + 72.0}px",
+        // In the middle of the window, clear of the safe area and the
+        // keyboard; a terminal's at the top, under where its menus open.
+        div { class: "unit-dialog-place",
+            style: "display: {display}; padding-top: {top + clear}px; padding-bottom: {bottom + 16.0}px",
             div { class: "unit-dialog", role: "dialog", "aria-modal": "true",
                 "aria-labelledby": "{title_id}",
                 "aria-describedby": d.message.is_some().then(|| message_id.clone()),
