@@ -2,10 +2,11 @@
 //! a phone's and a desktop's photo apps show one.
 //!
 //! It goes from photo to photo by the arrows, by the buttons at its sides,
-//! or by a swipe, and closes by Escape or its close button. A photo zooms
-//! as a phone's does: a pinch, a double tap, the wheel ([`crate::zoom`]). While it is
-//! open it has the keys, and gives them back to what had them when it
-//! closes. It is in the page only while it is open, as nothing of it is
+//! or by a swipe, sliding the next photo in beside the last as a phone's
+//! does, and closes by Escape or its close button. A photo zooms as a
+//! phone's does: a pinch, a double tap, the wheel ([`crate::zoom`]). While
+//! it is open it has the keys, and gives them back to what had them when
+//! it closes. It is in the page only while it is open, as nothing of it is
 //! drawn otherwise.
 //!
 //! It is drawn on black whatever the page's appearance, and sets the
@@ -21,17 +22,28 @@ use crate::components::button::{Button, Variant};
 use crate::icon::paths;
 use crate::scroll::{Tracker, wheel_delta, zoom_factor};
 use crate::unit::{Kind, Unit, next_id, use_focus, use_unit};
-use crate::zoom::{MOST, Zoom};
-
-/// How far a swipe goes, in CSS pixels, before it is a swipe and not a
-/// tap.
-pub const SWIPE: f64 = 50.0;
+use crate::zoom::{MOST, PAGE_GAP, Pages, Zoom};
 
 /// How far a pointer may move and its lifting still be a tap, in CSS
 /// pixels; how soon a second tap follows the first to make a double tap,
 /// in milliseconds, and how near it lands.
 const TAP: f64 = 10.0;
 const DOUBLE_TAP_TIME: f64 = 300.0;
+
+/// How long the wheel is still, in milliseconds, before a trackpad's swipe
+/// (and the momentum the system carries it on with) has ended.
+const WHEEL_IDLE: f64 = 100.0;
+
+/// A trackpad's two-finger swipe across a photo that fits: how far it has
+/// gone (in the wheel's direction, as a drag's), when it last moved, and its
+/// fastest speed, which says which way it was going when the momentum has
+/// died away by the time it ends.
+#[derive(Clone, Copy, Debug)]
+struct WheelSwipe {
+    x: f64,
+    last: f64,
+    peak: f64,
+}
 const DOUBLE_TAP_NEAR: f64 = 30.0;
 
 /// One photo a [`PhotoViewer`] shows: its address, the words that say what
@@ -86,9 +98,6 @@ fn now_ms() -> Option<f64> {
 struct Touches {
     /// Each pointer down, by id, and where it is on the stage.
     down: Vec<(i32, (f64, f64))>,
-    /// Where a single pointer went down on a photo that fits: a swipe to
-    /// the next photo, if it goes far enough.
-    swipe: Option<(f64, f64)>,
     /// The last pointer's recent places, across and down, for its speed.
     track: (Tracker, Tracker),
     /// Where a single pointer went down, while it may yet be a tap.
@@ -146,37 +155,72 @@ impl Touches {
     }
 }
 
-/// Run `zoom`'s motion a frame at a time, by the host's sleep, until it
-/// rests; with no sleep to time frames by, put it where it rests at once.
-fn animate(unit: Unit, mut zoom: Signal<Option<(Key3, Zoom)>>, mut running: Signal<bool>) {
+/// Run `step` a frame at a time until it says nothing moves: on the host's
+/// sleep where it gave one, on a browser's frames in a browser, and with
+/// neither, to where it rests at once.
+fn frames(unit: Unit, mut running: Signal<bool>, step: impl Fn(f64) -> bool + 'static) {
     if *running.peek() {
         return;
     }
-    let Some(sleep) = unit.timer.peek().clone() else {
-        if let Some((_, z)) = zoom.write().as_mut() {
-            z.finish();
+    let sleep = unit.timer.peek().clone();
+    if sleep.is_none() && !cfg!(target_arch = "wasm32") {
+        for _ in 0..2000 {
+            if !step(16.0) {
+                break;
+            }
         }
         return;
-    };
+    }
     running.set(true);
     spawn(async move {
         let mut last = now_ms();
         loop {
-            sleep(Duration::from_millis(16)).await;
+            match &sleep {
+                Some(sleep) => sleep(Duration::from_millis(16)).await,
+                None => next_frame().await,
+            }
             let now = now_ms();
             let dt = match (last, now) {
                 (Some(a), Some(b)) => b - a,
                 _ => 16.0,
             };
             last = now;
-            let moving = zoom.write().as_mut().is_some_and(|(_, z)| z.step(dt));
-            if !moving {
+            if !step(dt) {
                 break;
             }
         }
         running.set(false);
     });
 }
+
+/// A browser's next frame (`requestAnimationFrame`): what a page in a
+/// browser times its motion by, with no sleep from its host.
+#[cfg(target_arch = "wasm32")]
+async fn next_frame() {
+    use wasm_bindgen::JsCast;
+    let promise = js_sys::Promise::new(&mut |resolve, _| {
+        let global = js_sys::global();
+        let raf = js_sys::Reflect::get(&global, &"requestAnimationFrame".into())
+            .ok()
+            .and_then(|f| f.dyn_into::<js_sys::Function>().ok());
+        match raf {
+            Some(raf) => {
+                let _ = raf.call1(&global, &resolve);
+            }
+            None => {
+                let _ = resolve.call0(&wasm_bindgen::JsValue::NULL);
+            }
+        }
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn next_frame() {}
+
+/// A photo on the stage: its index, how far along its page is, and where
+/// the photo is drawn on it.
+type Slot = (usize, f64, (f64, f64, f64, f64));
 
 /// What a zoom is of: the photo shown, and the stage's size.
 type Key3 = (usize, u64, u64);
@@ -187,10 +231,12 @@ type Key3 = (usize, u64, u64);
 ///
 /// The photo zooms as a phone's does ([`crate::zoom`]): pinched, double
 /// tapped, the wheel with ⌘ or Ctrl, or `+`, `-` and `0`; up to `most`
-/// times the size that fits. Zoomed, a drag moves it; fitting, a swipe goes
-/// to the next. That needs the window's size, which the host gives
-/// ([`Unit::set_viewport`]); a browser's root sets it itself. Without it,
-/// the photo fits and does not zoom.
+/// times the size that fits. Zoomed, a drag or a trackpad's two-finger
+/// swipe moves it; fitting, either slides it aside with the next beside it
+/// ([`Pages`]). That needs the
+/// window's size, which the host gives ([`Unit::set_viewport`]); a
+/// browser's root sets it itself. Without it, the photo fits and does not
+/// zoom or slide, and the arrows go from photo to photo.
 #[component]
 pub fn PhotoViewer(
     open: bool,
@@ -207,11 +253,6 @@ pub fn PhotoViewer(
     let id = use_hook(next_id);
     let n = photos.len();
     let index = index.min(n.saturating_sub(1));
-    let go = move |to: usize| {
-        if to != index && to < n {
-            onchange.call(to);
-        }
-    };
     // Escape closes it, as it does a modal.
     let close: Rc<dyn Fn()> = Rc::new(move || onclose.call(()));
     unit.modal(id, open.then_some(close));
@@ -225,19 +266,79 @@ pub fn PhotoViewer(
         viewport.0 - safe.left - safe.right,
         viewport.1 - safe.top - safe.bottom,
     );
-    let size = photos.get(index).and_then(|p| p.size);
+    let staged = stage.0 > 0.0 && stage.1 > 0.0;
+    let stride = stage.0 + PAGE_GAP;
+    let (prev, next) = (index > 0, index + 1 < n);
+    let sizes: Vec<Option<(f64, f64)>> = photos.iter().map(|p| p.size).collect();
+    let fitted = move |i: usize| Zoom::new(stage, sizes.get(i).copied().flatten(), most);
     let key: Key3 = (index, stage.0.to_bits(), stage.1.to_bits());
-    let fresh = (stage.0 > 0.0 && stage.1 > 0.0).then(|| Zoom::new(stage, size, most));
+    let fresh = staged.then(|| fitted(index));
     // The photo's zoom, for the photo and the stage it was made for: a new
     // photo, or a window of a new size, starts again from fitting.
     let zoom = use_signal(|| None::<(Key3, Zoom)>);
+    // How far the photos are slid, from where the photo it names rests.
+    let pages = use_signal(|| (index, Pages::default()));
     let running = use_signal(|| false);
     let touches = use_hook(|| CopyValue::new(Touches::default()));
+    let swipe = use_hook(|| CopyValue::new(None::<WheelSwipe>));
+    // What the frames read as they run, which may be past the render they
+    // began in: the photo shown, whether it has neighbours, the stride.
+    let live = use_hook(|| CopyValue::new((index, prev, next, stride)));
+    live.clone().set((index, prev, next, stride));
     let current = move || -> Option<Zoom> {
         match *zoom.peek() {
             Some((k, z)) if k == key => Some(z),
             _ => fresh,
         }
+    };
+    // The slide from where the shown photo rests, whichever photo the
+    // pages were last set for: going to the next, the page may not have
+    // shown it yet.
+    let slid = move |(at, p): (usize, Pages)| -> f64 {
+        let apart = at as f64 - index as f64;
+        // At rest, the photo shown rests where it rests, whatever photo the
+        // pages were last set for (the viewer opened at another).
+        if !p.is_moving() && !p.is_dragging() {
+            return 0.0;
+        }
+        if apart.abs() <= 1.0 {
+            p.offset + apart * stride
+        } else {
+            0.0
+        }
+    };
+    // Frames for whatever is moving, until it all rests.
+    // A trackpad's swipe has ended once the wheel has been still a while:
+    // on to the next photo if it was going that way fast, or past halfway,
+    // else back. Whether it is still going.
+    let swipe_ended = move |force: bool| -> bool {
+        let Some(w) = *swipe.peek() else {
+            return false;
+        };
+        let idle = now_ms().is_none_or(|now| now - w.last >= WHEEL_IDLE);
+        if !idle && !force {
+            return true;
+        }
+        swipe.clone().set(None);
+        let (index, prev, next, stride) = *live.peek();
+        let mut pages = pages;
+        let dir = pages.write().1.release(w.peak, stride, prev, next);
+        if dir != 0 {
+            let to = (index as i64 + dir as i64) as usize;
+            let p = pages.peek().1;
+            pages.set((to, p));
+            onchange.call(to);
+        }
+        false
+    };
+    let kick = move || {
+        frames(unit, running, move |dt| {
+            let (mut zoom, mut pages) = (zoom, pages);
+            let swiping = swipe_ended(false);
+            let zooming = zoom.write().as_mut().is_some_and(|(_, z)| z.step(dt));
+            let sliding = pages.write().1.step(dt);
+            swiping || zooming || sliding
+        });
     };
     let change = move |f: &mut dyn FnMut(&mut Zoom) -> bool| {
         let Some(mut z) = current() else {
@@ -247,13 +348,28 @@ pub fn PhotoViewer(
         let mut zoom = zoom;
         zoom.set(Some((key, z)));
         if moving {
-            animate(unit, zoom, running);
+            kick();
         }
+    };
+    // Go to photo `to`, sliding it in from its side where there is a stage.
+    let slide_to = move |to: usize| {
+        if to == index || to >= n {
+            return;
+        }
+        if staged {
+            let mut p = Pages::at(slid(*pages.peek()));
+            p.slide(if to > index { 1 } else { -1 }, stride);
+            let mut pages = pages;
+            pages.set((to, p));
+        }
+        onchange.call(to);
+        kick();
     };
     let shown = match *zoom.read() {
         Some((k, z)) if k == key => Some(z),
         _ => fresh,
     };
+    let offset = slid(*pages.read());
     let zoomed = shown.is_some_and(|z| z.is_zoomed());
     let middle = (stage.0 / 2.0, stage.1 / 2.0);
 
@@ -283,7 +399,7 @@ pub fn PhotoViewer(
             }
             _ => return false,
         };
-        go(to);
+        slide_to(to);
         true
     });
     // The keys while it is open, and back where they were after.
@@ -306,23 +422,22 @@ pub fn PhotoViewer(
         let c = e.client_coordinates();
         (c.x - safe.left, c.y - safe.top)
     };
-    let picture = match shown {
-        Some(z) => {
-            let (x, y, w, h) = z.frame();
-            rsx! {
-                div { class: "unit-viewer-photo",
-                      style: "left: {x}px; top: {y}px; width: {w}px; height: {h}px",
-                    // `alt` for a browser; Blitz names an image by its label.
-                    // Not the browser's to drag away as an image: a drag moves it.
-                    img { class: "unit-viewer-image", src: "{photo.src}", alt: "{photo.alt}",
-                          "aria-label": "{photo.alt}", draggable: "false" }
-                }
-            }
-        }
-        None => rsx! {
-            img { class: "unit-viewer-image unit-viewer-whole", src: "{photo.src}", alt: "{photo.alt}",
-                  "aria-label": "{photo.alt}", draggable: "false" }
-        },
+    // Each photo in view or next to it, side by side: the one shown as it
+    // is zoomed, its neighbours fitting, read by assistive tech only as the
+    // one shown.
+    let slots: Vec<Slot> = if staged {
+        (index.saturating_sub(1)..=(index + 1).min(n - 1))
+            .map(|i| {
+                let x = offset + (i as f64 - index as f64) * stride;
+                let frame = match (i == index, shown) {
+                    (true, Some(z)) => z.frame(),
+                    _ => fitted(i).frame(),
+                };
+                (i, x, frame)
+            })
+            .collect()
+    } else {
+        Vec::new()
     };
     rsx! {
         div {
@@ -344,7 +459,9 @@ pub fn PhotoViewer(
             onclick: move |e: MouseEvent| e.prevent_default(),
             // The wheel is the photo's, never the page's under it: with ⌘
             // or Ctrl (a trackpad's pinch, in a browser) it zooms about the
-            // pointer; without, it moves a zoomed photo.
+            // pointer; without, it moves a zoomed photo, and across one that
+            // fits (a trackpad's two-finger swipe) it slides the photos as a
+            // drag does.
             onwheel: move |e: WheelEvent| {
                 e.prevent_default();
                 e.stop_propagation();
@@ -352,14 +469,50 @@ pub fn PhotoViewer(
                 let mods = e.modifiers();
                 let c = e.client_coordinates();
                 let p = (c.x - safe.left, c.y - safe.top);
-                change(&mut |z| {
-                    if mods.ctrl() || mods.meta() {
-                        z.zoom_by(zoom_factor(dy), p);
-                    } else if z.is_zoomed() {
-                        z.pan_by(dx, dy);
+                let zoomed = current().is_some_and(|z| z.is_zoomed());
+                if mods.ctrl() || mods.meta() || zoomed || !staged {
+                    change(&mut |z| {
+                        if mods.ctrl() || mods.meta() {
+                            z.zoom_by(zoom_factor(dy), p);
+                        } else if z.is_zoomed() {
+                            z.pan_by(dx, dy);
+                        }
+                        false
+                    });
+                    return;
+                }
+                let mut sw = swipe;
+                // Scrolling up and down a photo that fits does nothing; a
+                // swipe begins sideways, and goes on whichever way it wavers.
+                if sw.peek().is_none() && dx.abs() <= dy.abs() {
+                    return;
+                }
+                let now = now_ms().unwrap_or(0.0);
+                let mut pages = pages;
+                let w = match *sw.peek() {
+                    Some(mut w) => {
+                        let dt = now - w.last;
+                        if dt > 0.0 && (dx / dt).abs() > w.peak.abs() {
+                            w.peak = dx / dt;
+                        }
+                        w.x += dx;
+                        w.last = now;
+                        w
                     }
-                    false
-                });
+                    None => {
+                        let mut s = Pages::at(slid(*pages.peek()));
+                        s.drag_start(0.0);
+                        pages.set((index, s));
+                        WheelSwipe { x: dx, last: now, peak: 0.0 }
+                    }
+                };
+                sw.set(Some(w));
+                pages.write().1.drag_move(w.x, stride, prev, next);
+                // With no frames to time its end by, it ends at once.
+                if unit.timer.peek().is_none() && !cfg!(target_arch = "wasm32") {
+                    swipe_ended(true);
+                }
+                kick();
             },
             div { class: "unit-viewer-stage",
                 style: "left: {safe.left}px; top: {safe.top}px; right: {safe.right}px; bottom: {safe.bottom}px",
@@ -373,21 +526,29 @@ pub fn PhotoViewer(
                     t.track.1.reset();
                     t.track(p);
                     t.start = (t.down.len() == 1).then_some(p);
+                    let mut pages = pages;
                     match t.down.len() {
                         1 => {
-                            let held = current().is_some_and(|z| z.is_zoomed() || z.is_moving());
-                            if held {
-                                t.swipe = None;
+                            let zoomed = current().is_some_and(|z| z.is_zoomed() || z.is_moving());
+                            if zoomed {
                                 change(&mut |z| {
                                     z.pan_start(p);
                                     false
                                 });
-                            } else {
-                                t.swipe = Some(p);
+                            } else if staged {
+                                // The photos stop where they are, and follow
+                                // the finger from there.
+                                let mut s = Pages::at(slid(*pages.peek()));
+                                s.drag_start(p.0);
+                                pages.set((index, s));
                             }
                         }
                         _ => {
-                            t.swipe = None;
+                            // A second finger: a pinch, and no slide.
+                            if pages.peek().1.is_dragging() {
+                                pages.write().1.release(0.0, stride, false, false);
+                                kick();
+                            }
                             if let Some((centre, apart)) = t.centre_and_apart() {
                                 change(&mut |z| {
                                     z.pinch_start(centre, apart);
@@ -406,11 +567,14 @@ pub fn PhotoViewer(
                     };
                     slot.1 = p;
                     t.track(p);
+                    let mut pages = pages;
                     if let Some((centre, apart)) = t.centre_and_apart() {
                         change(&mut |z| {
                             z.pinch_move(centre, apart);
                             false
                         });
+                    } else if pages.peek().1.is_dragging() {
+                        pages.write().1.drag_move(p.0, stride, prev, next);
                     } else if current().is_some_and(|z| z.is_held()) {
                         change(&mut |z| {
                             z.pan_move(p);
@@ -424,6 +588,7 @@ pub fn PhotoViewer(
                     let mut t = t.write();
                     let was = t.down.len();
                     t.down.retain(|(id, _)| *id != e.pointer_id());
+                    let mut pages = pages;
                     match (was, t.down.as_slice()) {
                         // One of two lifted: the other carries on moving it.
                         (2.., [(_, other)]) => {
@@ -440,18 +605,25 @@ pub fn PhotoViewer(
                             let speed = t.speed();
                             let double = t.start.take().is_some_and(|start| t.tapped(start, p));
                             if double {
-                                t.swipe = None;
+                                if pages.peek().1.is_dragging() {
+                                    pages.write().1.release(0.0, stride, false, false);
+                                }
                                 change(&mut |z| {
                                     z.release((0.0, 0.0));
                                     z.double_tap(p)
                                 });
-                            } else if let Some(start) = t.swipe.take() {
-                                let dx = p.0 - start.0;
-                                if dx <= -SWIPE {
-                                    go(index + 1);
-                                } else if dx >= SWIPE {
-                                    go(index.saturating_sub(1));
+                                kick();
+                            } else if pages.peek().1.is_dragging() {
+                                // On to the next photo, or back to this one,
+                                // sliding from where the finger left it.
+                                let dir = pages.write().1.release(speed.0, stride, prev, next);
+                                if dir != 0 {
+                                    let to = (index as i64 + dir as i64) as usize;
+                                    let s = pages.peek().1;
+                                    pages.set((to, s));
+                                    onchange.call(to);
                                 }
+                                kick();
                             } else if current().is_some_and(|z| z.is_held()) {
                                 change(&mut |z| z.release(speed));
                             }
@@ -463,19 +635,42 @@ pub fn PhotoViewer(
                     let mut t = touches;
                     let mut t = t.write();
                     t.down.retain(|(id, _)| *id != e.pointer_id());
-                    t.swipe = None;
+                    t.start = None;
+                    let mut pages = pages;
+                    if pages.peek().1.is_dragging() {
+                        pages.write().1.release(0.0, stride, false, false);
+                        kick();
+                    }
                     if t.down.is_empty() && current().is_some_and(|z| z.is_held()) {
                         change(&mut |z| z.release((0.0, 0.0)));
                     }
                 },
-                {picture}
-                if index > 0 && !zoomed {
-                    Button { variant: Variant::Ghost, class: "unit-icon unit-viewer-prev", label: "Previous photo",
-                             icon: paths::CHEVRON_LEFT, refuses_keys: true, onpress: move |_| go(index - 1) }
+                if staged {
+                    for (i, x, (fx, fy, fw, fh)) in slots {
+                        div { key: "{i}", class: "unit-viewer-page",
+                              style: "left: {x}px; width: {stage.0}px",
+                              "aria-hidden": (i != index).then_some("true"),
+                            div { class: if i == index { "unit-viewer-photo current" } else { "unit-viewer-photo" },
+                                  style: "left: {fx}px; top: {fy}px; width: {fw}px; height: {fh}px",
+                                // `alt` for a browser; Blitz names an image by
+                                // its label. Not the browser's to drag away as
+                                // an image: a drag moves it.
+                                img { class: "unit-viewer-image", src: "{photos[i].src}", alt: "{photos[i].alt}",
+                                      "aria-label": "{photos[i].alt}", draggable: "false" }
+                            }
+                        }
+                    }
+                } else {
+                    img { class: "unit-viewer-image unit-viewer-whole", src: "{photo.src}", alt: "{photo.alt}",
+                          "aria-label": "{photo.alt}", draggable: "false" }
                 }
-                if index + 1 < n && !zoomed {
+                if prev && !zoomed {
+                    Button { variant: Variant::Ghost, class: "unit-icon unit-viewer-prev", label: "Previous photo",
+                             icon: paths::CHEVRON_LEFT, refuses_keys: true, onpress: move |_| slide_to(index - 1) }
+                }
+                if next && !zoomed {
                     Button { variant: Variant::Ghost, class: "unit-icon unit-viewer-next", label: "Next photo",
-                             icon: paths::CHEVRON_RIGHT, refuses_keys: true, onpress: move |_| go(index + 1) }
+                             icon: paths::CHEVRON_RIGHT, refuses_keys: true, onpress: move |_| slide_to(index + 1) }
                 }
             }
             div { class: "unit-viewer-bar", style: "padding-top: {safe.top + 6.0}px; padding-left: {safe.left + 16.0}px; padding-right: {safe.right + 8.0}px",

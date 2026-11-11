@@ -49,10 +49,12 @@ objc2-foundation = { version = "0.3", optional = true, default-features = false,
     "std", "block2", "NSNotification", "NSOperation", "NSString", "NSObject",
 ] }
 
-# A browser's clock, for a finger's speed and a double tap: what dioxus-web
-# brings already.
+# A browser's clock and frames, for a finger's speed, a double tap and
+# motion: what dioxus-web brings already.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 
 [dev-dependencies]
 dioxus-ssr = "=0.8.0-alpha.3"

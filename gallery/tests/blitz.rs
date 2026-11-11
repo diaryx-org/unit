@@ -2025,15 +2025,23 @@ fn the_photo_viewer_goes_from_photo_to_photo_and_gives_the_keys_back() {
     // The keys are with the photos when it opens.
     let photo = option_named(&doc, "Noon on the hill");
     click(&mut doc, photo);
-    click(&mut doc, photo);
-    let v = viewer(&doc).expect("a double click opens the viewer");
+    let v = viewer(&doc).expect("a click opens the viewer, as a photo library's does");
     assert_eq!(rect(&doc, v), (0.0, 0.0, 1200.0, 800.0), "the whole window");
     assert_eq!(viewer_count(&doc), "2 of 6");
-    let image = first(&doc, ".unit-viewer-image");
+    let image = first(&doc, ".unit-viewer-photo.current .unit-viewer-image");
     assert_eq!(
         attr(&doc, image, "alt").as_deref(),
         Some("Noon on the hill")
     );
+    // Its neighbours are beside it, ready to slide in, and read as nothing.
+    let pages = doc
+        .inner
+        .borrow()
+        .query_selector_all(".unit-viewer-page")
+        .unwrap();
+    assert_eq!(pages.len(), 3);
+    let lefts: Vec<f64> = pages.iter().map(|&p| rect(&doc, p).0).collect();
+    assert_eq!(lefts, [-1220.0, 0.0, 1220.0], "a window and a gap apart");
     key(&mut doc, Key::Named(NamedKey::ArrowRight));
     assert_eq!(viewer_count(&doc), "3 of 6");
     let next = labelled(&doc, "button", "Next photo");
@@ -2042,11 +2050,38 @@ fn the_photo_viewer_goes_from_photo_to_photo_and_gives_the_keys_back() {
     // The arrows still go to it after its button is pressed.
     key(&mut doc, Key::Named(NamedKey::ArrowLeft));
     assert_eq!(viewer_count(&doc), "3 of 6");
-    // A swipe to the right goes back, one to the left on.
-    drag(&mut doc, (500.0, 400.0), (640.0, 400.0));
+    rest(&mut doc);
+    // A swipe to the right past halfway goes back, one to the left on; the
+    // photos slide on from where the finger left them, and rest.
+    drag(&mut doc, (300.0, 400.0), (1000.0, 400.0));
     assert_eq!(viewer_count(&doc), "2 of 6");
-    drag(&mut doc, (640.0, 400.0), (500.0, 400.0));
+    let (x, ..) = photo_frame(&doc);
+    assert!(x < 66.67 - 10.0, "still sliding in: {x}");
+    rest(&mut doc);
+    assert!(near(photo_frame(&doc), FITS), "{:?}", photo_frame(&doc));
+    drag(&mut doc, (1000.0, 400.0), (300.0, 400.0));
     assert_eq!(viewer_count(&doc), "3 of 6");
+    rest(&mut doc);
+    // A short slow one, held still before it lets go, springs back to the
+    // photo it began on. (A short fast one is a flick, and goes on.)
+    let mouse = |x: f64, buttons| pointer(BlitzPointerId::Mouse, x, 400.0, buttons);
+    doc.handle_ui_event(UiEvent::PointerMove(mouse(600.0, MouseEventButtons::None)));
+    doc.handle_ui_event(UiEvent::PointerDown(mouse(
+        600.0,
+        MouseEventButtons::Primary,
+    )));
+    settle(&mut doc);
+    for x in [580.0, 560.0, 540.0, 520.0, 500.0] {
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        doc.handle_ui_event(UiEvent::PointerMove(mouse(x, MouseEventButtons::Primary)));
+        settle(&mut doc);
+    }
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    doc.handle_ui_event(UiEvent::PointerUp(mouse(500.0, MouseEventButtons::None)));
+    settle(&mut doc);
+    assert_eq!(viewer_count(&doc), "3 of 6");
+    rest(&mut doc);
+    assert!(near(photo_frame(&doc), FITS));
     key(&mut doc, Key::Named(NamedKey::Home));
     assert_eq!(
         viewer_count(&doc),
@@ -2223,11 +2258,12 @@ fn finger(doc: &mut DioxusDocument, n: u64, what: &str, x: f64, y: f64) {
 
 /// Where the photo is drawn: its left, top, width and height.
 fn photo_frame(doc: &DioxusDocument) -> (f64, f64, f64, f64) {
-    rect(doc, first(doc, ".unit-viewer-photo"))
+    rect(doc, first(doc, ".unit-viewer-photo.current"))
 }
 
 /// Frames until whatever is moving rests, by the gallery's own timer: the
-/// photo where it was for a tenth of a second, longer than a frame.
+/// photo where it was for 160ms, longer than a frame, and than the wheel's
+/// stillness that ends a trackpad's swipe.
 fn rest(doc: &mut DioxusDocument) {
     let mut last = None;
     let mut still = 0;
@@ -2236,7 +2272,7 @@ fn rest(doc: &mut DioxusDocument) {
         settle(doc);
         let now = photo_frame(doc);
         still = if last == Some(now) { still + 1 } else { 0 };
-        if still == 5 {
+        if still == 8 {
             return;
         }
         last = Some(now);
@@ -2404,6 +2440,71 @@ fn the_wheel_and_the_keys_zoom_and_move_the_photo() {
     // The next photo starts from fitting.
     key(&mut doc, Key::Character("+".into()));
     key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    assert_eq!(viewer_count(&doc), "2 of 6");
+    let (x, ..) = photo_frame(&doc);
+    assert!(x > 66.67 + 100.0, "sliding in from the right: {x}");
+    rest(&mut doc);
+    assert!(near(photo_frame(&doc), FITS));
+}
+
+/// A wheel's turn of (`dx`, `dy`) over the middle of the window, as a
+/// trackpad's two fingers send it.
+fn wheel_at_middle(doc: &mut DioxusDocument, dx: f64, dy: f64) {
+    use blitz_traits::events::{BlitzWheelDelta, BlitzWheelEvent};
+    let (x, y) = (600.0f32, 400.0f32);
+    doc.handle_ui_event(UiEvent::PointerMove(pointer(
+        BlitzPointerId::Mouse,
+        600.0,
+        400.0,
+        MouseEventButtons::None,
+    )));
+    doc.handle_ui_event(UiEvent::Wheel(BlitzWheelEvent {
+        delta: BlitzWheelDelta::Pixels(dx, dy),
+        coords: PointerCoords {
+            page_x: x,
+            page_y: y,
+            screen_x: x,
+            screen_y: y,
+            client_x: x,
+            client_y: y,
+        },
+        buttons: MouseEventButtons::None,
+        mods: Modifiers::empty(),
+        element: Default::default(),
+    }));
+    settle(doc);
+}
+
+#[test]
+fn a_trackpads_swipe_slides_the_photos_and_goes_on_or_springs_back() {
+    let mut doc = page(1200, 800);
+    open_photos(&mut doc);
+    // Up and down over a photo that fits: nothing.
+    wheel_at_middle(&mut doc, 0.0, -300.0);
+    assert!(near(photo_frame(&doc), FITS));
+    // A quick swipe to the left: the photo follows it, the next beside it,
+    // and once the wheel is still the next slides in.
+    for _ in 0..6 {
+        std::thread::sleep(std::time::Duration::from_millis(8));
+        wheel_at_middle(&mut doc, -40.0, 2.0);
+    }
+    let (x, ..) = photo_frame(&doc);
+    assert!(
+        (x - (66.67 - 240.0)).abs() < 2.0,
+        "following the fingers: {x}"
+    );
+    assert_eq!(viewer_count(&doc), "1 of 6", "not yet: the swipe goes on");
+    rest(&mut doc);
+    assert_eq!(viewer_count(&doc), "2 of 6");
+    assert!(near(photo_frame(&doc), FITS), "{:?}", photo_frame(&doc));
+    // A slow short one goes back to where it was.
+    for _ in 0..6 {
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        wheel_at_middle(&mut doc, 5.0, 0.0);
+    }
+    let (x, ..) = photo_frame(&doc);
+    assert!(x > 66.67 + 20.0, "{x}");
+    rest(&mut doc);
     assert_eq!(viewer_count(&doc), "2 of 6");
     assert!(near(photo_frame(&doc), FITS));
 }

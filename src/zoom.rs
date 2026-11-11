@@ -31,7 +31,7 @@
 //! Pure arithmetic over positions and milliseconds, as `scroll`'s is: the
 //! view feeds it the fingers and the frames.
 
-use crate::scroll::{Glide, STOPPED, rubber, spring};
+use crate::scroll::{Glide, SPRING, STOPPED, rubber, spring};
 
 /// The most a photo zooms by default: four times the size that fits.
 pub const MOST: f64 = 4.0;
@@ -396,6 +396,124 @@ impl Zoom {
     }
 }
 
+// ── Going from photo to photo ─────────────────────────────────────────────
+
+/// How far apart the photos are as they slide, in CSS pixels: the gap the
+/// Photos app leaves between one and the next.
+pub const PAGE_GAP: f64 = 20.0;
+
+/// How fast a finger must be going as it lifts, in CSS pixels a
+/// millisecond, for a short swipe to go to the next photo all the same.
+pub const FLICK: f64 = 0.3;
+
+/// The photos side by side, slid by a finger, as a paging scroll view
+/// slides them: the one shown follows the finger with its neighbours
+/// beside it, `stride` apart (a stage's width and [`PAGE_GAP`]). Let go
+/// more than halfway, or flicked, it goes on to the next, else it springs
+/// back; past the first or the last it gives as a rubber band does.
+///
+/// `offset` is how far the photo shown is from where it rests, negative
+/// toward the next. Going to another photo, the view shows that one, and
+/// the offset is from where it rests, so it slides on from where it was.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Pages {
+    pub offset: f64,
+    speed: f64,
+    /// Where the finger and the offset were when it went down.
+    drag: Option<(f64, f64)>,
+}
+
+impl Pages {
+    /// The photos at rest `offset` from where the one shown rests.
+    pub fn at(offset: f64) -> Self {
+        Pages {
+            offset,
+            ..Pages::default()
+        }
+    }
+
+    /// A finger went down at `x`: the photos stop where they are.
+    pub fn drag_start(&mut self, x: f64) {
+        self.drag = Some((x, self.offset));
+        self.speed = 0.0;
+    }
+
+    /// The finger moved to `x`. `prev` and `next` say whether there is a
+    /// photo that way to slide to.
+    pub fn drag_move(&mut self, x: f64, stride: f64, prev: bool, next: bool) {
+        let Some((x0, o0)) = self.drag else {
+            return;
+        };
+        let min = if next { -stride } else { 0.0 };
+        let max = if prev { stride } else { 0.0 };
+        self.offset = rubber(o0 + x - x0, min, max, stride.max(1.0));
+    }
+
+    pub fn is_dragging(&self) -> bool {
+        self.drag.is_some()
+    }
+
+    /// Whether the photos are sliding on their own, and want frames.
+    pub fn is_moving(&self) -> bool {
+        self.drag.is_none() && (self.offset != 0.0 || self.speed != 0.0)
+    }
+
+    /// The finger lifted, going at `speed`: which photo to go to, -1 the one
+    /// before, 1 the next, 0 the one shown. The photos then slide to it from
+    /// where they are, carrying the finger's speed.
+    pub fn release(&mut self, speed: f64, stride: f64, prev: bool, next: bool) -> i32 {
+        self.drag = None;
+        let o = self.offset;
+        let dir = if speed <= -FLICK && next && o < 0.0 {
+            1
+        } else if speed >= FLICK && prev && o > 0.0 {
+            -1
+        } else if o < -stride / 2.0 && next {
+            1
+        } else if o > stride / 2.0 && prev {
+            -1
+        } else {
+            0
+        };
+        self.offset += dir as f64 * stride;
+        self.speed = speed;
+        self.no_overshoot();
+        dir
+    }
+
+    /// Go to the photo `dir` along (a key, a button): it slides in from
+    /// that side.
+    pub fn slide(&mut self, dir: i32, stride: f64) {
+        self.drag = None;
+        self.offset += dir as f64 * stride;
+        self.no_overshoot();
+    }
+
+    /// A speed toward rest no greater than the spring takes without going
+    /// past it: a page lands, and does not bounce off where it rests.
+    fn no_overshoot(&mut self) {
+        if self.offset != 0.0 && self.speed / self.offset < -SPRING {
+            self.speed = -SPRING * self.offset;
+        }
+    }
+
+    /// Move on by `dt` milliseconds. Whether it is still moving.
+    pub fn step(&mut self, dt: f64) -> bool {
+        if !self.is_moving() {
+            return false;
+        }
+        let (x, v) = spring(self.offset, self.speed, dt.clamp(0.0, 100.0));
+        if x.abs() < NEAR && v.abs() < STOPPED {
+            self.offset = 0.0;
+            self.speed = 0.0;
+            return false;
+        }
+        self.offset = x;
+        self.speed = v;
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -522,5 +640,71 @@ mod tests {
         z.zoom_by(2.0, (200.0, 400.0));
         z.pan_by(-1000.0, 0.0);
         assert_eq!(z.at.0, -400.0, "no further than the edge");
+    }
+
+    const STRIDE: f64 = 420.0;
+
+    fn run(p: &mut Pages) -> Vec<f64> {
+        let mut seen = vec![];
+        while p.step(16.0) {
+            seen.push(p.offset);
+        }
+        seen
+    }
+
+    #[test]
+    fn a_photo_follows_the_finger_and_gives_past_the_last() {
+        let mut p = Pages::default();
+        p.drag_start(300.0);
+        p.drag_move(200.0, STRIDE, true, true);
+        assert_eq!(p.offset, -100.0);
+        // No photo after it: the drag gives as a rubber band does.
+        p.drag_move(200.0, STRIDE, true, false);
+        assert!(p.offset < 0.0 && p.offset > -100.0, "{}", p.offset);
+    }
+
+    #[test]
+    fn let_go_past_halfway_it_slides_on_to_the_next_without_a_bounce() {
+        let mut p = Pages::default();
+        p.drag_start(400.0);
+        p.drag_move(150.0, STRIDE, true, true);
+        assert_eq!(p.release(0.0, STRIDE, true, true), 1);
+        // The next photo is 170 from where it rests, and slides there.
+        assert_eq!(p.offset, -250.0 + STRIDE);
+        let seen = run(&mut p);
+        assert!(seen.windows(2).all(|w| w[1] <= w[0]), "always toward rest");
+        assert!(seen.iter().all(|&o| o >= 0.0), "never past it");
+        assert_eq!(p.offset, 0.0);
+    }
+
+    #[test]
+    fn a_short_flick_goes_on_and_a_short_slow_drag_springs_back() {
+        let mut p = Pages::default();
+        p.drag_start(400.0);
+        p.drag_move(360.0, STRIDE, true, true);
+        assert_eq!(p.release(-1.0, STRIDE, true, true), 1, "flicked");
+        let mut q = Pages::default();
+        q.drag_start(400.0);
+        q.drag_move(360.0, STRIDE, true, true);
+        assert_eq!(q.release(-0.05, STRIDE, true, true), 0, "slow");
+        run(&mut q);
+        assert_eq!(q.offset, 0.0);
+        // A flick back toward the one shown does not go on.
+        let mut r = Pages::default();
+        r.drag_start(400.0);
+        r.drag_move(360.0, STRIDE, true, true);
+        assert_eq!(r.release(1.0, STRIDE, true, true), 0);
+    }
+
+    #[test]
+    fn a_key_slides_the_next_photo_in_from_its_side() {
+        let mut p = Pages::default();
+        p.slide(1, STRIDE);
+        assert_eq!(p.offset, STRIDE, "from the right");
+        assert!(p.is_moving());
+        run(&mut p);
+        assert_eq!(p.offset, 0.0);
+        p.slide(-1, STRIDE);
+        assert_eq!(p.offset, -STRIDE, "from the left");
     }
 }

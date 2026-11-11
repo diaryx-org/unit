@@ -620,13 +620,13 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                     Text { dim: true, "{chosen().len()} of {shown.len()} chosen." }
                 }
                 Card { title: "Photos", class: "gallery-wide",
-                    TileGrid { label: "Photos", tiles: photo_tiles, size: 88.0, selection: picked_photos(),
+                    TileGrid { label: "Photos", tiles: photo_tiles, size: 88.0, selection: picked_photos(), opens: true,
                                onselect: move |s| picked_photos.set(s),
                                onactivate: move |k: String| {
                                    viewing.set(k.trim_start_matches("photo-").parse().ok());
                                } }
                     Stack { axis: Axis::Horizontal, align: Align::Center,
-                        Text { dim: true, "Open one to see it whole." }
+                        Text { dim: true, "Tap one to see it whole." }
                         Spacer {}
                         Button { onpress: move |_| viewing.set(Some(0)), "View Photos…" }
                     }

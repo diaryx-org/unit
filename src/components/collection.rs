@@ -107,6 +107,8 @@ struct Chooser {
     onactivate: Option<EventHandler<String>>,
     multiple: bool,
     toggles: bool,
+    /// A press alone opens what it lands on, as well as choosing it.
+    opens: bool,
     menu: Vec<Entry>,
     onpick: Option<EventHandler<usize>>,
 }
@@ -129,7 +131,7 @@ impl Chooser {
             self.onselect.call(s);
         }
         let finger = *unit.density.peek() == Density::Touch;
-        if finger && pick == Pick::Only {
+        if (finger || self.opens) && pick == Pick::Only {
             self.activate(key);
         }
     }
@@ -247,7 +249,9 @@ impl Sightings {
 ///
 /// `onselect` is given each new selection, `onactivate` the key of a tile
 /// opened. `multiple: false` keeps one tile chosen at most; `toggles` makes
-/// every press put a tile in or out.
+/// every press put a tile in or out; `opens` makes a press alone (a click,
+/// a tap) open the tile, as a photo library's does, where a folder's opens
+/// by a double click.
 ///
 /// The arrows up and down move a row. A browser says how wide the grid is;
 /// under Blitz, which does not, the grid learns how many tiles a row holds
@@ -262,6 +266,7 @@ pub fn TileGrid(
     label: Option<String>,
     #[props(default = true)] multiple: bool,
     #[props(default)] toggles: bool,
+    #[props(default)] opens: bool,
     /// A tile's width, and its picture's side, in CSS pixels.
     #[props(default = 112.0)]
     size: f64,
@@ -293,6 +298,7 @@ pub fn TileGrid(
         onactivate,
         multiple,
         toggles,
+        opens,
         menu,
         onpick,
     };
@@ -440,7 +446,8 @@ fn TileView(
                 let (chooser, key) = (chooser.clone(), key.clone());
                 move |e: MouseEvent| {
                     e.stop_propagation();
-                    if *unit.density.peek() != Density::Touch {
+                    // A press already opened it where one does.
+                    if *unit.density.peek() != Density::Touch && !chooser.opens {
                         chooser.activate(&key);
                     }
                 }
@@ -606,6 +613,7 @@ pub fn Table(
         onactivate,
         multiple,
         toggles,
+        opens: false,
         menu,
         onpick,
     };
@@ -768,7 +776,8 @@ fn RowView(
                 let (chooser, key) = (chooser.clone(), key.clone());
                 move |e: MouseEvent| {
                     e.stop_propagation();
-                    if *unit.density.peek() != Density::Touch {
+                    // A press already opened it where one does.
+                    if *unit.density.peek() != Density::Touch && !chooser.opens {
                         chooser.activate(&key);
                     }
                 }

@@ -281,7 +281,7 @@ const RUBBER: f64 = 0.55;
 
 /// How quickly the spring back settles, per millisecond: about a third of a
 /// second from a full stretch.
-const SPRING: f64 = 0.012;
+pub(crate) const SPRING: f64 = 0.012;
 
 /// Below this speed, in CSS pixels a millisecond, a glide has stopped.
 pub(crate) const STOPPED: f64 = 0.01;
