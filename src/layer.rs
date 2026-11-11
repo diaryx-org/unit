@@ -167,7 +167,9 @@ impl Unit {
             crate::Density::Touch => Sizes::TOUCH,
             crate::Density::Cell => Sizes::CELL,
         };
-        let menu = Menu::open(entries, at, above, viewport, sizes);
+        let (safe, keyboard) = self.edges();
+        let clear = (safe.top, safe.bottom.max(keyboard));
+        let menu = Menu::open_clear(entries, at, above, viewport, clear, sizes);
         let mut w = l.write();
         w.menu = Some((menu, Rc::new(move |i| (pick.borrow_mut())(i))));
         w.owner = (owner != 0).then_some(owner);
@@ -487,8 +489,19 @@ fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
     let (style, entries, hot) = match &level {
         Some(l) => (
             format!(
-                "display: block; left: {}px; top: {}px; width: {}px",
-                l.left, l.top, l.width
+                "display: block; left: {}px; top: {}px; width: {}px; {}",
+                l.left,
+                l.top,
+                l.width,
+                // Taller than the page has room for: that tall, less its own
+                // padding and border, and scrolling.
+                match l.clip {
+                    Some(h) => format!(
+                        "height: {}px; overflow-y: auto",
+                        h - 2.0 * l.sizes.pad - 2.0
+                    ),
+                    None => "height: auto; overflow-y: visible".to_string(),
+                }
             ),
             l.entries.clone(),
             l.hot,
@@ -504,6 +517,12 @@ fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
                 let mut l = unit.layer;
                 if let Some((m, _)) = l.write().menu.as_mut() {
                     m.press();
+                }
+            },
+            onscroll: move |_| {
+                let mut l = unit.layer;
+                if let Some((m, _)) = l.write().menu.as_mut() {
+                    m.scroll();
                 }
             },
             for (i, entry) in entries.iter().enumerate() {

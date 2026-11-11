@@ -214,6 +214,9 @@ pub struct Level {
     pub left: f64,
     pub top: f64,
     pub width: f64,
+    /// The height it is drawn at where its entries are taller than the room
+    /// the page has for it: it scrolls inside that. `None` where they fit.
+    pub clip: Option<f64>,
     pub hot: Option<usize>,
     pub sizes: Sizes,
 }
@@ -227,8 +230,24 @@ impl Level {
             left: 0.0,
             top: 0.0,
             width,
+            clip: None,
             hot: None,
             sizes: z,
+        }
+    }
+
+    /// Stand the level between `top` and `bottom`, the page's room for a
+    /// menu, with its top at `at` where that fits: moved up where it would
+    /// run past `bottom`, and where it is taller than the room, as tall as
+    /// the room and scrolling.
+    fn stand(&mut self, at: f64, top: f64, bottom: f64) {
+        let h = self.height();
+        if h > bottom - top {
+            self.clip = Some((bottom - top).max(self.sizes.item));
+            self.top = top;
+        } else {
+            self.clip = None;
+            self.top = at.min(bottom - h).max(top);
         }
     }
 
@@ -286,6 +305,12 @@ pub struct Menu {
     pub levels: Vec<Level>,
     /// The page's size, which no level is let past.
     viewport: (f64, f64),
+    /// What is kept clear at the page's top and bottom: a phone's safe
+    /// area, and its keyboard.
+    clear: (f64, f64),
+    /// Whether a level has scrolled since the last press: the finger that
+    /// lets go then was scrolling the menu, not choosing from it.
+    scrolled: bool,
     /// Whether the pointer has moved over the menu, or pressed in it, since
     /// it opened: until then a release is the end of the press that opened
     /// it — a right-click's — and picks nothing.
@@ -303,20 +328,42 @@ impl Menu {
         viewport: (f64, f64),
         sizes: Sizes,
     ) -> Self {
+        Self::open_clear(entries, at, above, viewport, (0.0, 0.0), sizes)
+    }
+
+    /// [`Menu::open`], with `clear` kept free at the page's top and bottom,
+    /// a phone's safe area: no level stands in it, and one with more
+    /// entries than the room between holds is that tall and scrolls.
+    pub fn open_clear(
+        entries: Vec<Entry>,
+        at: (f64, f64),
+        above: f64,
+        viewport: (f64, f64),
+        clear: (f64, f64),
+        sizes: Sizes,
+    ) -> Self {
         let mut level = Level::new(entries, sizes);
         let (w, h) = (level.width, level.height());
         let margin = sizes.margin;
+        let (top, bottom) = (clear.0 + margin, viewport.1 - clear.1 - margin);
         level.left = at.0.min(viewport.0 - w - margin).max(margin);
-        level.top = if at.1 + h > viewport.1 - margin && at.1 - above - h > margin {
-            at.1 - above - h
+        if at.1 + h > bottom && at.1 - above - h > top {
+            level.top = at.1 - above - h;
         } else {
-            at.1.min(viewport.1 - h - margin).max(margin)
-        };
+            level.stand(at.1, top, bottom);
+        }
         Self {
             levels: vec![level],
             viewport,
+            clear,
+            scrolled: false,
             armed: false,
         }
+    }
+
+    /// A level scrolled under the pointer.
+    pub fn scroll(&mut self) {
+        self.scrolled = true;
     }
 
     /// Highlight entry `i` of level `depth`, opening its submenu or closing
@@ -347,7 +394,7 @@ impl Menu {
             return false;
         };
         let mut level = Level::new(entries.clone(), parent.sizes);
-        let (w, h) = (level.width, level.height());
+        let w = level.width;
         let z = parent.sizes;
         let right = parent.left + parent.width - z.overlap;
         level.left = if right + w > self.viewport.0 - z.margin {
@@ -357,9 +404,11 @@ impl Menu {
             right
         };
         // Its first item level with the parent's.
-        level.top = (parent.top + parent.entry_top(i) - z.pad)
-            .min(self.viewport.1 - h - z.margin)
-            .max(z.margin);
+        level.stand(
+            parent.top + parent.entry_top(i) - z.pad,
+            self.clear.0 + z.margin,
+            self.viewport.1 - self.clear.1 - z.margin,
+        );
         self.levels.truncate(depth + 1);
         self.levels.push(level);
         true
@@ -374,11 +423,12 @@ impl Menu {
     /// The pointer pressed in the menu.
     pub fn press(&mut self) {
         self.armed = true;
+        self.scrolled = false;
     }
 
     /// The pointer let go over entry `i` of level `depth`.
     pub fn release(&mut self, depth: usize, i: usize) -> Outcome {
-        if !self.armed {
+        if !self.armed || std::mem::take(&mut self.scrolled) {
             return Outcome::Handled;
         }
         self.activate(depth, i)
@@ -520,6 +570,31 @@ mod tests {
         let m = Menu::open(entries(), (100.0, 590.0), 20.0, PAGE, Sizes::REGULAR);
         let l = &m.levels[0];
         assert_eq!(l.top + l.height(), 570.0);
+    }
+
+    #[test]
+    fn a_menu_taller_than_the_room_is_that_tall_and_scrolls() {
+        // A phone: 440 by 956, the status bar's 62 and the home bar's 34
+        // kept clear, and more rows than fit between them.
+        let many: Vec<Entry> = (0..30).map(|i| Item::new(i, "Row").into()).collect();
+        let page = (440.0, 956.0);
+        let z = Sizes::TOUCH;
+        let mut m = Menu::open_clear(many.clone(), (40.0, 300.0), 0.0, page, (62.0, 34.0), z);
+        let l = &m.levels[0];
+        assert!(l.height() > page.1);
+        assert_eq!(l.top, 62.0 + z.margin);
+        assert_eq!(l.clip, Some(956.0 - 62.0 - 34.0 - 2.0 * z.margin));
+        // A finger that scrolled it chooses nothing as it lets go; the next
+        // press and release does.
+        m.press();
+        m.scroll();
+        assert_eq!(m.release(0, 3), Outcome::Handled);
+        m.press();
+        assert_eq!(m.release(0, 3), Outcome::Pick(3));
+        // One that fits stands clear of the edges kept, and is not clipped.
+        let few: Vec<Entry> = many.into_iter().take(4).collect();
+        let m = Menu::open_clear(few, (40.0, 0.0), 0.0, page, (62.0, 34.0), z);
+        assert_eq!((m.levels[0].top, m.levels[0].clip), (62.0 + z.margin, None));
     }
 
     #[test]
