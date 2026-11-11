@@ -21,25 +21,46 @@ const TRASH: usize = 22;
 /// The page, at the appearance and density the page itself chooses.
 #[allow(non_snake_case)]
 pub fn Gallery() -> Element {
-    // A window can start dark, or at a finger's density, for a look at each:
-    // UNIT_APPEARANCE=dark, UNIT_DENSITY=touch.
+    let (appearance, density) = chosen();
+    let appearance = use_signal(|| appearance);
+    let density = use_signal(|| density);
+    rsx! {
+        Shown { appearance, density, accent: Accent::System }
+    }
+}
+
+/// The appearance and density the environment asks for: a window can start
+/// dark, or at a finger's density, for a look at each:
+/// UNIT_APPEARANCE=dark, UNIT_DENSITY=touch.
+fn chosen() -> (Appearance, Density) {
     let env = |_name: &str| {
         #[cfg(not(target_arch = "wasm32"))]
         return std::env::var(_name).unwrap_or_default();
         #[cfg(target_arch = "wasm32")]
         return String::new();
     };
-    let appearance = use_signal(|| match env("UNIT_APPEARANCE").as_str() {
+    let appearance = match env("UNIT_APPEARANCE").as_str() {
         "dark" => Appearance::Dark,
         "light" => Appearance::Light,
         _ => Appearance::System,
-    });
-    let density = use_signal(|| match env("UNIT_DENSITY").as_str() {
+    };
+    let density = match env("UNIT_DENSITY").as_str() {
         "touch" => Density::Touch,
         _ => Density::Regular,
-    });
+    };
+    (appearance, density)
+}
+
+/// The page as [`Gallery`] draws it, told its window is `width` × `height`
+/// CSS pixels: what a window's host tells unit ([`Unit::set_viewport`]),
+/// for the tests, which lay it out with no window.
+#[component]
+pub fn GallerySized(width: f64, height: f64) -> Element {
+    let (appearance, density) = chosen();
+    let appearance = use_signal(|| appearance);
+    let density = use_signal(|| density);
     rsx! {
-        Shown { appearance, density, accent: Accent::System }
+        Shown { appearance, density, accent: Accent::Theme, size: (width, height) }
     }
 }
 
@@ -47,25 +68,87 @@ pub fn Gallery() -> Element {
 /// the audit (`tests/audit.rs`) walks, the same on any machine and whatever
 /// the environment says, so its tests can run side by side.
 #[component]
-pub fn GalleryAt(appearance: Appearance, density: Density) -> Element {
+pub fn GalleryAt(
+    appearance: Appearance,
+    density: Density,
+    /// The window's size, as a host would tell unit.
+    size: Option<(f64, f64)>,
+) -> Element {
     let appearance = use_signal(|| appearance);
     let density = use_signal(|| density);
     rsx! {
-        Shown { appearance, density, accent: Accent::Theme }
+        Shown { appearance, density, accent: Accent::Theme, size }
     }
 }
 
 #[component]
-fn Shown(appearance: Signal<Appearance>, density: Signal<Density>, accent: Accent) -> Element {
+fn Shown(
+    appearance: Signal<Appearance>,
+    density: Signal<Density>,
+    accent: Accent,
+    size: Option<(f64, f64)>,
+) -> Element {
     rsx! {
         UnitRoot { appearance: appearance(), density: density(), accent, class: "gallery",
             style { {GALLERY_CSS} }
+            Sized { size }
             Page { appearance, density }
             // The page's own element, outside any component, as a host's
             // editor is: unit's styles leave its box as the page drew it.
             div { class: "gallery-own" }
         }
     }
+}
+
+/// Tells unit how large the window is, as a host does: `size` where the
+/// page is told it, and else the window Blitz draws in, followed as it is
+/// resized. Blitz sends the page no `resize` event of its own, which a
+/// browser's root reads it from.
+#[component]
+fn Sized(size: Option<(f64, f64)>) -> Element {
+    let unit = use_unit();
+    if let Some((w, h)) = size {
+        unit.set_viewport(w, h);
+        return rsx! {};
+    }
+    #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
+    {
+        let window = use_hook(|| {
+            dioxus::core::try_consume_context::<
+                std::sync::Arc<dyn dioxus_native::winit::window::Window>,
+            >()
+        });
+        if window.is_some() {
+            return rsx! { WindowSize {} };
+        }
+    }
+    rsx! {}
+}
+
+/// The window's size, now and as it is resized, given to unit.
+#[cfg(all(feature = "native", not(target_arch = "wasm32")))]
+#[component]
+fn WindowSize() -> Element {
+    let unit = use_unit();
+    let window = dioxus_native::use_window();
+    let logical = move |w: &dyn dioxus_native::winit::window::Window| {
+        let s = w.surface_size().to_logical::<f64>(w.scale_factor());
+        (s.width, s.height)
+    };
+    use_hook(|| {
+        let (w, h) = logical(window.as_ref());
+        unit.set_viewport(w, h);
+    });
+    let resized = window.clone();
+    dioxus_native::use_window_event(move |event, _| {
+        if let dioxus_native::winit::event::WindowEvent::SurfaceResized(_)
+        | dioxus_native::winit::event::WindowEvent::ScaleFactorChanged { .. } = event
+        {
+            let (w, h) = logical(resized.as_ref());
+            unit.set_viewport(w, h);
+        }
+    });
+    rsx! {}
 }
 
 /// A sleep on a thread of its own, for a long press while the finger is
@@ -842,7 +925,7 @@ fn photos() -> Vec<Photo> {
                  <path d='M0 230 Q110 160 220 215 T400 200 V300 H0Z' fill='{hill}'/></svg>"
             );
             let src = format!("data:image/svg+xml,{}", percent(&svg));
-            Photo::new(src, *alt).caption(*alt)
+            Photo::new(src, *alt).caption(*alt).size(400.0, 300.0)
         })
         .collect()
 }

@@ -19,9 +19,30 @@ use dioxus::prelude::*;
 use dioxus_native::DioxusDocument;
 use keyboard_types::{Code, Key, Location, Modifiers, NamedKey};
 
+/// A window's size, as its host tells unit.
+#[derive(Props, Clone, PartialEq)]
+struct Window {
+    width: f64,
+    height: f64,
+}
+
+/// The gallery, told its window's size.
+#[allow(non_snake_case)]
+fn Sized(window: Window) -> Element {
+    rsx! {
+        unit_gallery::GallerySized { width: window.width, height: window.height }
+    }
+}
+
 /// The gallery, `width` × `height` CSS pixels, built and laid out.
 fn page(width: u32, height: u32) -> DioxusDocument {
-    let vdom = VirtualDom::new(unit_gallery::Gallery);
+    let vdom = VirtualDom::new_with_props(
+        Sized,
+        Window {
+            width: width as f64,
+            height: height as f64,
+        },
+    );
     let mut doc = DioxusDocument::new(vdom, DocumentConfig::default());
     doc.inner
         .borrow_mut()
@@ -253,13 +274,14 @@ fn a_submenu_opens_beside_its_item() {
     let levels = inner.query_selector_all(".unit-menu").unwrap();
     drop(inner);
     let (px, _, pw, _) = rect(&doc, levels[0]);
-    let (sx, sy, _, _) = rect(&doc, levels[1]);
+    let (sx, sy, _, sh) = rect(&doc, levels[1]);
     assert!(displayed(&doc, levels[1]), "the submenu is shown");
     assert!(sx > px + pw - 10.0, "beside its parent");
-    assert!(
-        (sy - (hy - 5.0)).abs() < 3.0,
-        "its first item level with the parent's"
-    );
+    // Its first item level with the parent's, unless that would take it past
+    // the window's bottom: then as far up as keeps it inside.
+    let level = (sy - (hy - 5.0)).abs() < 3.0;
+    let kept_in = sy < hy && sy + sh <= 800.0 && sy + sh > 800.0 - 20.0;
+    assert!(level || kept_in, "{sy} {sh} by {hy}");
 }
 
 #[test]
@@ -2185,4 +2207,203 @@ fn the_wheel_over_a_scroll_box_scrolls_it_and_not_the_page() {
         before,
         "the page stayed"
     );
+}
+
+/// A finger `n` going down, moving or lifting at (`x`, `y`).
+fn finger(doc: &mut DioxusDocument, n: u64, what: &str, x: f64, y: f64) {
+    let id = BlitzPointerId::Finger(n);
+    let event = match what {
+        "down" => UiEvent::PointerDown(pointer(id, x, y, MouseEventButtons::Primary)),
+        "move" => UiEvent::PointerMove(pointer(id, x, y, MouseEventButtons::Primary)),
+        _ => UiEvent::PointerUp(pointer(id, x, y, MouseEventButtons::None)),
+    };
+    doc.handle_ui_event(event);
+    settle(doc);
+}
+
+/// Where the photo is drawn: its left, top, width and height.
+fn photo_frame(doc: &DioxusDocument) -> (f64, f64, f64, f64) {
+    rect(doc, first(doc, ".unit-viewer-photo"))
+}
+
+/// Frames until whatever is moving rests, by the gallery's own timer: the
+/// photo where it was for a tenth of a second, longer than a frame.
+fn rest(doc: &mut DioxusDocument) {
+    let mut last = None;
+    let mut still = 0;
+    for _ in 0..200 {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        settle(doc);
+        let now = photo_frame(doc);
+        still = if last == Some(now) { still + 1 } else { 0 };
+        if still == 5 {
+            return;
+        }
+        last = Some(now);
+    }
+    panic!("still moving");
+}
+
+fn near(a: (f64, f64, f64, f64), b: (f64, f64, f64, f64)) -> bool {
+    [(a.0, b.0), (a.1, b.1), (a.2, b.2), (a.3, b.3)]
+        .iter()
+        .all(|(x, y)| (x - y).abs() < 1.5)
+}
+
+fn open_photos(doc: &mut DioxusDocument) {
+    let view = find(doc, "button", "View Photos…");
+    click(doc, view);
+}
+
+/// The 4:3 photo fits the 1200 × 800 window: 1066.7 wide, 66.7 in.
+const FITS: (f64, f64, f64, f64) = (66.67, 0.0, 1066.67, 800.0);
+
+#[test]
+fn a_pinch_zooms_the_photo_about_the_fingers_and_springs_back_from_past_its_most() {
+    let mut doc = page(1200, 800);
+    open_photos(&mut doc);
+    assert!(near(photo_frame(&doc), FITS), "{:?}", photo_frame(&doc));
+    // Two fingers 200 apart, either side of (600, 400), drawn 400 apart.
+    finger(&mut doc, 1, "down", 500.0, 400.0);
+    finger(&mut doc, 2, "down", 700.0, 400.0);
+    finger(&mut doc, 1, "move", 400.0, 400.0);
+    finger(&mut doc, 2, "move", 800.0, 400.0);
+    // Twice the size, the photo's point under the fingers (533.3 in) under
+    // them still.
+    let zoomed = (600.0 - 533.33 * 2.0, 400.0 - 400.0 * 2.0, 2133.33, 1600.0);
+    assert!(near(photo_frame(&doc), zoomed), "{:?}", photo_frame(&doc));
+    // Both moved 100 to the right: the photo with them.
+    finger(&mut doc, 1, "move", 500.0, 400.0);
+    finger(&mut doc, 2, "move", 900.0, 400.0);
+    let (x, ..) = photo_frame(&doc);
+    assert!((x - (zoomed.0 + 100.0)).abs() < 1.5, "{x}");
+    // On to sixteen times: it gives less, and springs back to four.
+    finger(&mut doc, 1, "move", 50.0, 400.0);
+    finger(&mut doc, 2, "move", 1150.0, 400.0);
+    let (_, _, w, _) = photo_frame(&doc);
+    assert!(w > 1066.67 * 4.0 && w < 1066.67 * 6.0, "{w}");
+    finger(&mut doc, 1, "up", 50.0, 400.0);
+    finger(&mut doc, 2, "up", 1150.0, 400.0);
+    rest(&mut doc);
+    let (_, _, w, h) = photo_frame(&doc);
+    assert!(
+        (w - 1066.67 * 4.0).abs() < 1.5 && (h - 3200.0).abs() < 1.5,
+        "{w}"
+    );
+    // Zoomed, a swipe moves the photo, and does not go to the next.
+    let (x0, ..) = photo_frame(&doc);
+    finger(&mut doc, 1, "down", 600.0, 400.0);
+    finger(&mut doc, 1, "move", 500.0, 400.0);
+    finger(&mut doc, 1, "move", 400.0, 400.0);
+    let (x1, ..) = photo_frame(&doc);
+    assert!((x1 - (x0 - 200.0)).abs() < 1.5, "{x0} {x1}");
+    finger(&mut doc, 1, "up", 400.0, 400.0);
+    rest(&mut doc);
+    assert_eq!(viewer_count(&doc), "1 of 6");
+}
+
+#[test]
+fn a_pinch_below_fitting_springs_back_to_fit() {
+    let mut doc = page(1200, 800);
+    open_photos(&mut doc);
+    finger(&mut doc, 1, "down", 300.0, 400.0);
+    finger(&mut doc, 2, "down", 900.0, 400.0);
+    finger(&mut doc, 1, "move", 550.0, 400.0);
+    finger(&mut doc, 2, "move", 650.0, 400.0);
+    let (_, _, w, _) = photo_frame(&doc);
+    assert!(w < 1066.67 && w > 1066.67 / 3.0, "it gives: {w}");
+    finger(&mut doc, 1, "up", 550.0, 400.0);
+    finger(&mut doc, 2, "up", 650.0, 400.0);
+    rest(&mut doc);
+    assert!(near(photo_frame(&doc), FITS), "{:?}", photo_frame(&doc));
+}
+
+#[test]
+fn a_double_tap_zooms_in_to_the_point_and_out_again() {
+    let mut doc = page(1200, 800);
+    open_photos(&mut doc);
+    let stage = first(&doc, ".unit-viewer-stage");
+    let (sx, sy, _, _) = rect(&doc, stage);
+    // 633.3 into the photo, right of its middle.
+    click_at(&mut doc, sx + 700.0, sy + 400.0, Modifiers::empty());
+    click_at(&mut doc, sx + 700.0, sy + 400.0, Modifiers::empty());
+    rest(&mut doc);
+    let (x, y, w, h) = photo_frame(&doc);
+    // Filling the window both ways takes 1200 / 1066.7 of it, under the
+    // least a double tap zooms, twice.
+    assert!((w - 2133.33).abs() < 1.5 && (h - 1600.0).abs() < 1.5, "{w}");
+    // The point tapped is in the middle.
+    assert!((x + 633.33 * 2.0 - 600.0).abs() < 1.5, "{x}");
+    assert!((y + 400.0 * 2.0 - 400.0).abs() < 1.5, "{y}");
+    // The arrows to the next photo are gone while it is zoomed.
+    assert!(
+        doc.inner
+            .borrow()
+            .query_selector("[aria-label='Next photo']")
+            .unwrap()
+            .is_none()
+    );
+    click_at(&mut doc, sx + 600.0, sy + 400.0, Modifiers::empty());
+    click_at(&mut doc, sx + 600.0, sy + 400.0, Modifiers::empty());
+    rest(&mut doc);
+    assert!(near(photo_frame(&doc), FITS), "{:?}", photo_frame(&doc));
+}
+
+#[test]
+fn the_wheel_and_the_keys_zoom_and_move_the_photo() {
+    use blitz_traits::events::{BlitzWheelDelta, BlitzWheelEvent};
+    let mut doc = page(1200, 800);
+    open_photos(&mut doc);
+    let wheel = |doc: &mut DioxusDocument, dy: f64, mods: Modifiers| {
+        let (x, y) = (600.0f32, 400.0f32);
+        doc.handle_ui_event(UiEvent::PointerMove(pointer(
+            BlitzPointerId::Mouse,
+            600.0,
+            400.0,
+            MouseEventButtons::None,
+        )));
+        doc.handle_ui_event(UiEvent::Wheel(BlitzWheelEvent {
+            delta: BlitzWheelDelta::Pixels(0.0, dy),
+            coords: PointerCoords {
+                page_x: x,
+                page_y: y,
+                screen_x: x,
+                screen_y: y,
+                client_x: x,
+                client_y: y,
+            },
+            buttons: MouseEventButtons::None,
+            mods,
+            element: Default::default(),
+        }));
+        settle(doc);
+    };
+    // Without ⌘ or Ctrl, a photo that fits does not move.
+    wheel(&mut doc, 140.0, Modifiers::empty());
+    assert!(near(photo_frame(&doc), FITS));
+    // With Ctrl (a trackpad's pinch, in a browser) it zooms about the
+    // pointer, the middle here.
+    wheel(&mut doc, 140.0, Modifiers::CONTROL);
+    let (x, y, w, h) = photo_frame(&doc);
+    assert!((w - 2133.33).abs() < 1.5, "{w}");
+    assert!((x + w / 2.0 - 600.0).abs() < 1.5 && (y + h / 2.0 - 400.0).abs() < 1.5);
+    // Zoomed, the wheel moves it, no further than its edge.
+    wheel(&mut doc, 100.0, Modifiers::empty());
+    let (_, y1, _, _) = photo_frame(&doc);
+    assert!((y1 - (y + 100.0)).abs() < 1.5, "{y} {y1}");
+    wheel(&mut doc, 5000.0, Modifiers::empty());
+    assert_eq!(photo_frame(&doc).1, 0.0, "its top at the window's");
+    // `0` fits it again; `+` zooms in about the middle, `-` out.
+    key(&mut doc, Key::Character("0".into()));
+    rest(&mut doc);
+    assert!(near(photo_frame(&doc), FITS), "{:?}", photo_frame(&doc));
+    key(&mut doc, Key::Character("+".into()));
+    assert!((photo_frame(&doc).2 - 2133.33).abs() < 1.5);
+    key(&mut doc, Key::Character("-".into()));
+    assert!(near(photo_frame(&doc), FITS));
+    // The next photo starts from fitting.
+    key(&mut doc, Key::Character("+".into()));
+    key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    assert_eq!(viewer_count(&doc), "2 of 6");
+    assert!(near(photo_frame(&doc), FITS));
 }

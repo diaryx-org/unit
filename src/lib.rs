@@ -71,6 +71,7 @@ pub mod selection;
 mod style;
 pub mod theme;
 mod unit;
+pub mod zoom;
 
 pub use actions::{ActionSheet, SheetAction};
 pub use components::bars::{BarItem, NavBar, TabBar, Tree, TreeRow};

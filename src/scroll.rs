@@ -275,7 +275,7 @@ const RUBBER: f64 = 0.55;
 const SPRING: f64 = 0.012;
 
 /// Below this speed, in CSS pixels a millisecond, a glide has stopped.
-const STOPPED: f64 = 0.01;
+pub(crate) const STOPPED: f64 = 0.01;
 
 /// How far back the finger's speed is read from, in milliseconds: the last
 /// stretch of the drag, as UIKit reads it.
@@ -297,6 +297,17 @@ pub fn rubber(raw: f64, min: f64, max: f64, d: f64) -> f64 {
     } else {
         raw
     }
+}
+
+/// A critically damped spring `dt` milliseconds on: from `x0` away from
+/// where it rests, moving at `v0` a millisecond, where it is and how fast.
+/// It settles in about a third of a second, without a wobble.
+pub(crate) fn spring(x0: f64, v0: f64, dt: f64) -> (f64, f64) {
+    let w = SPRING;
+    let e = (-w * dt).exp();
+    let x = (x0 + (v0 + w * x0) * dt) * e;
+    let v = (v0 - w * dt * (v0 + w * x0)) * e;
+    (x, v)
 }
 
 /// The finger's recent positions, for its speed when it lets go.
@@ -378,12 +389,7 @@ impl Glide {
             // Past one: a critically damped spring to it, which takes the
             // speed it came with and turns it round.
             Some(edge) => {
-                let x0 = self.pos - edge;
-                let v0 = self.vel;
-                let w = SPRING;
-                let e = (-w * dt).exp();
-                let x = (x0 + (v0 + w * x0) * dt) * e;
-                let v = (v0 - w * dt * (v0 + w * x0)) * e;
+                let (x, v) = spring(self.pos - edge, self.vel, dt);
                 self.pos = edge + x;
                 self.vel = v;
                 if x.abs() < 0.5 && v.abs() < STOPPED {

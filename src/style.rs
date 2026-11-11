@@ -480,22 +480,30 @@ pub const CSS: &str = r#"
 .unit-empty-message { color: var(--unit-dim); max-width: 320px; }
 .unit-empty .unit-button { margin-top: 6px; }
 
-/* A photo over the whole window, on black in either appearance */
+/* A photo over the whole window, on black in either appearance: the photo
+   fills the window inside its safe area, the count and the caption laid
+   over it, as a phone's photo viewer lays them */
 .unit-viewer { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 95;
-               display: flex; flex-direction: column; background: #000000;
+               background: #000000; overflow: hidden;
                --unit-text: #f5f5f7; --unit-dim: #aeaeb2; --unit-control-hover: rgba(255, 255, 255, 0.16);
                --unit-focus: #5b97ff; color: var(--unit-text); }
-.unit-viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px;
-                   padding: 6px 8px 6px 16px; }
+.unit-viewer-stage { position: absolute; overflow: hidden; touch-action: none; }
+.unit-viewer-photo { position: absolute; }
+.unit-viewer-photo .unit-viewer-image { display: block; width: 100%; height: 100%; }
+.unit-viewer-image.unit-viewer-whole { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+                                       object-fit: contain; }
+.unit-viewer-bar { position: absolute; left: 0; top: 0; right: 0; display: flex; align-items: center;
+                   justify-content: space-between; gap: 8px; padding-bottom: 14px;
+                   background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0)); }
 .unit-viewer-count { color: var(--unit-text); }
-.unit-viewer-stage { position: relative; flex: 1; min-height: 0; touch-action: none; }
-.unit-viewer-image { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; }
 .unit-viewer .unit-button.unit-viewer-prev, .unit-viewer .unit-button.unit-viewer-next {
     position: absolute; top: 50%; margin-top: -22px; width: 44px; height: 44px;
     background: rgba(0, 0, 0, 0.55); border-radius: 22px; }
 .unit-viewer-prev { left: 8px; }
 .unit-viewer-next { right: 8px; }
-.unit-viewer-caption { padding: 10px 16px 14px; text-align: center; color: var(--unit-text); }
+.unit-viewer-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 16px 14px;
+                       text-align: center; color: var(--unit-text);
+                       background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.6)); }
 "#;
 
 #[cfg(test)]

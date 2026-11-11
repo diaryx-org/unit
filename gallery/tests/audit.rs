@@ -168,6 +168,7 @@ const CHECKS: [&str; 9] = [
 struct At {
     appearance: Appearance,
     density: Density,
+    size: (f64, f64),
 }
 
 impl At {
@@ -175,6 +176,7 @@ impl At {
         At {
             appearance: m.appearance,
             density: m.density,
+            size: (m.width as f64, m.height as f64),
         }
     }
 }
@@ -182,7 +184,7 @@ impl At {
 #[allow(non_snake_case)]
 fn WholeGallery(at: At) -> Element {
     rsx! {
-        GalleryAt { appearance: at.appearance, density: at.density }
+        GalleryAt { appearance: at.appearance, density: at.density, size: at.size }
     }
 }
 
