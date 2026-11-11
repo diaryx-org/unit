@@ -162,9 +162,10 @@ pub fn use_unit_provider(keys: Keys, activates: bool) -> Unit {
 }
 
 impl Unit {
-    /// The page's size, in CSS pixels, which menus are kept inside: set it
-    /// whenever the window's changes. The root sets it itself where the
-    /// renderer reports its size.
+    /// The window's size, in CSS pixels, which menus are kept inside and a
+    /// photo viewer zooms within: set it whenever the window's changes. The
+    /// root sets it itself where the renderer reports an element's size (a
+    /// browser); Blitz reports none, and its host sets it.
     pub fn set_viewport(&self, width: f64, height: f64) {
         let mut l = self.layer;
         if l.peek().viewport != (width, height) {
@@ -542,11 +543,6 @@ pub fn UnitRoot(
                 if page_keys && unit.key(&e.key(), e.modifiers()) {
                     e.prevent_default();
                     e.stop_propagation();
-                }
-            },
-            onresize: move |e: ResizeEvent| {
-                if let Ok(size) = e.get_border_box_size() {
-                    unit.set_viewport(size.width, size.height);
                 }
             },
             {children}

@@ -487,7 +487,7 @@ pub const CSS: &str = r#"
                background: #000000; overflow: hidden;
                --unit-text: #f5f5f7; --unit-dim: #aeaeb2; --unit-control-hover: rgba(255, 255, 255, 0.16);
                --unit-focus: #5b97ff; color: var(--unit-text); }
-.unit-viewer-stage { position: absolute; overflow: hidden; touch-action: none; }
+.unit-viewer-stage { position: absolute; overflow: hidden; touch-action: none; user-select: none; }
 .unit-viewer-photo { position: absolute; }
 .unit-viewer-photo .unit-viewer-image { display: block; width: 100%; height: 100%; }
 .unit-viewer-image.unit-viewer-whole { position: absolute; left: 0; top: 0; width: 100%; height: 100%;

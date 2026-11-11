@@ -431,6 +431,14 @@ fn LayerView(unit: Unit) -> Element {
     // the page; what it holds is shown and hidden.
     rsx! {
         div { class: "unit-layer",
+            // The layer covers the window, fixed, whatever the page's
+            // length: its size is the window's, where the renderer reports
+            // one (a browser). The page's root is as long as the page.
+            onresize: move |e: ResizeEvent| {
+                if let Ok(size) = e.get_border_box_size() {
+                    unit.set_viewport(size.width, size.height);
+                }
+            },
             // A press anywhere outside a menu closes it, and is not also a
             // press on whatever is under it.
             div { class: "unit-backdrop{scrim}", style: "display: {backdrop}",

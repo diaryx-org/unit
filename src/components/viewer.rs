@@ -68,8 +68,8 @@ impl Photo {
     }
 }
 
-/// Milliseconds since the first call, for a finger's speed and a frame's
-/// length; `None` in a browser, which unit reads no clock in.
+/// Milliseconds from a start of its own, for a finger's speed, a double tap
+/// and a frame's length: the system's clock, or a browser's.
 fn now_ms() -> Option<f64> {
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -78,7 +78,7 @@ fn now_ms() -> Option<f64> {
         Some(start.elapsed().as_secs_f64() * 1000.0)
     }
     #[cfg(target_arch = "wasm32")]
-    None
+    Some(js_sys::Date::now())
 }
 
 /// The pointers on the photo, and what a single one is doing.
@@ -115,10 +115,10 @@ impl Touches {
     }
 
     /// A pointer lifted at `p` after going down at `start`: whether it was
-    /// the second tap of a double tap. Blitz sends no `dblclick` for a click
-    /// whose default action the viewer cancelled, so the viewer counts its
-    /// own taps where it has a clock; a browser, where it has none, sends
-    /// `dblclick` as ever.
+    /// the second tap of a double tap. The viewer counts its own taps, as a
+    /// gesture recogniser does: Blitz sends no `dblclick` for a click whose
+    /// default action the viewer cancelled, and a phone's browser sends none
+    /// for a finger.
     fn tapped(&mut self, start: (f64, f64), p: (f64, f64)) -> bool {
         let Some(now) = now_ms() else {
             return false;
@@ -313,14 +313,15 @@ pub fn PhotoViewer(
                 div { class: "unit-viewer-photo",
                       style: "left: {x}px; top: {y}px; width: {w}px; height: {h}px",
                     // `alt` for a browser; Blitz names an image by its label.
+                    // Not the browser's to drag away as an image: a drag moves it.
                     img { class: "unit-viewer-image", src: "{photo.src}", alt: "{photo.alt}",
-                          "aria-label": "{photo.alt}" }
+                          "aria-label": "{photo.alt}", draggable: "false" }
                 }
             }
         }
         None => rsx! {
             img { class: "unit-viewer-image unit-viewer-whole", src: "{photo.src}", alt: "{photo.alt}",
-                  "aria-label": "{photo.alt}" }
+                  "aria-label": "{photo.alt}", draggable: "false" }
         },
     };
     rsx! {
@@ -466,11 +467,6 @@ pub fn PhotoViewer(
                     if t.down.is_empty() && current().is_some_and(|z| z.is_held()) {
                         change(&mut |z| z.release((0.0, 0.0)));
                     }
-                },
-                ondoubleclick: move |e: MouseEvent| {
-                    let c = e.client_coordinates();
-                    let p = (c.x - safe.left, c.y - safe.top);
-                    change(&mut |z| z.double_tap(p));
                 },
                 {picture}
                 if index > 0 && !zoomed {

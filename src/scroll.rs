@@ -47,11 +47,20 @@ const PER_DOUBLING: f64 = 140.0;
 
 /// A wheel's delta, in CSS pixels: as it came, a line [`LINE`] tall, or a
 /// page `page` tall.
+///
+/// In Blitz's convention whatever the renderer: positive toward the top and
+/// the left. A browser's (the DOM's `deltaY`, which dioxus-web passes on as
+/// it is) runs the other way, and is turned round.
 pub fn wheel_delta(delta: WheelDelta, page: f64) -> (f64, f64) {
-    match delta {
+    let (x, y) = match delta {
         WheelDelta::Pixels(v) => (v.x, v.y),
         WheelDelta::Lines(v) => (v.x * LINE, v.y * LINE),
         WheelDelta::Pages(v) => (v.x * page, v.y * page),
+    };
+    if cfg!(target_arch = "wasm32") {
+        (-x, -y)
+    } else {
+        (x, y)
     }
 }
 
