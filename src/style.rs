@@ -141,7 +141,7 @@ pub const CSS: &str = r#"
                            border-color: var(--unit-danger); }
 .unit-button.unit-ghost { background: transparent; border-color: transparent; box-shadow: none; }
 .unit-button.unit-ghost:hover { background: var(--unit-control-hover); }
-.unit-button.unit-icon { width: var(--unit-control-height); padding: 0; }
+.unit-button.unit-icon { width: var(--unit-control-height); padding: 0; flex: none; }
 .unit-svg { flex: none; }
 .unit-ink-dim { color: var(--unit-dim); }
 .unit-ink-accent { color: var(--unit-accent); }
@@ -355,9 +355,12 @@ pub const CSS: &str = r#"
 .unit-navbar-end { justify-content: flex-end; }
 .unit-navbar-title { flex: 2 1 0; text-align: center; font-family: var(--unit-heading-font);
                      font-weight: 700; white-space: nowrap; overflow: hidden; }
-.unit-button.unit-back { color: var(--unit-accent); padding-left: 2px; min-width: 0; max-width: 100%; }
+.unit-button.unit-back { color: var(--unit-accent); padding-left: 2px; min-width: var(--unit-control-height);
+                         max-width: 100%; }
 .unit-button.unit-back > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .unit-tabbar { display: flex; background: var(--unit-surface); border-top: 1px solid var(--unit-separator); }
+.unit-tabbar-tabs { display: flex; flex: 1; min-width: 0; }
+.unit-tabbar-trailing { display: flex; align-items: center; flex: none; padding: 0 12px; }
 .unit-tabbar-item { display: flex; flex-direction: column; align-items: center; justify-content: center;
                     flex: 1 1 0; gap: 2px; min-height: 49px; color: var(--unit-dim); }
 .unit-tabbar-item.on { color: var(--unit-accent); }

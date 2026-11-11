@@ -496,7 +496,7 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                     }
                     Chips { label: "Faces", choices: face_choices, on: faces(),
                             onpick: move |i: usize| faces.with_mut(|f: &mut Vec<bool>| f[i] = !f[i]) }
-                    Chips { label: "Circle", on: (0..3).map(|i| circle() == i).collect::<Vec<_>>(),
+                    Chips { label: "Circle", single: true, on: (0..3).map(|i| circle() == i).collect::<Vec<_>>(),
                             choices: vec![Choice::new("Only You"),
                                           Choice::new("Family").dot("#b4541a").badge("4"),
                                           Choice::new("Friends").dot("#3a7bd5").badge("12")],
@@ -572,11 +572,16 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
                 Card { title: "Bars",
                     NavBar { title: "Entries", back: "Library",
                              onback: move |_| said.set("Back to Library pressed.".into()),
+                             forward: "Harbour", onforward: move |_| said.set("Forward pressed.".into()),
                              trailing: rsx! {
                                  Button { icon: paths::PLUS, label: "New", variant: Variant::Ghost, class: "unit-icon",
                                           onpress: move |_| said.set("New pressed.".into()) }
                              } }
                     TabBar { label: "Places", selected: place(), onchange: move |i| place.set(i),
+                             trailing: rsx! {
+                                 Button { variant: Variant::Primary, class: "unit-icon", label: "New entry", icon: paths::PLUS,
+                                          onpress: move |_| said.set("New entry pressed.".into()) }
+                             },
                              items: vec![
                                  BarItem::new("Shelf", paths::MORE),
                                  BarItem::new("Search", paths::SEARCH),

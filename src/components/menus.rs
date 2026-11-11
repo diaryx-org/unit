@@ -12,6 +12,7 @@ use dioxus::html::{Key, NamedKey};
 use dioxus::prelude::*;
 
 use crate::components::button::{Variant, is_press};
+use crate::components::choice::{Orientation, arrow_step};
 use crate::components::hold::use_hold;
 use crate::icon::Icon;
 use crate::menu::{Entry, Item};
@@ -301,15 +302,51 @@ pub fn ContextMenu(
     }
 }
 
-/// Chips: each option a pill that toggles, the ones `on` says lit. `onpick`
-/// is given the index pressed.
+/// Chips: each option a pill that toggles, the ones `on` says lit; with
+/// `single`, a choice of one of them, a radio group drawn as pills.
+/// `onpick` is given the index pressed, or the arrows moved to.
 #[component]
 pub fn Chips(
     choices: Vec<Choice>,
     on: Vec<bool>,
     onpick: EventHandler<usize>,
     label: Option<String>,
+    /// One of them chosen at a time: read as a radio group, one stop for Tab,
+    /// the arrows, Home and End moving the choice, as a radio group's do.
+    /// The page keeps `on` true for the one chosen alone.
+    #[props(default)]
+    single: bool,
 ) -> Element {
+    let n = choices.len();
+    let chosen = on.iter().position(|&o| o);
+    let focus = use_focus(Kind::Widget, move |key, _| {
+        if !single {
+            return false;
+        }
+        match arrow_step(key, chosen, n, Orientation::Horizontal) {
+            Some(i) => {
+                if Some(i) != chosen {
+                    onpick.call(i);
+                }
+                true
+            }
+            None => false,
+        }
+    });
+    if single {
+        return rsx! {
+            div { class: "unit-chips{focus.class()}", role: "radiogroup", "aria-label": label,
+                tabindex: "0",
+                onpointerdown: move |_| focus.press(),
+                onfocus: move |_| focus.dom_focus(),
+                onblur: move |_| focus.dom_blur(),
+                for (i, c) in choices.into_iter().enumerate() {
+                    Chip { key: "{i}", choice: c, on: on.get(i).copied().unwrap_or(false), radio: true,
+                           onpress: move |_| if chosen != Some(i) { onpick.call(i) } }
+                }
+            }
+        };
+    }
     rsx! {
         div { class: "unit-chips", role: "group", "aria-label": label,
             for (i, c) in choices.into_iter().enumerate() {
@@ -321,7 +358,15 @@ pub fn Chips(
 }
 
 #[component]
-fn Chip(choice: Choice, on: bool, onpress: EventHandler<()>) -> Element {
+fn Chip(
+    choice: Choice,
+    on: bool,
+    /// One of a single choice: a radio button, its group the stop for Tab
+    /// and the keys.
+    #[props(default)]
+    radio: bool,
+    onpress: EventHandler<()>,
+) -> Element {
     let focus = use_focus(Kind::Button, move |key, _| {
         if is_press(key) {
             onpress.call(());
@@ -341,11 +386,15 @@ fn Chip(choice: Choice, on: bool, onpress: EventHandler<()>) -> Element {
         button {
             class: "unit-chip{on}{marked}{ring}",
             r#type: "button",
-            "aria-pressed": if pressed { "true" } else { "false" },
+            role: radio.then_some("radio"),
+            "aria-pressed": (!radio).then_some(if pressed { "true" } else { "false" }),
+            "aria-checked": radio.then_some(if pressed { "true" } else { "false" }),
+            tabindex: radio.then_some("-1"),
             "aria-label": choice.badge.as_ref().map(|b| format!("{}, {b}", choice.label)),
             style: choice.style.clone().unwrap_or_default(),
-            onpointerdown: move |_| focus.press(),
-            onfocus: move |_| focus.dom_focus(),
+            // The group has the keys, for its arrows; a chip has none.
+            onpointerdown: move |_| if !radio { focus.press() },
+            onfocus: move |_| if !radio { focus.dom_focus() },
             onblur: move |_| focus.dom_blur(),
             onclick: move |e: MouseEvent| {
                 e.stop_propagation();

@@ -1436,7 +1436,14 @@ fn a_chip_shows_its_colour_and_count_and_is_read_by_its_label() {
         Some("Family, 4")
     );
     click(&mut doc, family);
-    assert_eq!(attr(&doc, family, "aria-pressed").as_deref(), Some("true"));
+    // One of a circle at a time: a radio button, checked.
+    assert_eq!(attr(&doc, family, "role").as_deref(), Some("radio"));
+    assert_eq!(attr(&doc, family, "aria-checked").as_deref(), Some("true"));
+    // The group has the keys: the arrows move the choice.
+    key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    let friends = find(&doc, ".unit-chip", "Friends12");
+    assert_eq!(attr(&doc, friends, "aria-checked").as_deref(), Some("true"));
+    assert_eq!(attr(&doc, family, "aria-checked").as_deref(), Some("false"));
 }
 
 /// Backspace, as the window sends it: on a Mac, AppKit's `deleteBackward:`.
@@ -2805,4 +2812,38 @@ fn the_viewers_bar_holds_the_pages_own_buttons_for_the_photo_shown() {
     assert!(rect(&doc, share).0 < rect(&doc, close).0);
     // Tab reaches it, as it does any button: it is not passed by.
     assert_ne!(attr(&doc, share, "tabindex").as_deref(), Some("-1"));
+}
+
+#[test]
+fn a_nav_bar_goes_forward_and_a_tab_bar_holds_a_button_apart_from_its_places() {
+    let mut doc = page(390, 844);
+    let forward = labelled(&doc, "button", "Forward to Harbour");
+    tap(&mut doc, forward);
+    assert_eq!(said(&doc), "Forward pressed.");
+    let back = labelled(&doc, "button", "Back to Library");
+    assert!(rect(&doc, back).0 < rect(&doc, forward).0, "beside Back");
+    // Clear of the title, on a phone too.
+    let title = {
+        let inner = doc.inner.borrow();
+        inner.query_selector(".unit-navbar-title").unwrap().unwrap()
+    };
+    let (fx, _, fw, _) = rect(&doc, forward);
+    let (tx, _, _, _) = rect(&doc, title);
+    assert!(
+        fx + fw <= tx + 1.0,
+        "forward {} past the title's {tx}",
+        fx + fw
+    );
+    let new = labelled(&doc, ".unit-tabbar button", "New entry");
+    tap(&mut doc, new);
+    assert_eq!(said(&doc), "New entry pressed.");
+    // At the bar's end, and not one of its places.
+    let share = labelled(&doc, ".unit-tabbar-item", "Share");
+    assert!(rect(&doc, new).0 > rect(&doc, share).0);
+    let nodes = tree(&doc);
+    let tabs: Vec<_> = with_role(&nodes, Role::Tab)
+        .into_iter()
+        .filter(|n| ["Shelf", "Search", "Share", "New entry"].contains(&n.label().unwrap_or("")))
+        .collect();
+    assert_eq!(tabs.len(), 3, "three places, the button not a tab");
 }

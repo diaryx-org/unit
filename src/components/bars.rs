@@ -16,13 +16,17 @@ use crate::icon::{Icon, Ink, paths};
 use crate::unit::{Kind, use_focus, use_unit};
 
 /// A bar along the top: a back button at the left, labelled by where it
-/// goes back to, the title in the middle (a button with `ontitle`), and
-/// `trailing` at the right — a page's own buttons.
+/// goes back to, and with `onforward` a forward button beside it, as a
+/// desktop's history has; the title in the middle (a button with `ontitle`:
+/// a rename, a picker), and `trailing` at the right — a page's own buttons.
 #[component]
 pub fn NavBar(
     title: String,
     back: Option<String>,
     onback: Option<EventHandler<()>>,
+    /// Where the forward button goes, for its name: "Forward to Entries".
+    forward: Option<String>,
+    onforward: Option<EventHandler<()>>,
     ontitle: Option<EventHandler<()>>,
     leading: Option<Element>,
     trailing: Option<Element>,
@@ -40,6 +44,11 @@ pub fn NavBar(
                                  label: "Back to {b}",
                                  onpress: move |_| if let Some(f) = onback { f.call(()) },
                                  span { "{b}" } }
+                    }
+                    if let Some(f) = onforward {
+                        Button { variant: Variant::Ghost, class: "unit-icon", icon: paths::CHEVRON_RIGHT,
+                                 label: match &forward { Some(to) => format!("Forward to {to}"), None => "Forward".to_string() },
+                                 onpress: move |_| f.call(()) }
                     }
                     {leading}
                 }
@@ -73,13 +82,15 @@ impl BarItem {
 
 /// A bar along the bottom of a few places, the `selected` one lit; read as
 /// tabs. `onchange` is given the place pressed. The arrows move along it
-/// while it has the keys.
+/// while it has the keys. `trailing` is a button of the page's own at its
+/// end, apart from the places: a new entry's.
 #[component]
 pub fn TabBar(
     items: Vec<BarItem>,
     selected: usize,
     onchange: EventHandler<usize>,
     label: Option<String>,
+    trailing: Option<Element>,
     #[props(default)] class: String,
 ) -> Element {
     let unit = use_unit();
@@ -97,8 +108,9 @@ pub fn TabBar(
         true
     });
     rsx! {
-        div { class: "unit-tabbar{focus.class()} {class}", role: "tablist", "aria-label": label,
+        div { class: "unit-tabbar {class}",
             style: "padding-bottom: {safe.bottom}px; padding-left: {safe.left}px; padding-right: {safe.right}px",
+          div { class: "unit-tabbar-tabs{focus.class()}", role: "tablist", "aria-label": label,
             tabindex: "0",
             onpointerdown: move |_| focus.press(),
             onfocus: move |_| focus.dom_focus(),
@@ -116,6 +128,10 @@ pub fn TabBar(
                     Icon { d: item.icon, ink: if i == selected { Ink::Accent } else { Ink::Dim }, size: 24.0 }
                     span { class: "unit-tabbar-label", "{item.label}" }
                 }
+            }
+          }
+            if let Some(t) = trailing {
+                div { class: "unit-tabbar-trailing", {t} }
             }
         }
     }
