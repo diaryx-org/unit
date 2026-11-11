@@ -265,6 +265,10 @@ pub fn PhotoViewer(
     /// The most a photo zooms, as a multiple of the size that fits.
     #[props(default = MOST)]
     most: f64,
+    /// Buttons of the page's own in the bar, before Close: what is done to
+    /// the photo shown (`photos[index]`), Share, Favourite, Delete. They fade
+    /// with the bar as the photo is dragged down.
+    actions: Option<Element>,
     #[props(default)] class: String,
 ) -> Element {
     let unit = use_unit();
@@ -754,8 +758,11 @@ pub fn PhotoViewer(
             }
             div { class: "unit-viewer-bar", style: "padding-top: {safe.top + 6.0}px; padding-left: {safe.left + 16.0}px; padding-right: {safe.right + 8.0}px; opacity: {fade}",
                 span { class: "unit-viewer-count", "{count}" }
-                Button { variant: Variant::Ghost, class: "unit-icon", label: "Close", icon: paths::CLOSE,
-                         refuses_keys: true, onpress: move |_| onclose.call(()) }
+                div { class: "unit-viewer-actions",
+                    {actions}
+                    Button { variant: Variant::Ghost, class: "unit-icon", label: "Close", icon: paths::CLOSE,
+                             refuses_keys: true, onpress: move |_| onclose.call(()) }
+                }
             }
             if let Some(c) = &photo.caption {
                 div { class: "unit-viewer-caption", style: "padding-bottom: {safe.bottom + 14.0}px; opacity: {fade}",

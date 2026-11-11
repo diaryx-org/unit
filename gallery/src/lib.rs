@@ -740,7 +740,11 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
             Slider { label: "Volume", value: volume(), onchange: move |v| volume.set(v) }
         }
         PhotoViewer { open: viewing().is_some(), photos: photos.clone(), index: viewing().unwrap_or(0),
-                      onchange: move |i| viewing.set(Some(i)), onclose: move |_| viewing.set(None) }
+                      onchange: move |i| viewing.set(Some(i)), onclose: move |_| viewing.set(None),
+                      actions: rsx! {
+                          Button { variant: Variant::Ghost, class: "unit-icon", label: "Share", icon: paths::SHARE,
+                                   onpress: move |_| said.set(format!("Shared photo {}.", viewing().unwrap_or(0) + 1)) }
+                      } }
     }
 }
 

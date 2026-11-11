@@ -511,6 +511,7 @@ pub const CSS: &str = r#"
                    justify-content: space-between; gap: 8px; padding-bottom: 14px;
                    background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0)); }
 .unit-viewer-count { color: var(--unit-text); }
+.unit-viewer-actions { display: flex; align-items: center; gap: 4px; }
 .unit-viewer .unit-button.unit-viewer-prev, .unit-viewer .unit-button.unit-viewer-next {
     position: absolute; top: 50%; margin-top: -22px; width: 44px; height: 44px;
     background: rgba(0, 0, 0, 0.55); border-radius: 22px; }

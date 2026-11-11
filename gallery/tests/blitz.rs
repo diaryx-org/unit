@@ -2790,3 +2790,19 @@ fn a_tile_not_to_be_chosen_is_left_out_and_a_tiles_own_button_is_its_own() {
         "none on the one uploading"
     );
 }
+
+#[test]
+fn the_viewers_bar_holds_the_pages_own_buttons_for_the_photo_shown() {
+    let mut doc = page(1200, 800);
+    open_photos(&mut doc);
+    key(&mut doc, Key::Named(NamedKey::ArrowRight));
+    let share = labelled(&doc, ".unit-viewer-bar button", "Share");
+    click(&mut doc, share);
+    assert_eq!(said(&doc), "Shared photo 2.");
+    assert!(viewer(&doc).is_some(), "and the viewer stays");
+    // Before Close, in the bar's corner.
+    let close = labelled(&doc, ".unit-viewer-bar button", "Close");
+    assert!(rect(&doc, share).0 < rect(&doc, close).0);
+    // Tab reaches it, as it does any button: it is not passed by.
+    assert_ne!(attr(&doc, share, "tabindex").as_deref(), Some("-1"));
+}
