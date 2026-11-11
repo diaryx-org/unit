@@ -1,5 +1,6 @@
 //! A modal with content of the page's own — a form, a settings pane — over
-//! the page, centred or as a sheet from the bottom.
+//! the page, centred or as a sheet from the bottom: on a phone, as its
+//! sheets are, and in the middle of a wider window ([`Placement`]).
 //!
 //! It is drawn where the page puts it, not in the overlay, so its content
 //! keeps its hooks and its place in the page's tree. It can be in the tree
@@ -21,6 +22,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 
 use crate::components::button::Variant;
+use crate::theme::Density;
 use crate::unit::{next_id, use_unit};
 use crate::{Button, Icon, Ink, icon::paths};
 
@@ -30,8 +32,38 @@ pub enum Placement {
     /// In the middle of the page.
     #[default]
     Center,
-    /// Along the bottom, full width: a phone's sheet.
+    /// A sheet where a sheet suits the window, and else in the middle: along
+    /// the bottom, full width, on a window narrower than [`COMPACT`] (a
+    /// phone held upright), and a card in the middle of a wider one or of a
+    /// touch screen held sideways and shorter than [`SHORT`], where a sheet
+    /// the whole width would be cut by the short screen ([`sheet_suits`]).
     Sheet,
+    /// Along the bottom, full width, whatever the window: a sheet that does
+    /// not adapt.
+    BottomSheet,
+}
+
+/// The width below which a window is a phone's and a [`Placement::Sheet`]
+/// sits along its bottom, in CSS pixels.
+pub const COMPACT: f64 = 720.0;
+
+/// The height below which a touch screen wider than it is tall is a phone
+/// held sideways, in CSS pixels.
+pub const SHORT: f64 = 500.0;
+
+/// Whether a [`Placement::Sheet`] sits along the bottom of a window
+/// `viewport` (width, height) at `density`: below [`COMPACT`] wide, unless
+/// a touch screen held sideways and shorter than [`SHORT`]. With no size
+/// known (0 × 0, where the host has not set it), a finger's density gets the
+/// sheet and a pointer's the card.
+pub fn sheet_suits(viewport: (f64, f64), density: Density) -> bool {
+    let (w, h) = viewport;
+    let touch = density == Density::Touch;
+    if w <= 0.0 || h <= 0.0 {
+        return touch;
+    }
+    let sideways = touch && h < SHORT && w > h;
+    w < COMPACT && !sideways
 }
 
 /// How far a sheet is dragged down before letting go closes it, in CSS
@@ -47,11 +79,10 @@ pub const DISMISS: f64 = 90.0;
 /// neither, a close button at the right, unless `close_button` is false:
 /// while something it started runs, and is not to be closed by a press.
 ///
-/// A sheet with an `inset` floats that far off the window's sides and
-/// bottom, a card with every corner rounded, rather than along the bottom
-/// edge; `clear` is what it keeps clear of under it while the keyboard is
-/// down, a host's own bar, and `max_height` how much of the height it may
-/// take, as a fraction.
+/// [`Placement::Sheet`] is a sheet on a phone and a card in the middle of a
+/// wider window, `width` wide, as the window's size and density say
+/// ([`sheet_suits`]); [`Placement::BottomSheet`] is a sheet everywhere.
+/// `max_height` is how much of the height it may take, as a fraction.
 #[component]
 pub fn Modal(
     open: bool,
@@ -72,14 +103,6 @@ pub fn Modal(
     /// Whether its title bar has a close button, with no `cancel` or `done`.
     #[props(default = true)]
     close_button: bool,
-    /// How far a sheet floats off the window's sides and bottom, in CSS
-    /// pixels: 0 along the bottom edge.
-    #[props(default)]
-    inset: f64,
-    /// What a floating sheet keeps clear of below it while the keyboard is
-    /// down, in CSS pixels: a host's bar along the bottom.
-    #[props(default)]
-    clear: f64,
     /// How much of the height it may take, as a fraction.
     #[props(default = 1.0)]
     max_height: f64,
@@ -104,39 +127,25 @@ pub fn Modal(
         drag.set(None);
     }
 
-    let sheet = placement == Placement::Sheet;
-    let floats = sheet && inset > 0.0;
+    let viewport = unit.layer.read().viewport;
+    let sheet = match placement {
+        Placement::Center => false,
+        Placement::Sheet => sheet_suits(viewport, *unit.density.peek()),
+        Placement::BottomSheet => true,
+    };
     let drags = sheet && draggable;
     let (safe, keyboard) = unit.edges();
     let display = if open { "flex" } else { "none" };
-    let (place, panel) = match (sheet, floats) {
-        (true, true) => (
-            "unit-modal-place unit-sheet-place",
-            "unit-modal unit-sheet unit-floating",
-        ),
-        (true, false) => ("unit-modal-place unit-sheet-place", "unit-modal unit-sheet"),
-        _ => ("unit-modal-place", "unit-modal"),
+    let (place, panel) = if sheet {
+        ("unit-modal-place unit-sheet-place", "unit-modal unit-sheet")
+    } else {
+        ("unit-modal-place", "unit-modal")
     };
     let tall = format!("max-height: {}%", max_height * 100.0);
     // The place keeps the panel off the status bar, and a sheet on the
     // keyboard's top edge; a sheet's own padding keeps its content off the
     // home indicator, which the keyboard covers while it is up.
-    // A floating sheet is held off the edges by its place, and off the
-    // home indicator and the host's bar, or the keyboard while it is up.
-    let place_style = if floats {
-        let below = if keyboard > 0.0 {
-            keyboard
-        } else {
-            safe.bottom.max(clear)
-        };
-        format!(
-            "display: {display}; padding: {}px {}px {}px {}px",
-            safe.top + 16.0,
-            safe.right + inset,
-            below + inset,
-            safe.left + inset
-        )
-    } else if sheet {
+    let place_style = if sheet {
         format!(
             "display: {display}; padding-top: {}px; padding-bottom: {keyboard}px",
             safe.top + 16.0
@@ -151,9 +160,7 @@ pub fn Modal(
         )
     };
     let dy = drag().map_or(0.0, |(_, dy)| dy);
-    let panel_style = if floats {
-        format!("{tall}; transform: translateY({dy}px)")
-    } else if sheet {
+    let panel_style = if sheet {
         let bottom = if keyboard > 0.0 { 0.0 } else { safe.bottom };
         format!(
             "{tall}; padding-bottom: {}px; padding-left: {}px; padding-right: {}px; transform: translateY({dy}px)",
@@ -258,5 +265,28 @@ pub fn Modal(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_sheet_suits_a_phone_held_upright_and_nothing_wider() {
+        let touch = Density::Touch;
+        let pointer = Density::Regular;
+        assert!(sheet_suits((390.0, 844.0), touch), "a phone upright");
+        assert!(!sheet_suits((844.0, 390.0), touch), "held sideways");
+        assert!(
+            !sheet_suits((600.0, 390.0), touch),
+            "sideways, if narrow too"
+        );
+        assert!(!sheet_suits((1024.0, 1366.0), touch), "a tablet");
+        assert!(!sheet_suits((1200.0, 800.0), pointer), "a desktop");
+        assert!(sheet_suits((500.0, 800.0), pointer), "a narrow window");
+        // With no size known, the density says.
+        assert!(sheet_suits((0.0, 0.0), touch));
+        assert!(!sheet_suits((0.0, 0.0), pointer));
     }
 }
