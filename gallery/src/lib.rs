@@ -295,6 +295,10 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let tiles: Vec<Tile> = files.iter().map(File::tile).collect();
     let rows: Vec<TableRow> = files.iter().map(File::row).collect();
     let file_menu = vec![
+        Entry::header(match chosen().len() {
+            1 => "1 file".to_string(),
+            n => format!("{n} files"),
+        }),
         Item::new(OPEN, "Open").into(),
         Item::new(RENAME, "Rename…").into(),
         Entry::Separator,

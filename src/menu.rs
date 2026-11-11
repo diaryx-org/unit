@@ -80,6 +80,9 @@ const ICON: f64 = 22.0;
 pub enum Entry {
     Item(Item),
     Separator,
+    /// A heading over the entries after it: what a menu is about ("The
+    /// entry"), or a group's name. It is not chosen, and the arrows pass it.
+    Header(String),
     /// A label that opens another menu beside it.
     Submenu {
         label: String,
@@ -156,6 +159,11 @@ impl From<Item> for Entry {
 }
 
 impl Entry {
+    /// A heading over the entries after it.
+    pub fn header(label: impl Into<String>) -> Self {
+        Entry::Header(label.into())
+    }
+
     /// A submenu of `entries`, enabled while any of them is.
     pub fn submenu(label: impl Into<String>, entries: Vec<Entry>) -> Self {
         let enabled = entries.iter().any(Entry::enabled);
@@ -169,7 +177,7 @@ impl Entry {
     pub fn enabled(&self) -> bool {
         match self {
             Entry::Item(i) => i.enabled,
-            Entry::Separator => false,
+            Entry::Separator | Entry::Header(_) => false,
             Entry::Submenu { enabled, .. } => *enabled,
         }
     }
@@ -192,6 +200,7 @@ impl Entry {
                         .map_or(0.0, |s| chars(s) * z.char + 24.0)
             }
             Entry::Separator => 0.0,
+            Entry::Header(label) => chars(label) * z.char,
             Entry::Submenu { label, .. } => chars(label) * z.char + 16.0,
         }
     }
@@ -474,6 +483,31 @@ mod tests {
     }
 
     const PAGE: (f64, f64) = (800.0, 600.0);
+
+    #[test]
+    fn a_heading_is_an_item_tall_and_never_highlighted() {
+        let headed = vec![
+            Entry::header("The entry"),
+            Item::new(1, "Open").into(),
+            Entry::Separator,
+            Entry::header("Danger"),
+            Item::new(2, "Delete").destructive().into(),
+        ];
+        let l = Level::new(headed, Sizes::REGULAR);
+        let z = Sizes::REGULAR;
+        assert_eq!(l.height(), 2.0 * z.pad + 4.0 * z.item + z.separator);
+        assert_eq!(
+            l.step(None, true),
+            Some(1),
+            "the first item, under the heading"
+        );
+        assert_eq!(
+            l.step(Some(1), true),
+            Some(4),
+            "past the rule and the heading"
+        );
+        assert_eq!(l.step(Some(4), true), Some(1), "round, past the heading");
+    }
 
     #[test]
     fn a_menu_opens_where_it_was_asked_and_inside_the_page() {

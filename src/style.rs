@@ -41,6 +41,7 @@ pub const CSS: &str = r#"
 .unit-key { flex: none; padding-left: 18px; color: var(--unit-dim); }
 .unit-item.hot .unit-key { color: var(--unit-accent-text); }
 .unit-sep { height: 9px; padding: 4px 10px; }
+.unit-item.unit-header { color: var(--unit-dim); font-size: 0.85em; font-weight: 600; }
 .unit-rule { height: 1px; background: var(--unit-separator); }
 .unit-root[data-density="touch"] .unit-menu { padding: 6px 0; font-size: 17px; border-radius: 12px; }
 .unit-root[data-density="touch"] .unit-item { height: 44px; line-height: 44px; border-radius: 8px; }

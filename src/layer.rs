@@ -550,6 +550,12 @@ fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, hot: bool) -> E
         Entry::Separator => rsx! {
             div { class: "unit-sep", role: "separator", div { class: "unit-rule" } }
         },
+        Entry::Header(label) => rsx! {
+            div { class: "unit-item unit-header", role: "presentation",
+                span { class: "unit-tick" }
+                span { class: "unit-label", "{label}" }
+            }
+        },
         Entry::Item(item) => {
             let tick = if item.checked { "✓" } else { "" };
             let shortcut = item.shortcut.clone().unwrap_or_default();

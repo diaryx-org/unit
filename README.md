@@ -64,8 +64,9 @@ fn App() -> Element {
 `UnitRoot` puts the theme's stylesheet in the page, keeps the page's focus,
 and draws the overlay that menus, dialogs and toasts appear in. A page
 rendered on a server can pass `stylesheet: false` and serve
-`Unit::stylesheet(&theme)` as a file of its own, which a browser caches. A browser and
-dioxus-native's `launch` need nothing more. A host that reads keys itself, as
+`Unit::stylesheet(&theme)` as a file of its own, which a browser caches. A
+browser needs nothing more; a window drawn by Blitz needs what the host
+checklist below says. A host that reads keys itself, as
 an editor reading them from winit does, passes `keys: Keys::Host`, calls
 `Unit::key` and `Unit::text` before it uses a key, and gives keys to the
 renderer while `Unit::typing()`. A toolbar over the host's editor gives
@@ -83,12 +84,22 @@ focus ring drawn from them, followed when the user changes them:
 unit = { git = "https://github.com/diaryx-org/unit", branch = "main", features = ["apple"] }
 ```
 
-On a phone, the host tells unit what the platform knows and Blitz does not
-pass on: the safe area (`Unit::set_insets`), which sheets, bars, dialogs
-and toasts keep clear of; the soft keyboard's height (`Unit::set_keyboard`),
-which a sheet sits on and a toast above; the appearance, `Light` or `Dark`
-rather than `System`; and a sleep (`Unit::set_timer`), which times a long
-press while the finger is still down.
+### What a host tells unit
+
+A browser tells unit what it needs. Blitz passes on none of it, so a host
+drawing with Blitz (dioxus-native, an app of its own) tells unit itself, on
+**every** platform it runs on, not only the one it was first written for:
+
+| Call | When | Without it |
+|---|---|---|
+| `Unit::set_viewport(w, h)` | at start, and whenever the window is resized or its scale changes: winit's `SurfaceResized` and `ScaleFactorChanged`, in logical pixels | menus are not kept inside the window; `PhotoViewer` fits its photo and does not zoom or slide; `Sheet` cannot tell a phone from a desktop, and goes by density |
+| `Unit::set_timer(sleep)` | at start: the host runtime's sleep | a long press fires only when the finger lifts; `PhotoViewer`'s flings, springs and slides jump to where they end |
+| `Unit::set_insets(safe)` | on a phone, at start and whenever the safe area changes | sheets, bars, dialogs, toasts and the photo viewer run under the status bar and the home indicator |
+| `Unit::set_keyboard(h)` | on a phone, as the soft keyboard rises and falls | a sheet and a toast are covered by the keyboard |
+| `appearance: Light` or `Dark` on `UnitRoot` | where the host knows the system's appearance | the styles follow the colour scheme Blitz is given, but what is coloured from Rust (`Unit::ink`) reads `System` as light |
+
+The gallery's `WindowSize` (`gallery/src/lib.rs`) does the first for
+dioxus-native's window.
 
 ## Why it is built the way it is
 

@@ -163,6 +163,7 @@ pub fn Callout(
     action: Option<String>,
     onaction: Option<EventHandler<()>>,
     ondismiss: Option<EventHandler<()>>,
+    #[props(default)] class: String,
     children: Element,
 ) -> Element {
     let role = match tone {
@@ -170,7 +171,7 @@ pub fn Callout(
         _ => "note",
     };
     rsx! {
-        div { class: "unit-callout{tone.class()}", role,
+        div { class: "unit-callout{tone.class()} {class}", role,
             div { class: "unit-callout-body",
                 if let Some(t) = title {
                     div { class: "unit-callout-title", "{t}" }
