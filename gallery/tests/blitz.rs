@@ -512,6 +512,87 @@ fn touch_density_draws_menu_rows_the_height_their_geometry_assumes() {
     assert!(w > 0.0);
 }
 
+/// A menu too tall for the page scrolls, and the next one opened starts at
+/// its first row: the level's element is the same one, and would otherwise
+/// keep how far the last was scrolled, with its rows out of its top.
+#[test]
+fn a_menu_opens_at_its_first_row_after_one_that_was_scrolled() {
+    // A page too short for the menu, scrolled to its button — under the
+    // gallery's own bar, which stays put — so that the menu has no room
+    // above the button either.
+    let mut doc = page(1200, 150);
+    let edit = find(&doc, "button", "Edit ▾");
+    let (_, y, _, _) = rect(&doc, edit);
+    let to = blitz_dom::Point {
+        x: 0.0,
+        y: y - 120.0,
+    };
+    doc.inner.borrow_mut().set_viewport_scroll(to);
+    settle(&mut doc);
+    let scrolled = doc.inner.borrow().viewport_scroll().y as f32;
+    // A click at a place in the window, the page scrolled as it is.
+    let click_at = |doc: &mut DioxusDocument, x: f64, y: f64| {
+        for (step, buttons) in [
+            (0, MouseEventButtons::None),
+            (1, MouseEventButtons::Primary),
+            (2, MouseEventButtons::None),
+        ] {
+            let mut at = pointer(BlitzPointerId::Mouse, x, y, buttons);
+            at.coords.page_y += scrolled;
+            doc.handle_ui_event(match step {
+                0 => UiEvent::PointerMove(at),
+                1 => UiEvent::PointerDown(at),
+                _ => UiEvent::PointerUp(at),
+            });
+            settle(doc);
+        }
+    };
+    let press = |doc: &mut DioxusDocument| {
+        let (x, y, w, h) = rect(doc, edit);
+        click_at(doc, x + w / 2.0, y + h / 2.0);
+    };
+    // The menu's box and its first row's.
+    let boxes = |doc: &DioxusDocument| {
+        let inner = doc.inner.borrow();
+        let menu = inner.query_selector(".unit-menu").unwrap().unwrap();
+        let row = inner.query_selector(".unit-item").unwrap().unwrap();
+        drop(inner);
+        (rect(doc, menu), rect(doc, row))
+    };
+    press(&mut doc);
+    let ((_, my, _, mh), (_, ry, _, _)) = boxes(&doc);
+    assert!(mh < 150.0, "as tall as the page has room for: {mh}");
+    assert!(ry >= my, "its first row in it: {ry} in {my}");
+    let rows = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-menu-rows")
+        .unwrap()
+        .unwrap();
+    doc.inner
+        .borrow_mut()
+        .scroll_by(rows, 0.0, 1e6, blitz_dom::ScrollBehavior::Instant);
+    settle(&mut doc);
+    let ((_, my, _, _), (_, ry, _, _)) = boxes(&doc);
+    assert!(
+        ry < my,
+        "scrolled, its first row is above it: {ry} over {my}"
+    );
+    // A press outside it closes it, and one on its button opens it again.
+    let menu = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-menu")
+        .unwrap()
+        .unwrap();
+    click_at(&mut doc, 20.0, 140.0);
+    assert!(!displayed(&doc, menu), "closed");
+    press(&mut doc);
+    assert!(displayed(&doc, menu), "open again");
+    let ((_, my, _, _), (_, ry, _, _)) = boxes(&doc);
+    assert!(ry >= my, "opened again at its first row: {ry} in {my}");
+}
+
 /// A key at the page, where Blitz sends it: to its focused element, or the
 /// document's root with none.
 #[test]

@@ -219,7 +219,14 @@ pub struct Level {
     pub clip: Option<f64>,
     pub hot: Option<usize>,
     pub sizes: Sizes,
+    /// Which opening this is, of every level any menu has opened: the box
+    /// its rows scroll in is drawn anew for each (`layer.rs`), so a level
+    /// opens at its first row however far the last one was scrolled.
+    pub opening: u64,
 }
+
+/// The next level's [`Level::opening`].
+static OPENINGS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 impl Level {
     fn new(entries: Vec<Entry>, z: Sizes) -> Self {
@@ -233,6 +240,7 @@ impl Level {
             clip: None,
             hot: None,
             sizes: z,
+            opening: OPENINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         }
     }
 

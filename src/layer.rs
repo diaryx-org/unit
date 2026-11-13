@@ -485,28 +485,33 @@ fn LayerView(unit: Unit) -> Element {
 fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
     // One template whether the level is open or not: Blitz does not lay out
     // an absolutely positioned element a later frame inserts, so this one is
-    // only ever restyled, and its items changed.
-    let (style, entries, hot) = match &level {
+    // only ever restyled. Its rows are in a box of their own, which scrolls
+    // where the level is taller than the page has room for, and that box is
+    // a new one for every level opened: an element keeps how far it was
+    // scrolled, and Blitz goes on drawing its content that far up when what
+    // it holds next is short enough to fit, out of the top of the menu.
+    let (style, rows) = match &level {
         Some(l) => (
             format!(
-                "display: block; left: {}px; top: {}px; width: {}px; {}",
-                l.left,
-                l.top,
-                l.width,
-                // Taller than the page has room for: that tall, less its own
-                // padding and border, and scrolling.
+                "display: block; left: {}px; top: {}px; width: {}px",
+                l.left, l.top, l.width
+            ),
+            Some((
+                l.opening,
+                // Taller than the page has room for: that tall, less the
+                // menu's own padding and border, and scrolling.
                 match l.clip {
                     Some(h) => format!(
                         "height: {}px; overflow-y: auto",
                         h - 2.0 * l.sizes.pad - 2.0
                     ),
-                    None => "height: auto; overflow-y: visible".to_string(),
-                }
-            ),
-            l.entries.clone(),
-            l.hot,
+                    None => String::new(),
+                },
+                l.entries.clone(),
+                l.hot,
+            )),
         ),
-        None => ("display: none".to_string(), Vec::new(), None),
+        None => ("display: none".to_string(), None),
     };
     rsx! {
         div { class: "unit-menu", role: "menu", style,
@@ -519,14 +524,18 @@ fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
                     m.press();
                 }
             },
-            onscroll: move |_| {
-                let mut l = unit.layer;
-                if let Some((m, _)) = l.write().menu.as_mut() {
-                    m.scroll();
+            for (opening, style, entries, hot) in rows {
+                div { key: "{opening}", class: "unit-menu-rows", style,
+                    onscroll: move |_| {
+                        let mut l = unit.layer;
+                        if let Some((m, _)) = l.write().menu.as_mut() {
+                            m.scroll();
+                        }
+                    },
+                    for (i, entry) in entries.iter().enumerate() {
+                        {entry_view(unit, depth, i, entry, hot == Some(i))}
+                    }
                 }
-            },
-            for (i, entry) in entries.iter().enumerate() {
-                {entry_view(unit, depth, i, entry, hot == Some(i))}
             }
         }
     }
