@@ -43,3 +43,7 @@ blitz-traits = "=0.3.0-beta.4"
 accesskit = "0.25"
 atomic_refcell = "0.1"
 keyboard-types = "0.8"
+
+# The page's address on the web, for a theme asked for in it (`?theme=soft`).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"

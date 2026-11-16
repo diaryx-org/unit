@@ -28,6 +28,11 @@ pub struct Sizes {
     pub margin: f64,
     /// How far a submenu overlaps its parent, as the system's do.
     pub overlap: f64,
+    /// A palette's height: a row of items side by side, each an icon over
+    /// a short label ([`Entry::Palette`]).
+    pub palette: f64,
+    /// A palette's narrowest cell.
+    pub cell: f64,
 }
 
 impl Sizes {
@@ -39,6 +44,8 @@ impl Sizes {
         min_width: 160.0,
         margin: 4.0,
         overlap: 4.0,
+        palette: 44.0,
+        cell: 52.0,
     };
 
     /// For a finger: rows tall enough to tap.
@@ -50,6 +57,8 @@ impl Sizes {
         min_width: 200.0,
         margin: 4.0,
         overlap: 4.0,
+        palette: 64.0,
+        cell: 64.0,
     };
 
     /// For a terminal's cells: an item and a separator a row each, and a
@@ -66,6 +75,9 @@ impl Sizes {
         min_width: 160.0,
         margin: 0.0,
         overlap: 9.7,
+        // A row: the labels side by side, no icons.
+        palette: 24.0,
+        cell: 48.0,
     };
 }
 
@@ -89,6 +101,12 @@ pub enum Entry {
         entries: Vec<Entry>,
         enabled: bool,
     },
+    /// Items side by side in one row, each an icon over a short label: the
+    /// few things done most, at the top of a long menu (Copy, Share,
+    /// Duplicate, Delete), or a choice of a few, ticked where it stands
+    /// (Reflow, Pages, Source) instead of a submenu of them. One entry for
+    /// the arrows up and down; left and right go along it.
+    Palette(Vec<Item>),
 }
 
 /// An item that does something when chosen: its `id` is what the menu's
@@ -174,17 +192,24 @@ impl Entry {
         }
     }
 
+    /// A row of `items` side by side ([`Entry::Palette`]).
+    pub fn palette(items: Vec<Item>) -> Self {
+        Entry::Palette(items)
+    }
+
     pub fn enabled(&self) -> bool {
         match self {
             Entry::Item(i) => i.enabled,
             Entry::Separator | Entry::Header(_) => false,
             Entry::Submenu { enabled, .. } => *enabled,
+            Entry::Palette(items) => items.iter().any(|i| i.enabled),
         }
     }
 
     fn height(&self, z: Sizes) -> f64 {
         match self {
             Entry::Separator => z.separator,
+            Entry::Palette(_) => z.palette,
             _ => z.item,
         }
     }
@@ -202,6 +227,17 @@ impl Entry {
             Entry::Separator => 0.0,
             Entry::Header(label) => chars(label) * z.char,
             Entry::Submenu { label, .. } => chars(label) * z.char + 16.0,
+            // The cells share the row equally, so each is as wide as the
+            // widest label in the palette's smaller face, or its narrowest;
+            // less the gutters a row leaves for a tick and an arrow, which a
+            // palette has no need of.
+            Entry::Palette(items) => {
+                let widest = items
+                    .iter()
+                    .map(|i| (chars(&i.label) * z.char * 0.9 + 14.0).max(z.cell))
+                    .fold(0.0, f64::max);
+                widest * items.len() as f64 - GUTTERS + 12.0
+            }
         }
     }
 }
@@ -218,6 +254,9 @@ pub struct Level {
     /// the page has for it: it scrolls inside that. `None` where they fit.
     pub clip: Option<f64>,
     pub hot: Option<usize>,
+    /// Which of a palette's items is highlighted, where [`Level::hot`] is
+    /// a palette.
+    pub cell: usize,
     pub sizes: Sizes,
     /// Which opening this is, of every level any menu has opened: the box
     /// its rows scroll in is drawn anew for each (`layer.rs`), so a level
@@ -239,6 +278,7 @@ impl Level {
             width,
             clip: None,
             hot: None,
+            cell: 0,
             sizes: z,
             opening: OPENINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         }
@@ -291,6 +331,41 @@ impl Level {
             i = Some(next);
         }
         None
+    }
+
+    /// Highlight entry `i`, and where it is a palette, its first item that
+    /// can be chosen at or after `cell`. Over a row, `cell` is kept: the
+    /// column the arrows go on down in, into the next palette.
+    fn light(&mut self, i: Option<usize>, cell: usize) {
+        self.hot = i;
+        self.cell = cell;
+        if let Some(Entry::Palette(items)) = i.and_then(|i| self.entries.get(i)) {
+            let n = items.len();
+            self.cell = (0..n)
+                .map(|k| (cell.min(n.saturating_sub(1)) + k) % n)
+                .find(|&k| items[k].enabled)
+                .unwrap_or(0);
+        }
+    }
+
+    /// Move along the highlighted palette, `right` or left, past what
+    /// cannot be chosen: whether there was anywhere to go.
+    fn along(&mut self, right: bool) -> bool {
+        let Some(Entry::Palette(items)) = self.hot.and_then(|i| self.entries.get(i)) else {
+            return false;
+        };
+        let mut k = self.cell;
+        loop {
+            k = match (right, k) {
+                (true, k) if k + 1 < items.len() => k + 1,
+                (false, k) if k > 0 => k - 1,
+                _ => return false,
+            };
+            if items[k].enabled {
+                self.cell = k;
+                return true;
+            }
+        }
     }
 }
 
@@ -377,14 +452,25 @@ impl Menu {
     /// Highlight entry `i` of level `depth`, opening its submenu or closing
     /// any deeper level.
     pub fn hover(&mut self, depth: usize, i: usize) {
+        self.hover_at(depth, i, 0);
+    }
+
+    /// Highlight item `cell` of the palette at entry `i` of level `depth`
+    /// ([`Menu::hover`] for any other entry). A cell that cannot be chosen
+    /// highlights nothing, as such an item does.
+    pub fn hover_at(&mut self, depth: usize, i: usize, cell: usize) {
         self.armed = true;
         if depth >= self.levels.len() {
             return;
         }
         self.levels.truncate(depth + 1);
         let level = &mut self.levels[depth];
-        let enabled = level.entries.get(i).is_some_and(Entry::enabled);
+        let enabled = match level.entries.get(i) {
+            Some(Entry::Palette(items)) => items.get(cell).is_some_and(|c| c.enabled),
+            entry => entry.is_some_and(Entry::enabled),
+        };
         level.hot = enabled.then_some(i);
+        level.cell = if enabled { cell } else { 0 };
         if enabled {
             self.open_submenu(depth, i);
         }
@@ -425,7 +511,8 @@ impl Menu {
     /// Highlight the first level's first item that can be chosen.
     pub fn hot_first(&mut self) {
         let level = &mut self.levels[0];
-        level.hot = level.step(None, true);
+        let first = level.step(None, true);
+        level.light(first, 0);
     }
 
     /// The pointer pressed in the menu.
@@ -436,21 +523,38 @@ impl Menu {
 
     /// The pointer let go over entry `i` of level `depth`.
     pub fn release(&mut self, depth: usize, i: usize) -> Outcome {
+        self.release_at(depth, i, 0)
+    }
+
+    /// The pointer let go over item `cell` of the palette at entry `i` of
+    /// level `depth` ([`Menu::release`] for any other entry).
+    pub fn release_at(&mut self, depth: usize, i: usize, cell: usize) -> Outcome {
         if !self.armed || std::mem::take(&mut self.scrolled) {
             return Outcome::Handled;
+        }
+        if let Some(level) = self.levels.get_mut(depth)
+            && matches!(level.entries.get(i), Some(Entry::Palette(_)))
+        {
+            level.cell = cell;
         }
         self.activate(depth, i)
     }
 
     fn activate(&mut self, depth: usize, i: usize) -> Outcome {
-        match self.levels.get(depth).and_then(|l| l.entries.get(i)) {
+        let level = self.levels.get(depth);
+        let cell = level.map_or(0, |l| l.cell);
+        match level.and_then(|l| l.entries.get(i)) {
             Some(Entry::Item(item)) if item.enabled => Outcome::Pick(item.id),
+            Some(Entry::Palette(items)) => match items.get(cell) {
+                Some(item) if item.enabled => Outcome::Pick(item.id),
+                _ => Outcome::Handled,
+            },
             Some(Entry::Submenu { enabled: true, .. }) => {
                 self.levels[depth].hot = Some(i);
                 if self.open_submenu(depth, i) {
                     let deeper = depth + 1;
                     let first = self.levels[deeper].step(None, true);
-                    self.levels[deeper].hot = first;
+                    self.levels[deeper].light(first, 0);
                 }
                 Outcome::Handled
             }
@@ -468,17 +572,24 @@ impl Menu {
             Key::Named(ArrowDown) | Key::Named(ArrowUp) => {
                 let down = *key == Key::Named(ArrowDown);
                 let level = &mut self.levels[depth];
-                level.hot = level.step(level.hot, down);
+                let next = level.step(level.hot, down);
+                // Down a column of a palette and back up it.
+                level.light(next, level.cell);
                 Outcome::Handled
             }
             Key::Named(ArrowRight) => {
-                if let Some(i) = self.levels[depth].hot {
+                if self.levels[depth].along(true) {
+                    return Outcome::Handled;
+                }
+                if let Some(i) = self.levels[depth].hot
+                    && !matches!(self.levels[depth].entries.get(i), Some(Entry::Palette(_)))
+                {
                     self.activate(depth, i);
                 }
                 Outcome::Handled
             }
             Key::Named(ArrowLeft) => {
-                if depth > 0 {
+                if !self.levels[depth].along(false) && depth > 0 {
                     self.levels.pop();
                 }
                 Outcome::Handled
@@ -495,22 +606,36 @@ impl Menu {
             Key::Character(c) if mods.is_empty() || mods == Modifiers::SHIFT => {
                 let c = c.to_lowercase();
                 let level = &mut self.levels[depth];
-                let n = level.entries.len();
-                let start = level.hot.map_or(0, |h| h + 1);
-                let found = (0..n).map(|k| (start + k) % n).find(|&k| {
-                    let label = match &level.entries[k] {
-                        Entry::Item(i) if i.enabled => &i.label,
+                let starts = |label: &str| label.to_lowercase().starts_with(&c);
+                // Each item that can be chosen, as (entry, cell), after the
+                // highlighted one and round: a palette's in its order.
+                let mut stops = Vec::new();
+                for (k, entry) in level.entries.iter().enumerate() {
+                    match entry {
+                        Entry::Item(i) if i.enabled && starts(&i.label) => stops.push((k, 0)),
                         Entry::Submenu {
                             label,
                             enabled: true,
                             ..
-                        } => label,
-                        _ => return false,
-                    };
-                    label.to_lowercase().starts_with(&c)
-                });
-                if found.is_some() {
-                    level.hot = found;
+                        } if starts(label) => stops.push((k, 0)),
+                        Entry::Palette(items) => stops.extend(
+                            items
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, i)| i.enabled && starts(&i.label))
+                                .map(|(cell, _)| (k, cell)),
+                        ),
+                        _ => {}
+                    }
+                }
+                let now = level.hot.map(|h| (h, level.cell));
+                let found = stops
+                    .iter()
+                    .find(|&&stop| now.is_none_or(|now| stop > now))
+                    .or(stops.first());
+                if let Some(&(k, cell)) = found {
+                    level.hot = Some(k);
+                    level.cell = cell;
                 }
                 Outcome::Handled
             }
@@ -661,6 +786,81 @@ mod tests {
         assert_eq!(m.release(0, 0), Outcome::Pick(1));
         // A disabled item never picks.
         assert_eq!(m.release(0, 1), Outcome::Handled);
+    }
+
+    fn palette() -> Vec<Entry> {
+        vec![
+            Entry::header("Notes.md"),
+            Entry::palette(vec![
+                Item::new(1, "Copy"),
+                Item::new(2, "Share").enabled(false),
+                Item::new(3, "Duplicate"),
+                Item::new(4, "Delete").destructive(),
+            ]),
+            Entry::Separator,
+            Item::new(5, "Rename…").into(),
+            Entry::palette(vec![
+                Item::new(6, "Reflow").checked(true),
+                Item::new(7, "Pages").checked(false),
+            ]),
+        ]
+    }
+
+    #[test]
+    fn a_palette_is_one_entry_a_palette_tall_and_as_wide_as_its_cells() {
+        let z = Sizes::REGULAR;
+        let l = Level::new(palette(), z);
+        assert_eq!(
+            l.height(),
+            2.0 * z.pad + 2.0 * z.item + 2.0 * z.palette + z.separator
+        );
+        assert!(l.width >= 4.0 * z.cell, "{}", l.width);
+    }
+
+    #[test]
+    fn the_arrows_go_along_a_palette_and_down_out_of_it() {
+        let mut m = Menu::open(palette(), (0.0, 0.0), 0.0, PAGE, Sizes::REGULAR);
+        let none = Modifiers::empty();
+        let key = |m: &mut Menu, k: NamedKey| m.key(&Key::Named(k), none);
+        m.hot_first();
+        assert_eq!((m.levels[0].hot, m.levels[0].cell), (Some(1), 0));
+        key(&mut m, NamedKey::ArrowRight);
+        // Past Share, which cannot be chosen.
+        assert_eq!(m.levels[0].cell, 2);
+        key(&mut m, NamedKey::ArrowRight);
+        key(&mut m, NamedKey::ArrowRight);
+        assert_eq!(m.levels[0].cell, 3, "it stops at the end");
+        assert_eq!(key(&mut m, NamedKey::Enter), Outcome::Pick(4));
+        key(&mut m, NamedKey::ArrowLeft);
+        assert_eq!(m.levels[0].cell, 2);
+        key(&mut m, NamedKey::ArrowDown);
+        assert_eq!(m.levels[0].hot, Some(3));
+        // Down into the next palette, as near the column as it has.
+        m.levels[0].cell = 0;
+        key(&mut m, NamedKey::ArrowUp);
+        assert_eq!(m.levels[0].hot, Some(1));
+        m.levels[0].cell = 3;
+        key(&mut m, NamedKey::ArrowDown);
+        key(&mut m, NamedKey::ArrowDown);
+        assert_eq!((m.levels[0].hot, m.levels[0].cell), (Some(4), 1));
+        assert_eq!(key(&mut m, NamedKey::Enter), Outcome::Pick(7));
+        // A letter finds a palette's item too.
+        m.key(&Key::Character("d".into()), none);
+        assert_eq!((m.levels[0].hot, m.levels[0].cell), (Some(1), 2));
+        m.key(&Key::Character("d".into()), none);
+        assert_eq!((m.levels[0].hot, m.levels[0].cell), (Some(1), 3));
+    }
+
+    #[test]
+    fn the_pointer_picks_a_palettes_cell_but_never_one_that_is_off() {
+        let mut m = Menu::open(palette(), (0.0, 0.0), 0.0, PAGE, Sizes::REGULAR);
+        m.hover_at(0, 1, 1);
+        assert_eq!(m.levels[0].hot, None, "Share cannot be chosen");
+        assert_eq!(m.release_at(0, 1, 1), Outcome::Handled);
+        m.hover_at(0, 1, 2);
+        assert_eq!((m.levels[0].hot, m.levels[0].cell), (Some(1), 2));
+        assert_eq!(m.release_at(0, 1, 2), Outcome::Pick(3));
+        assert_eq!(m.release_at(0, 4, 0), Outcome::Pick(6));
     }
 
     #[test]

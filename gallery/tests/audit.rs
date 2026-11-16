@@ -169,14 +169,17 @@ struct At {
     appearance: Appearance,
     density: Density,
     size: (f64, f64),
+    /// Which of `Theme::all()`.
+    theme: usize,
 }
 
 impl At {
-    fn of(m: Mode) -> At {
+    fn of(m: Mode, theme: usize) -> At {
         At {
             appearance: m.appearance,
             density: m.density,
             size: (m.width as f64, m.height as f64),
+            theme,
         }
     }
 }
@@ -184,7 +187,7 @@ impl At {
 #[allow(non_snake_case)]
 fn WholeGallery(at: At) -> Element {
     rsx! {
-        GalleryAt { appearance: at.appearance, density: at.density, size: at.size }
+        GalleryAt { appearance: at.appearance, density: at.density, size: at.size, theme: at.theme }
     }
 }
 
@@ -197,6 +200,7 @@ fn LongText(at: At) -> Element {
     let options: Vec<String> = vec![LONG.into(), WORD.into()];
     rsx! {
         UnitRoot { appearance: at.appearance, density: at.density,
+                   theme: unit::Theme::all().swap_remove(at.theme),
             Stack { gap: 12.0,
                 Heading { level: 1, "{LONG}" }
                 Heading { level: 1, "{WORD}" }
@@ -242,12 +246,15 @@ fn laid_out(vdom: VirtualDom, m: Mode) -> DioxusDocument {
     doc
 }
 
-fn gallery(m: Mode) -> DioxusDocument {
-    laid_out(VirtualDom::new_with_props(WholeGallery, At::of(m)), m)
+fn gallery(m: Mode, theme: usize) -> DioxusDocument {
+    laid_out(
+        VirtualDom::new_with_props(WholeGallery, At::of(m, theme)),
+        m,
+    )
 }
 
-fn long_text(m: Mode) -> DioxusDocument {
-    laid_out(VirtualDom::new_with_props(LongText, At::of(m)), m)
+fn long_text(m: Mode, theme: usize) -> DioxusDocument {
+    laid_out(VirtualDom::new_with_props(LongText, At::of(m, theme)), m)
 }
 
 fn rect(doc: &DioxusDocument, node: NodeId) -> (f64, f64, f64, f64) {
@@ -773,16 +780,16 @@ impl Audit {
     }
 }
 
-/// Every check in every mode.
-fn audit() -> Audit {
+/// Every check in every mode, in the `theme`th of `Theme::all()`.
+fn audit(theme: usize) -> Audit {
     let mut a = Audit::default();
     for m in MODES {
-        let mut doc = gallery(m);
+        let mut doc = gallery(m, theme);
         a.page(&doc, m, "page");
         a.keyboard(&mut doc, m);
 
         for (scene, button, scrolled) in SCENES {
-            let mut doc = gallery(m);
+            let mut doc = gallery(m, theme);
             let target = {
                 let inner = doc.inner.borrow();
                 let all = inner.query_selector_all("button").unwrap();
@@ -811,7 +818,7 @@ fn audit() -> Audit {
             }
         }
 
-        let doc = long_text(m);
+        let doc = long_text(m, theme);
         a.page(&doc, m, "long-text");
     }
     a
@@ -862,7 +869,7 @@ fn report(a: &Audit) -> String {
 /// The list of failures only shrinks. See the top of this file.
 #[test]
 fn the_audit_holds() {
-    let a = audit();
+    let a = audit(0);
     // A file, as corgi shows nothing a passing test prints.
     std::fs::create_dir_all("../target").unwrap();
     std::fs::write(REPORT, report(&a)).unwrap();
@@ -899,6 +906,34 @@ fn the_audit_holds() {
         fixed.len(),
         fixed.iter().cloned().collect::<Vec<_>>().join("\n  ")
     );
+}
+
+/// Every other theme unit ships fails no cell its own theme passes: a
+/// theme may round, recolour and unedge a page, and still never take a
+/// check away from it. Its failures, all of them on the baseline, are in
+/// `target/audit-<theme>.txt`.
+#[test]
+fn every_theme_fails_only_what_units_own_does() {
+    let known = listed(Path::new(BASELINE));
+    for (i, theme) in unit::Theme::all().iter().enumerate().skip(1) {
+        let a = audit(i);
+        let name = theme.name.to_lowercase();
+        std::fs::create_dir_all("../target").unwrap();
+        std::fs::write(format!("../target/audit-{name}.txt"), report(&a)).unwrap();
+        let new: Vec<String> = a
+            .failed
+            .iter()
+            .filter(|(c, _)| !known.contains(*c))
+            .map(|(c, why)| format!("  {c}  # {why}"))
+            .collect();
+        assert!(
+            new.is_empty(),
+            "{} fails {} cells unit's own theme passes:\n{}",
+            theme.name,
+            new.len(),
+            new.join("\n")
+        );
+    }
 }
 
 /// A component the gallery does not show is one the audit cannot see.

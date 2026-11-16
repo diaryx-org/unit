@@ -5063,6 +5063,7 @@ dependencies = [
  "dioxus-core",
  "dioxus-native",
  "dioxus-web",
+ "js-sys",
  "keyboard-types",
  "unit",
 ]

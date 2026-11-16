@@ -509,6 +509,7 @@ fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
                 },
                 l.entries.clone(),
                 l.hot,
+                l.cell,
             )),
         ),
         None => ("display: none".to_string(), None),
@@ -524,7 +525,7 @@ fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
                     m.press();
                 }
             },
-            for (opening, style, entries, hot) in rows {
+            for (opening, style, entries, hot, cell) in rows {
                 div { key: "{opening}", class: "unit-menu-rows", style,
                     onscroll: move |_| {
                         let mut l = unit.layer;
@@ -533,7 +534,7 @@ fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
                         }
                     },
                     for (i, entry) in entries.iter().enumerate() {
-                        {entry_view(unit, depth, i, entry, hot == Some(i))}
+                        {entry_view(unit, depth, i, entry, (hot == Some(i)).then_some(cell))}
                     }
                 }
             }
@@ -541,7 +542,13 @@ fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
     }
 }
 
-fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, hot: bool) -> Element {
+/// Entry `i` of level `depth`; `lit` where it is highlighted, with which
+/// of a palette's cells is.
+fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, lit: Option<usize>) -> Element {
+    if let Entry::Palette(items) = entry {
+        return palette_view(unit, depth, i, items, lit);
+    }
+    let hot = lit.is_some();
     let hover = move |_: PointerEvent| {
         let mut l = unit.layer;
         let now = l
@@ -623,6 +630,81 @@ fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, hot: bool) -> E
                 span { class: "unit-key", "aria-hidden": "true", "▸" }
             }
         },
+        Entry::Palette(_) => unreachable!("drawn by palette_view"),
+    }
+}
+
+/// A palette: its items side by side in one row, each an icon over its
+/// label, a group of menu items to assistive tech.
+fn palette_view(
+    unit: Unit,
+    depth: usize,
+    i: usize,
+    items: &[crate::menu::Item],
+    lit: Option<usize>,
+) -> Element {
+    let cells = items.iter().cloned().enumerate().map(|(cell, item)| {
+        let hot = lit == Some(cell);
+        let hover = move |_: PointerEvent| {
+            let mut l = unit.layer;
+            let now = l
+                .peek()
+                .menu
+                .as_ref()
+                .and_then(|(m, _)| m.levels.get(depth).map(|l| (l.hot, l.cell)));
+            let armed = l.peek().menu.as_ref().is_some_and(|(m, _)| m.armed);
+            if (now != Some((Some(i), cell)) || !armed)
+                && let Some((m, _)) = l.write().menu.as_mut()
+            {
+                m.hover_at(depth, i, cell);
+            }
+        };
+        let release = move |e: PointerEvent| {
+            e.stop_propagation();
+            let mut l = unit.layer;
+            let outcome = l
+                .write()
+                .menu
+                .as_mut()
+                .map_or(Outcome::Ignored, |(m, _)| m.release_at(depth, i, cell));
+            unit.settle(outcome);
+        };
+        let class = format!(
+            "unit-cell{}{}{}{}",
+            if hot { " hot" } else { "" },
+            if item.checked { " on" } else { "" },
+            if item.enabled { "" } else { " off" },
+            if item.destructive { " danger" } else { "" },
+        );
+        let ink = match () {
+            _ if !item.enabled => Ink::Dim,
+            _ if hot => Ink::AccentText,
+            _ if item.destructive => Ink::Danger,
+            _ if item.checked => Ink::Accent,
+            _ => Ink::Text,
+        };
+        let role = if item.checkable {
+            "menuitemcheckbox"
+        } else {
+            "menuitem"
+        };
+        rsx! {
+            div { key: "{cell}", class, role,
+                "aria-checked": item.checkable.then(|| item.checked.to_string()),
+                "aria-disabled": (!item.enabled).then_some("true"),
+                "aria-label": "{item.label}",
+                onpointermove: hover, onpointerup: release,
+                if let Some(d) = item.icon {
+                    Icon { d, ink, size: 18.0 }
+                }
+                span { class: "unit-cell-label", "aria-hidden": "true", "{item.label}" }
+            }
+        }
+    });
+    rsx! {
+        div { class: "unit-palette", role: "group",
+            {cells}
+        }
     }
 }
 
