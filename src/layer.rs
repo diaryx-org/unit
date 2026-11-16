@@ -643,6 +643,8 @@ fn palette_view(
     items: &[crate::menu::Item],
     lit: Option<usize>,
 ) -> Element {
+    // Words alone, with no icons: a row's height, a segmented choice.
+    let plain = items.iter().all(|i| i.icon.is_none());
     let cells = items.iter().cloned().enumerate().map(|(cell, item)| {
         let hot = lit == Some(cell);
         let hover = move |_: PointerEvent| {
@@ -702,7 +704,7 @@ fn palette_view(
         }
     });
     rsx! {
-        div { class: "unit-palette", role: "group",
+        div { class: if plain { "unit-palette plain" } else { "unit-palette" }, role: "group",
             {cells}
         }
     }

@@ -29,7 +29,8 @@ pub struct Sizes {
     /// How far a submenu overlaps its parent, as the system's do.
     pub overlap: f64,
     /// A palette's height: a row of items side by side, each an icon over
-    /// a short label ([`Entry::Palette`]).
+    /// a short label ([`Entry::Palette`]). A palette of words alone, with no
+    /// icons, is an item's height.
     pub palette: f64,
     /// A palette's narrowest cell.
     pub cell: f64,
@@ -209,6 +210,8 @@ impl Entry {
     fn height(&self, z: Sizes) -> f64 {
         match self {
             Entry::Separator => z.separator,
+            // Words alone, a choice of a few: a row's height.
+            Entry::Palette(items) if items.iter().all(|i| i.icon.is_none()) => z.item,
             Entry::Palette(_) => z.palette,
             _ => z.item,
         }
@@ -792,10 +795,14 @@ mod tests {
         vec![
             Entry::header("Notes.md"),
             Entry::palette(vec![
-                Item::new(1, "Copy"),
-                Item::new(2, "Share").enabled(false),
-                Item::new(3, "Duplicate"),
-                Item::new(4, "Delete").destructive(),
+                Item::new(1, "Copy").icon(crate::icon::paths::COPY),
+                Item::new(2, "Share")
+                    .icon(crate::icon::paths::SHARE)
+                    .enabled(false),
+                Item::new(3, "Duplicate").icon(crate::icon::paths::COPY),
+                Item::new(4, "Delete")
+                    .icon(crate::icon::paths::TRASH)
+                    .destructive(),
             ]),
             Entry::Separator,
             Item::new(5, "Rename…").into(),
@@ -812,9 +819,19 @@ mod tests {
         let l = Level::new(palette(), z);
         assert_eq!(
             l.height(),
-            2.0 * z.pad + 2.0 * z.item + 2.0 * z.palette + z.separator
+            // The second palette is words alone: a row's height.
+            2.0 * z.pad + 3.0 * z.item + z.palette + z.separator
         );
         assert!(l.width >= 4.0 * z.cell, "{}", l.width);
+        // Words alone are a row's height.
+        let plain = Level::new(
+            vec![Entry::palette(vec![
+                Item::new(1, "Reflow"),
+                Item::new(2, "Pages"),
+            ])],
+            z,
+        );
+        assert_eq!(plain.height(), 2.0 * z.pad + z.item);
     }
 
     #[test]

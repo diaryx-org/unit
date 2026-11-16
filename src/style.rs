@@ -59,8 +59,13 @@ pub const CSS: &str = r#"
 .unit-cell-label { display: block; max-width: 100%; padding: 0 3px; white-space: nowrap;
                    overflow: hidden; text-overflow: ellipsis; }
 .unit-root[data-density="touch"] .unit-palette { height: 64px; }
+/* Words alone: an item's height, its cells a segmented choice. */
+.unit-palette.plain { height: 24px; }
+.unit-palette.plain .unit-cell { font-size: inherit; line-height: 1; }
+.unit-root[data-density="touch"] .unit-palette.plain { height: 44px; }
 .unit-root[data-density="touch"] .unit-cell { gap: 5px; font-size: 13px; }
 .unit-root[data-density="cell"] .unit-palette { height: 24px; margin: 0; gap: 0; }
+.unit-root[data-density="cell"] .unit-palette.plain { height: 24px; }
 .unit-root[data-density="cell"] .unit-cell { flex-direction: row; font-size: inherit; line-height: 24px; }
 .unit-root[data-density="cell"] .unit-cell .unit-svg { display: none; }
 .unit-root[data-density="touch"] .unit-menu { padding: 6px 0; font-size: 17px; }
