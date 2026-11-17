@@ -276,7 +276,8 @@ pub const CSS: &str = r#"
 
 /* Slider: the thumb's and the stops' room inside its own box */
 .unit-scrollbar:hover .unit-scrollbar-thumb { opacity: 0.85 !important; }
-.unit-slider { position: relative; height: var(--unit-control-height); min-width: 120px; width: 100%; }
+.unit-slider { position: relative; height: var(--unit-control-height); min-width: 120px; width: 100%;
+               touch-action: pan-y; }
 .unit-slider-rail { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; }
 .unit-slider-line { position: absolute; left: 0; right: 0; top: 50%;
                     height: 4px; margin-top: -2px; border-radius: 2px;
@@ -601,6 +602,13 @@ pub const CSS: &str = r#"
 .unit-viewer-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 16px 14px;
                        text-align: center; color: var(--unit-text);
                        background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.6)); }
+
+/* What a finger holds or drags is not text to select: a long press opens
+   a menu, and on iOS Safari would otherwise select the words under it and
+   show the system's callout. */
+.unit-hold, .unit-context, .unit-tile, .unit-tr, .unit-slider, .unit-switch, .unit-segmented,
+.unit-chip, .unit-button, .unit-stepper {
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
 /* Motion: every duration and curve is the theme's (`Motion`), and 0 where
    the page asks for less motion or is drawn in a terminal's cells, so

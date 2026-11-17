@@ -374,7 +374,7 @@ impl Unit {
     /// no way to wait (no host's sleep, and not a browser), so it goes at
     /// once.
     pub(crate) fn exit_time(&self) -> Option<Duration> {
-        let can_wait = self.timer.peek().is_some() || cfg!(target_arch = "wasm32");
+        let can_wait = self.sleep().is_some();
         let ms = self
             .theme
             .peek()
@@ -382,14 +382,24 @@ impl Unit {
         (can_wait && ms > 0.0).then(|| Duration::from_millis(ms as u64))
     }
 
-    /// Do `then` once `time` has passed: by the host's sleep, or in a
-    /// browser by its own timer.
+    /// How the page waits: the host's sleep ([`Unit::set_timer`]), or in a
+    /// browser its own timer; `None` where neither is, and nothing can be
+    /// timed.
+    pub(crate) fn sleep(&self) -> Option<crate::components::hold::Sleep> {
+        let host = self.timer.peek().clone();
+        if host.is_some() || !cfg!(target_arch = "wasm32") {
+            return host;
+        }
+        Some(Rc::new(|time| Box::pin(browser_sleep(time))))
+    }
+
+    /// Do `then` once `time` has passed, where the page can wait; at once
+    /// where it cannot.
     pub(crate) fn after(&self, time: Duration, then: impl FnOnce() + 'static) {
-        let sleep = self.timer.peek().clone();
+        let sleep = self.sleep();
         dioxus::core::spawn_forever(async move {
-            match sleep {
-                Some(sleep) => sleep(time).await,
-                None => browser_sleep(time).await,
+            if let Some(sleep) = sleep {
+                sleep(time).await;
             }
             then();
         });

@@ -293,6 +293,10 @@ pub fn ContextMenu(
             oncontextmenu: move |e: MouseEvent| {
                 e.prevent_default();
                 e.stop_propagation();
+                // The browser's own long press, after ours opened it.
+                if hold.held() {
+                    return;
+                }
                 let p = e.client_coordinates();
                 open((p.x, p.y), entries.clone());
             },

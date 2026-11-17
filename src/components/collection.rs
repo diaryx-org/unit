@@ -595,6 +595,10 @@ fn TileView(
                     if chooser.has_menu() {
                         e.prevent_default();
                         e.stop_propagation();
+                        // The browser's own long press, after ours opened it.
+                        if held.held() {
+                            return;
+                        }
                         let p = e.client_coordinates();
                         chooser.menu(unit, &key, (p.x, p.y));
                     }
@@ -941,6 +945,10 @@ fn RowView(
                     if chooser.has_menu() {
                         e.prevent_default();
                         e.stop_propagation();
+                        // The browser's own long press, after ours opened it.
+                        if held.held() {
+                            return;
+                        }
                         let p = e.client_coordinates();
                         chooser.menu(unit, &key, (p.x, p.y));
                     }

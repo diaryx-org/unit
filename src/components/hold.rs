@@ -3,11 +3,13 @@
 //!
 //! unit keeps no clock of its own, so it cannot tell by itself when the
 //! finger has been down long enough. A host gives it one with
-//! [`Unit::set_timer`]: a sleep, its own runtime's (tokio's, the
-//! browser's). With it, the hold fires while the finger is still down, as
-//! a phone's does; without one, it fires when the finger lifts after
-//! [`HOLD`] or more, which a page in a browser seldom needs, since a
-//! browser sends a long press as `contextmenu` itself.
+//! [`Unit::set_timer`]: a sleep, its own runtime's (tokio's). In a browser
+//! with none, unit takes the browser's own timer: some browsers send a
+//! long press as `contextmenu` (Chrome on Android), and iOS Safari does
+//! not, selecting the text under the finger instead. With a clock the hold
+//! fires while the finger is still down, as a phone's does; without one,
+//! it fires when the finger lifts after [`HOLD`] or more. A `contextmenu`
+//! that follows a hold already fired opens nothing more ([`Hold::held`]).
 //!
 //! Only a finger or a pen holds: the mouse's long press is its secondary
 //! button. A finger that moves more than [`SLOP`] is scrolling, not
@@ -101,7 +103,7 @@ impl Hold {
         self.press.clone().set(press);
         #[cfg(not(target_arch = "wasm32"))]
         self.since.clone().set(Some(std::time::Instant::now()));
-        let sleep = self.unit.timer.peek().clone();
+        let sleep = self.unit.sleep();
         if let Some(sleep) = sleep {
             let me = *self;
             spawn(async move {
@@ -135,7 +137,7 @@ impl Hold {
         {
             let since = self.since.peek().to_owned();
             if let (Some(at), Some(t)) = (at, since)
-                && self.unit.timer.peek().is_none()
+                && self.unit.sleep().is_none()
                 && t.elapsed() >= HOLD
             {
                 self.fire(at);
@@ -143,6 +145,12 @@ impl Hold {
         }
         #[cfg(target_arch = "wasm32")]
         let _ = at;
+    }
+
+    /// Whether this press has already fired as a hold: a `contextmenu` the
+    /// browser sends for the same long press opens nothing more.
+    pub fn held(&self) -> bool {
+        *self.held.peek()
     }
 
     /// Whether the press just ended was a hold, so the click it sends is
@@ -164,6 +172,12 @@ pub fn LongPress(
     let hold = use_hold(move |at| onhold.call(at));
     rsx! {
         div { class: "unit-hold {class}",
+            // A browser's own long press, once ours has fired: nothing more.
+            oncontextmenu: move |e: MouseEvent| {
+                if hold.held() {
+                    e.prevent_default();
+                }
+            },
             onpointerdown: move |e: PointerEvent| hold.down(&e),
             onpointermove: move |e: PointerEvent| hold.moved(&e),
             onpointerup: move |e: PointerEvent| hold.up(&e),
