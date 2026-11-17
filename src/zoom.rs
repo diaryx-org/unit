@@ -592,6 +592,22 @@ impl Dismiss {
         1.0 - 0.3 * self.progress(height)
     }
 
+    /// Where `frame`, the photo where it rests on a `stage` it is the width
+    /// and height of, is drawn now: moved by [`Dismiss::at`] and drawn
+    /// [`Dismiss::scale`] times its size about the stage's middle, as the
+    /// viewer's transform draws it.
+    pub fn carried(&self, frame: (f64, f64, f64, f64), stage: (f64, f64)) -> (f64, f64, f64, f64) {
+        let s = self.scale(stage.1);
+        let (cx, cy) = (stage.0 / 2.0, stage.1 / 2.0);
+        let (x, y, w, h) = frame;
+        (
+            cx + (x - cx) * s + self.at.0,
+            cy + (y - cy) * s + self.at.1,
+            w * s,
+            h * s,
+        )
+    }
+
     /// How much of the viewer's black, and its bar and caption, still
     /// shows: gone by the time the photo is 40% of a stage down.
     pub fn fade(&self, height: f64) -> f64 {
@@ -647,6 +663,177 @@ impl Dismiss {
         self.speed = (vx, vy);
         true
     }
+}
+
+// ── Flying between a spot on the screen and the stage ────────────────────
+
+/// A place on the screen a photo was shown before the viewer opened it, in
+/// the window's CSS pixels: the thumbnail it was tapped in, or the point
+/// where a finger pressed. The viewer flies the photo out of it as it opens
+/// and back into it as it closes ([`Flight`]).
+///
+/// A point is a spot of no size: the photo grows out of it, and shrinks
+/// back into it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Spot {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Spot {
+    /// The box at `x`, `y`, `width` × `height`: a thumbnail's.
+    pub fn rect(x: f64, y: f64, width: f64, height: f64) -> Self {
+        Self {
+            x,
+            y,
+            width: width.max(0.0),
+            height: height.max(0.0),
+        }
+    }
+
+    /// The point `x`, `y`: where a finger pressed.
+    pub fn point(x: f64, y: f64) -> Self {
+        Self::rect(x, y, 0.0, 0.0)
+    }
+
+    /// Where it is on a stage whose top left is `origin` in the window, as
+    /// a [`Zoom::frame`] is: left, top, width, height.
+    pub fn on_stage(&self, origin: (f64, f64)) -> (f64, f64, f64, f64) {
+        (
+            self.x - origin.0,
+            self.y - origin.1,
+            self.width,
+            self.height,
+        )
+    }
+}
+
+/// A photo flying from one frame on the stage to another, as the viewer's
+/// black and its bar fade from one share to another: out of a [`Spot`] to
+/// where it rests as the viewer opens, and from wherever it is back into
+/// its spot, or shrinking a little where it is, as it closes.
+///
+/// It follows a curve that starts quickly and settles, as the theme's own
+/// does, over `length` milliseconds; a length of 0 is there at once.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Flight {
+    from: (f64, f64, f64, f64),
+    to: (f64, f64, f64, f64),
+    fade: (f64, f64),
+    elapsed: f64,
+    length: f64,
+    closes: bool,
+}
+
+impl Flight {
+    /// The photo opening: out of `from` to `to`, where it rests, the
+    /// viewer's black coming in from nothing.
+    pub fn opening(from: (f64, f64, f64, f64), to: (f64, f64, f64, f64), length: f64) -> Self {
+        Self {
+            from,
+            to,
+            fade: (0.0, 1.0),
+            elapsed: 0.0,
+            length: length.max(0.0),
+            closes: false,
+        }
+    }
+
+    /// The photo closing: from `from`, where it is now, to `to`, the
+    /// viewer's black going from `fade` to nothing.
+    pub fn closing(
+        from: (f64, f64, f64, f64),
+        to: (f64, f64, f64, f64),
+        fade: f64,
+        length: f64,
+    ) -> Self {
+        Self {
+            from,
+            to,
+            fade: (fade, 0.0),
+            elapsed: 0.0,
+            length: length.max(0.0),
+            closes: true,
+        }
+    }
+
+    /// How far along it is, on its curve: 0 where it began, 1 there.
+    fn progress(&self) -> f64 {
+        if self.length <= 0.0 {
+            return 1.0;
+        }
+        settle((self.elapsed / self.length).clamp(0.0, 1.0))
+    }
+
+    /// Where the photo is drawn on the stage now: left, top, width, height.
+    pub fn frame(&self) -> (f64, f64, f64, f64) {
+        let p = self.progress();
+        let at = |a: f64, b: f64| a + (b - a) * p;
+        (
+            at(self.from.0, self.to.0),
+            at(self.from.1, self.to.1),
+            at(self.from.2, self.to.2),
+            at(self.from.3, self.to.3),
+        )
+    }
+
+    /// How much of the viewer's black, and its bar and caption, shows now.
+    pub fn fade(&self) -> f64 {
+        let p = self.progress();
+        (self.fade.0 + (self.fade.1 - self.fade.0) * p).clamp(0.0, 1.0)
+    }
+
+    /// Whether it closes the viewer when it is there.
+    pub fn closes(&self) -> bool {
+        self.closes
+    }
+
+    /// Whether it has got where it was going.
+    pub fn is_there(&self) -> bool {
+        self.elapsed >= self.length
+    }
+
+    /// Move on by `dt` milliseconds. Whether it is still flying.
+    pub fn step(&mut self, dt: f64) -> bool {
+        self.elapsed = (self.elapsed + dt.clamp(0.0, 100.0)).min(self.length);
+        !self.is_there()
+    }
+}
+
+/// `frame` drawn `scale` times its size about its own middle: where a photo
+/// that fades where it is without a spot starts or ends.
+pub fn shrunk(frame: (f64, f64, f64, f64), scale: f64) -> (f64, f64, f64, f64) {
+    let (x, y, w, h) = frame;
+    let (cx, cy) = (x + w / 2.0, y + h / 2.0);
+    (
+        cx - w * scale / 2.0,
+        cy - h * scale / 2.0,
+        w * scale,
+        h * scale,
+    )
+}
+
+/// The curve a flight follows: `cubic-bezier(0.2, 0, 0, 1)`, unit's own
+/// ([`crate::Motion::DEFAULT`]), quick from the start and settling into
+/// place. `t` is how much of the time has passed; what it gives, how much
+/// of the way.
+fn settle(t: f64) -> f64 {
+    // A cubic Bézier from (0, 0) to (1, 1) through (0.2, 0) and (0, 1):
+    // find the `s` along it whose x is `t`, and give its y.
+    let x = |s: f64| 3.0 * (1.0 - s) * (1.0 - s) * s * 0.2 + s * s * s;
+    let y = |s: f64| 3.0 * (1.0 - s) * s * s + s * s * s;
+    let (mut lo, mut hi) = (0.0, 1.0);
+    for _ in 0..40 {
+        let mid = (lo + hi) / 2.0;
+        if x(mid) < t {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    y((lo + hi) / 2.0)
 }
 
 #[cfg(test)]
@@ -878,5 +1065,58 @@ mod tests {
         assert!(up.at.1 < 0.0 && up.at.1 > -200.0, "{}", up.at.1);
         assert_eq!(up.fade(800.0), 1.0);
         assert!(!up.release((0.0, -1.0)));
+    }
+
+    #[test]
+    fn a_flight_settles_from_where_it_began_to_where_it_goes() {
+        // Out of an 80 × 80 thumbnail at (40, 600), to where the photo rests.
+        let to = phone().frame();
+        let mut f = Flight::opening((40.0, 600.0, 80.0, 80.0), to, 300.0);
+        assert_eq!(f.frame(), (40.0, 600.0, 80.0, 80.0), "where it was shown");
+        assert_eq!(f.fade(), 0.0);
+        assert!(f.step(150.0));
+        let (x, y, w, _) = f.frame();
+        assert!(w > 80.0 + 0.5 * (400.0 - 80.0), "quick at first: {w}");
+        assert!(x < 40.0 && y < 600.0 && y > 250.0, "{x}, {y}");
+        assert!(f.fade() > 0.5 && f.fade() < 1.0, "{}", f.fade());
+        assert!(!f.step(150.0), "there in its time");
+        assert_eq!(f.frame(), to);
+        assert_eq!(f.fade(), 1.0);
+        assert!(!f.closes());
+    }
+
+    #[test]
+    fn a_flight_of_no_length_is_there_at_once() {
+        let f = Flight::closing((0.0, 0.0, 400.0, 300.0), (10.0, 10.0, 0.0, 0.0), 1.0, 0.0);
+        assert!(f.is_there() && f.closes());
+        assert_eq!(f.frame(), (10.0, 10.0, 0.0, 0.0));
+        assert_eq!(f.fade(), 0.0);
+    }
+
+    #[test]
+    fn a_spot_is_placed_on_the_stage_and_a_point_has_no_size() {
+        let s = Spot::point(100.0, 200.0);
+        assert_eq!(s.on_stage((0.0, 47.0)), (100.0, 153.0, 0.0, 0.0));
+        let r = Spot::rect(10.0, 20.0, -5.0, 30.0);
+        assert_eq!((r.width, r.height), (0.0, 30.0));
+        assert_eq!(
+            shrunk((0.0, 250.0, 400.0, 300.0), 0.5),
+            (100.0, 325.0, 200.0, 150.0)
+        );
+    }
+
+    #[test]
+    fn a_photo_dragged_down_is_drawn_where_its_transform_puts_it() {
+        let mut d = Dismiss::default();
+        d.drag_start((200.0, 300.0));
+        d.drag_move((230.0, 500.0), 800.0);
+        let (x, y, w, h) = d.carried(phone().frame(), (400.0, 800.0));
+        let s = d.scale(800.0);
+        assert!(near(w, 400.0 * s) && near(h, 300.0 * s));
+        // Its middle is the stage's, moved as the finger moved.
+        assert!(
+            near(x + w / 2.0, 230.0) && near(y + h / 2.0, 600.0),
+            "{x}, {y}"
+        );
     }
 }

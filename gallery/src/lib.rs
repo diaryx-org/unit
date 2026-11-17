@@ -328,6 +328,10 @@ fn Page(
     let mut picked_photos = use_signal(Selection::new);
     let mut tray_chosen = use_signal(Selection::new);
     let mut viewing = use_signal(|| None::<usize>);
+    // Where a finger or the pointer last pressed among the photos, and the
+    // photo opened by it and that spot, which it flies out of and back into.
+    let mut pressed = use_hook(|| CopyValue::new(None::<(f64, f64)>));
+    let mut opened_from = use_signal(|| None::<(usize, Spot)>);
 
     let edit = vec![
         Item::new(CUT, "Cut").shortcut("⌘X").into(),
@@ -410,7 +414,14 @@ fn Page(
             said.set(format!("Opened {key}."));
         }
     };
-    let photos = photos();
+    let photos: Vec<Photo> = photos()
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| match opened_from() {
+            Some((at, spot)) if at == i => p.from(spot),
+            _ => p,
+        })
+        .collect();
     let photo_tiles: Vec<Tile> = photos
         .iter()
         .enumerate()
@@ -781,16 +792,27 @@ fn Page(
                     Text { dim: true, "{chosen().len()} of {shown.len()} chosen." }
                 }
                 Card { title: "Photos", class: "gallery-wide",
-                    TileGrid { label: "Photos", tiles: photo_tiles, size: 88.0, fill: true, labels: false,
-                               selection: picked_photos(), opens: true,
-                               onselect: move |s| picked_photos.set(s),
-                               onactivate: move |k: String| {
-                                   viewing.set(k.trim_start_matches("photo-").parse().ok());
-                               } }
+                    div { class: "gallery-photos",
+                          onpointerdown: move |e: PointerEvent| {
+                              let p = e.client_coordinates();
+                              pressed.set(Some((p.x, p.y)));
+                          },
+                        TileGrid { label: "Photos", tiles: photo_tiles, size: 88.0, fill: true, labels: false,
+                                   selection: picked_photos(), opens: true,
+                                   onselect: move |s| picked_photos.set(s),
+                                   onactivate: move |k: String| {
+                                       let i = k.trim_start_matches("photo-").parse().ok();
+                                       // Opened by a press, it flies out of where it was pressed;
+                                       // by a key, it fades in.
+                                       let at = pressed.take();
+                                       opened_from.set(i.zip(at.map(|(x, y)| Spot::point(x, y))));
+                                       viewing.set(i);
+                                   } }
+                    }
                     Stack { axis: Axis::Horizontal, align: Align::Center,
                         Text { dim: true, "Tap one to see it whole." }
                         Spacer {}
-                        Button { onpress: move |_| viewing.set(Some(0)), "View Photos…" }
+                        Button { onpress: move |_| { opened_from.set(None); viewing.set(Some(0)); }, "View Photos…" }
                     }
                 }
                 Card { title: "Tray",

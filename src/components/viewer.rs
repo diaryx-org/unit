@@ -11,6 +11,12 @@
 //!
 //! It is drawn on black whatever the page's appearance, and sets the
 //! theme's text, dim and hover colours for what is in it to match.
+//!
+//! It comes and goes in the theme's motion: a photo given the [`Spot`] it
+//! was shown in (its thumbnail, or where a finger pressed) flies out of it
+//! as the viewer opens, and back into it as the viewer closes, by its
+//! button, Escape or a drag down, as a phone's Photos app's does. One with
+//! none fades in growing a little, and fades out shrinking, where it is.
 
 use std::rc::Rc;
 use std::time::Duration;
@@ -22,7 +28,7 @@ use crate::components::button::{Button, Variant};
 use crate::icon::paths;
 use crate::scroll::{Tracker, wheel_delta, zoom_factor};
 use crate::unit::{Kind, Unit, next_id, use_focus, use_unit};
-use crate::zoom::{Dismiss, MOST, PAGE_GAP, Pages, Zoom};
+use crate::zoom::{Dismiss, Flight, MOST, PAGE_GAP, Pages, Spot, Zoom, shrunk};
 
 /// How far a pointer may move and its lifting still be a tap, in CSS
 /// pixels; how soon a second tap follows the first to make a double tap,
@@ -66,13 +72,16 @@ const DOUBLE_TAP_NEAR: f64 = 30.0;
 /// is in it, read by assistive tech, and a caption drawn under it. `size`
 /// is its own width and height, in any unit: its shape, which the viewer
 /// needs to know where its edges are when it is zoomed. With none it is
-/// taken to be the window's shape.
+/// taken to be the window's shape. `from` is where it was shown on the
+/// screen before the viewer opened it, which it flies out of and back into
+/// ([`Spot`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Photo {
     pub src: String,
     pub alt: String,
     pub caption: Option<String>,
     pub size: Option<(f64, f64)>,
+    pub from: Option<Spot>,
 }
 
 impl Photo {
@@ -82,6 +91,7 @@ impl Photo {
             alt: alt.into(),
             caption: None,
             size: None,
+            from: None,
         }
     }
 
@@ -92,6 +102,13 @@ impl Photo {
 
     pub fn size(mut self, width: f64, height: f64) -> Self {
         self.size = Some((width, height));
+        self
+    }
+
+    /// Where it was shown on the screen: the viewer opens out of it, and
+    /// closes back into it while it is the photo shown.
+    pub fn from(mut self, spot: Spot) -> Self {
+        self.from = Some(spot);
         self
     }
 }
@@ -255,6 +272,13 @@ type Key3 = (usize, u64, u64);
 /// window's size, which the host gives ([`Unit::set_viewport`]); a
 /// browser's root sets it itself. Without it, the photo fits and does not
 /// zoom or slide, and the arrows go from photo to photo.
+///
+/// It opens and closes in the theme's motion ([`Flight`]), out of and back
+/// into the [`Photo::from`] of the photo shown where it has one. Asked to
+/// close, by its button, Escape or a drag down, it goes first and then
+/// calls `onclose`; a page that sets `open` false of its own accord closes
+/// it at once. Where nothing moves ([`crate::MotionSetting::Reduced`], or
+/// without the window's size) it comes and goes at once.
 #[component]
 pub fn PhotoViewer(
     open: bool,
@@ -275,9 +299,6 @@ pub fn PhotoViewer(
     let id = use_hook(next_id);
     let n = photos.len();
     let index = index.min(n.saturating_sub(1));
-    // Escape closes it, as it does a modal.
-    let close: Rc<dyn Fn()> = Rc::new(move || onclose.call(()));
-    unit.modal(id, open.then_some(close));
     use_drop(move || unit.modal(id, None));
 
     // The stage: the window inside its safe area, if the host said how
@@ -297,6 +318,23 @@ pub fn PhotoViewer(
     let fitted = move |i: usize| Zoom::new(stage, sizes.get(i).copied().flatten(), most);
     let key: Key3 = (index, stage.0.to_bits(), stage.1.to_bits());
     let fresh = staged.then(|| fitted(index));
+    // How long the photo takes to fly out of its spot and back, or to fade
+    // in and out where it is without one: 0 where nothing moves.
+    let (travel, enter, exit, grow) = {
+        let theme = unit.theme.peek();
+        let (density, setting) = (*unit.density.peek(), *unit.motion.peek());
+        (
+            theme.travel_ms(density, setting),
+            theme.enter_ms(density, setting),
+            theme.exit_ms(density, setting),
+            theme.motion.grow,
+        )
+    };
+    // Where the photo shown was on the screen, on the stage.
+    let spot = photos
+        .get(index)
+        .and_then(|p| p.from)
+        .map(|s| s.on_stage((safe.left, safe.top)));
     // The photo's zoom, for the photo and the stage it was made for: a new
     // photo, or a window of a new size, starts again from fitting.
     let zoom = use_signal(|| None::<(Key3, Zoom)>);
@@ -304,6 +342,9 @@ pub fn PhotoViewer(
     let pages = use_signal(|| (index, Pages::default()));
     // The photo dragged down to close the viewer.
     let dismiss = use_signal(Dismiss::default);
+    // The photo flying out of its spot as the viewer opens, or back into
+    // it as it closes.
+    let flight = use_signal(|| None::<Flight>);
     let running = use_signal(|| false);
     let touches = use_hook(|| CopyValue::new(Touches::default()));
     let swipe = use_hook(|| CopyValue::new(None::<WheelSwipe>));
@@ -370,7 +411,19 @@ pub fn PhotoViewer(
                 onclose.call(());
                 return false;
             }
-            swiping || zooming || sliding || dismissing
+            let mut flight = flight;
+            let flying = flight.write().as_mut().is_some_and(|f| f.step(dt));
+            let landed = *flight.peek();
+            if let Some(f) = landed.filter(|f| f.is_there()) {
+                // Back in its spot, or faded where it was: the viewer closes,
+                // drawn where it went until the page has closed it.
+                if f.closes() {
+                    onclose.call(());
+                    return false;
+                }
+                flight.set(None);
+            }
+            swiping || zooming || sliding || dismissing || flying
         });
     };
     let change = move |f: &mut dyn FnMut(&mut Zoom) -> bool| {
@@ -383,6 +436,48 @@ pub fn PhotoViewer(
         if moving {
             kick();
         }
+    };
+    // Where the photo shown is drawn now: flying, dragged down, or where it
+    // rests as it is zoomed.
+    let drawn = move || -> Option<(f64, f64, f64, f64)> {
+        if let Some(f) = *flight.peek() {
+            return Some(f.frame());
+        }
+        let z = current()?;
+        let d = *dismiss.peek();
+        Some(if d.is_active() {
+            d.carried(z.frame(), stage)
+        } else {
+            z.frame()
+        })
+    };
+    // Close: the photo flies back into its spot, or fades where it is, and
+    // then the viewer closes; at once where nothing moves.
+    let leave = move || {
+        if let Some(f) = (*flight.peek()).filter(|f| f.closes()) {
+            // Going already; gone, and the page has yet to close it.
+            if f.is_there() {
+                onclose.call(());
+            }
+            return;
+        }
+        let length = if spot.is_some() { travel } else { exit };
+        let Some(from) = drawn().filter(|_| length > 0.0) else {
+            onclose.call(());
+            return;
+        };
+        let fade = match *flight.peek() {
+            Some(f) => f.fade(),
+            None => dismiss.peek().fade(stage.1),
+        };
+        let to = spot.unwrap_or_else(|| shrunk(from, grow));
+        let (mut flight, mut dismiss, mut pages) = (flight, dismiss, pages);
+        dismiss.set(Dismiss::default());
+        if pages.peek().1.is_dragging() {
+            pages.write().1.release(0.0, stride, false, false);
+        }
+        flight.set(Some(Flight::closing(from, to, fade, length)));
+        kick();
     };
     // Go to photo `to`, sliding it in from its side where there is a stage.
     let slide_to = move |to: usize| {
@@ -405,6 +500,10 @@ pub fn PhotoViewer(
     let offset = slid(*pages.read());
     let zoomed = shown.is_some_and(|z| z.is_zoomed());
     let middle = (stage.0 / 2.0, stage.1 / 2.0);
+
+    // Escape closes it, as it does a modal.
+    let close: Rc<dyn Fn()> = Rc::new(leave);
+    unit.modal(id, open.then_some(close));
 
     let focus = use_focus(Kind::Widget, move |key, _| {
         let to = match key {
@@ -437,13 +536,42 @@ pub fn PhotoViewer(
     });
     // The keys while it is open, and back where they were after.
     let before = use_hook(|| CopyValue::new(None));
+    // How the photo flies as the viewer opens, worked out in the draw that
+    // opens it, which draws it where its flight begins, and set flying
+    // after.
+    let opening = use_hook(|| CopyValue::new(None::<Flight>));
+    let opened = use_hook(|| CopyValue::new(false));
+    if open && !*opened.peek() && opening.peek().is_none() {
+        let length = if spot.is_some() { travel } else { enter };
+        let start = fresh.filter(|_| length > 0.0).map(|z| {
+            Flight::opening(
+                spot.unwrap_or_else(|| shrunk(z.frame(), grow)),
+                z.frame(),
+                length,
+            )
+        });
+        opening.clone().set(start);
+    }
     use_effect(use_reactive!(|open| {
+        let mut flight = flight;
         if open {
             dismiss.clone().set(Dismiss::default());
             before.clone().set(unit.current());
             focus.take();
-        } else if unit.focused() == Some(focus.id) {
-            unit.restore(*before.peek());
+            opened.clone().set(true);
+            if let Some(f) = opening.clone().take() {
+                flight.set(Some(f));
+                kick();
+            }
+        } else {
+            opened.clone().set(false);
+            opening.clone().set(None);
+            if flight.peek().is_some() {
+                flight.set(None);
+            }
+            if unit.focused() == Some(focus.id) {
+                unit.restore(*before.peek());
+            }
         }
     }));
 
@@ -454,8 +582,11 @@ pub fn PhotoViewer(
     // Dragged down: the photo smaller, and the viewer's black and its bar
     // fading, the page under it showing through.
     let d = *dismiss.read();
-    let fade = d.fade(stage.1);
-    let lifted = d.is_active().then(|| {
+    // Flying out of its spot or back, or about to: where the photo shown is
+    // drawn, and how much of the viewer shows.
+    let flown = (*flight.read()).or(*opening.peek());
+    let fade = flown.map_or(d.fade(stage.1), |f| f.fade());
+    let lifted = (d.is_active() && flown.is_none()).then(|| {
         format!(
             "; transform: translate({}px, {}px) scale({})",
             d.at.0,
@@ -475,8 +606,9 @@ pub fn PhotoViewer(
         (index.saturating_sub(1)..=(index + 1).min(n - 1))
             .map(|i| {
                 let x = offset + (i as f64 - index as f64) * stride;
-                let frame = match (i == index, shown) {
-                    (true, Some(z)) => z.frame(),
+                let frame = match (i == index, flown, shown) {
+                    (true, Some(f), _) => f.frame(),
+                    (true, None, Some(z)) => z.frame(),
                     _ => fitted(i).frame(),
                 };
                 (i, x, frame)
@@ -564,6 +696,10 @@ pub fn PhotoViewer(
             div { class: "unit-viewer-stage",
                 style: "left: {safe.left}px; top: {safe.top}px; right: {safe.right}px; bottom: {safe.bottom}px",
                 onpointerdown: move |e: PointerEvent| {
+                    // Flying, it is not to be caught.
+                    if flight.peek().is_some() {
+                        return;
+                    }
                     let p = local(&e);
                     let mut t = touches;
                     let mut t = t.write();
@@ -688,10 +824,15 @@ pub fn PhotoViewer(
                                 });
                                 kick();
                             } else if dismiss.peek().is_dragging() {
-                                // Down far or fast enough: on down, and closed;
-                                // else back where it rests.
+                                // Down far or fast enough: on down, and closed,
+                                // or back into its spot where it has one; else
+                                // back where it rests.
                                 let mut dismiss = dismiss;
-                                dismiss.write().release(speed);
+                                let goes = dismiss.write().release(speed);
+                                if goes && spot.is_some() && travel > 0.0 {
+                                    leave();
+                                    return;
+                                }
                                 kick();
                             } else if pages.peek().1.is_dragging() {
                                 // On to the next photo, or back to this one,
@@ -735,7 +876,11 @@ pub fn PhotoViewer(
                         div { key: "{i}", class: "unit-viewer-page",
                               style: "left: {x}px; width: {stage.0}px{lifted.as_deref().filter(|_| i == index).unwrap_or_default()}",
                               "aria-hidden": (i != index).then_some("true"),
-                            div { class: if i == index { "unit-viewer-photo current" } else { "unit-viewer-photo" },
+                            div { class: match (i == index, flown.is_some() && photos[i].size.is_some()) {
+                                      (true, true) => "unit-viewer-photo current unit-flying",
+                                      (true, false) => "unit-viewer-photo current",
+                                      _ => "unit-viewer-photo",
+                                  },
                                   style: "left: {fx}px; top: {fy}px; width: {fw}px; height: {fh}px",
                                 // `alt` for a browser; Blitz names an image by
                                 // its label. Not the browser's to drag away as
@@ -749,11 +894,11 @@ pub fn PhotoViewer(
                     img { class: "unit-viewer-image unit-viewer-whole", src: "{photo.src}", alt: "{photo.alt}",
                           "aria-label": "{photo.alt}", draggable: "false" }
                 }
-                if prev && !zoomed && !d.is_active() {
+                if prev && !zoomed && !d.is_active() && flown.is_none() {
                     Button { variant: Variant::Ghost, class: "unit-icon unit-viewer-prev", label: "Previous photo",
                              icon: paths::CHEVRON_LEFT, refuses_keys: true, onpress: move |_| slide_to(index - 1) }
                 }
-                if next && !zoomed && !d.is_active() {
+                if next && !zoomed && !d.is_active() && flown.is_none() {
                     Button { variant: Variant::Ghost, class: "unit-icon unit-viewer-next", label: "Next photo",
                              icon: paths::CHEVRON_RIGHT, refuses_keys: true, onpress: move |_| slide_to(index + 1) }
                 }
@@ -763,7 +908,7 @@ pub fn PhotoViewer(
                 div { class: "unit-viewer-actions",
                     {actions}
                     Button { variant: Variant::Ghost, class: "unit-icon", label: "Close", icon: paths::CLOSE,
-                             refuses_keys: true, onpress: move |_| onclose.call(()) }
+                             refuses_keys: true, onpress: move |_| leave() }
                 }
             }
             if let Some(c) = &photo.caption {

@@ -485,6 +485,10 @@ pub struct Motion {
     /// How far, in pixels, what rises from the bottom (a sheet, a toast)
     /// starts below where it ends.
     pub rise: f64,
+    /// What travels across the screen: a photo flying out of the spot it
+    /// was shown in to fill the window, and back into it as it closes.
+    /// Longer than what appears in place, as it goes further.
+    pub travel: f64,
 }
 
 impl Motion {
@@ -497,6 +501,7 @@ impl Motion {
         ease_exit: "cubic-bezier(0.4, 0, 1, 1)",
         grow: 0.97,
         rise: 12.0,
+        travel: 300.0,
     };
 
     /// [`Theme::soft`]'s: a little longer, on a spring that passes its mark
@@ -509,6 +514,7 @@ impl Motion {
         ease_exit: "cubic-bezier(0.4, 0, 1, 1)",
         grow: 0.94,
         rise: 24.0,
+        travel: 400.0,
     };
 
     /// [`Theme::sharp`]'s: short, straight, and a fade with no growing.
@@ -520,6 +526,7 @@ impl Motion {
         ease_exit: "linear",
         grow: 1.0,
         rise: 0.0,
+        travel: 160.0,
     };
 
     fn entries(&self) -> [(&'static str, String); 5] {
@@ -705,10 +712,25 @@ impl Theme {
     /// for what Rust times rather than CSS: 0 where nothing moves. The
     /// system's own setting is not known here, and is taken as motion.
     pub fn exit_ms(&self, density: Density, setting: MotionSetting) -> f64 {
+        self.timed(self.motion.exit, density, setting)
+    }
+
+    /// What appears takes, as [`Theme::exit_ms`] says what goes does.
+    pub fn enter_ms(&self, density: Density, setting: MotionSetting) -> f64 {
+        self.timed(self.motion.enter, density, setting)
+    }
+
+    /// What travels across the screen takes ([`Motion::travel`]), as
+    /// [`Theme::exit_ms`] says what goes does.
+    pub fn travel_ms(&self, density: Density, setting: MotionSetting) -> f64 {
+        self.timed(self.motion.travel, density, setting)
+    }
+
+    fn timed(&self, ms: f64, density: Density, setting: MotionSetting) -> f64 {
         if setting == MotionSetting::Reduced || density == Density::Cell {
             0.0
         } else {
-            self.motion.exit
+            ms
         }
     }
 
@@ -877,6 +899,9 @@ mod tests {
         assert_eq!(t.exit_ms(Density::Regular, MotionSetting::System), 160.0);
         assert_eq!(t.exit_ms(Density::Touch, MotionSetting::Reduced), 0.0);
         assert_eq!(t.exit_ms(Density::Cell, MotionSetting::Full), 0.0);
+        assert_eq!(t.travel_ms(Density::Touch, MotionSetting::Full), 400.0);
+        assert_eq!(t.travel_ms(Density::Touch, MotionSetting::Reduced), 0.0);
+        assert_eq!(t.enter_ms(Density::Cell, MotionSetting::Full), 0.0);
     }
 
     #[test]
