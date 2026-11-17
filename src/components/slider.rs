@@ -118,6 +118,12 @@ pub fn Slider(
             onchange.call(v);
         }
     };
+    // Where the slider is on the page, read as it is pressed: a finger in
+    // a browser sends every move to the stop it went down on (iOS Safari
+    // and Chrome both capture a touch), so the stops alone would never see
+    // it travel. A move anywhere is read against the rail instead.
+    let mut mounted = use_signal(|| None::<std::rc::Rc<MountedData>>);
+    let mut placed = use_signal(|| None::<(f64, f64)>);
     let off = if disabled { " off" } else { "" };
     rsx! {
         div {
@@ -130,7 +136,29 @@ pub fn Slider(
             "aria-valuemax": "{max}",
             "aria-valuetext": text,
             "aria-disabled": disabled.then_some("true"),
-            onpointerdown: move |_| focus.press(),
+            onmounted: move |e: MountedEvent| mounted.set(Some(e.data())),
+            onpointerdown: move |_| {
+                focus.press();
+                if let Some(m) = mounted.peek().clone() {
+                    spawn(async move {
+                        if let Ok(r) = m.get_client_rect().await {
+                            placed.set(Some((r.origin.x, r.size.width)));
+                        }
+                    });
+                }
+            },
+            // A press held and moved: the stop under it along the rail,
+            // which is in by half a thumb (8px) at each end.
+            onpointermove: move |e: PointerEvent| {
+                let Some((left, width)) = *placed.peek() else {
+                    return;
+                };
+                if e.held_buttons().is_empty() || width <= 16.0 {
+                    return;
+                }
+                let along = ((e.client_coordinates().x - left - 8.0) / (width - 16.0)).clamp(0.0, 1.0);
+                set((along * n as f64).round() as usize);
+            },
             onfocus: move |_| focus.dom_focus(),
             onblur: move |_| focus.dom_blur(),
             div { class: "unit-slider-rail", "aria-hidden": "true",

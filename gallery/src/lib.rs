@@ -895,11 +895,31 @@ fn Scrolled() -> Element {
     const HEIGHT: f64 = 160.0;
     let mut scroll =
         use_signal(|| unit::scroll::Scroll::new((0.0, HEIGHT), (0.0, LINES as f64 * LINE)));
+    // Where a finger or a held button last was, while it drags the lines.
+    let mut dragging = use_signal(|| None::<f64>);
     let s = scroll();
     let top = -s.y;
     rsx! {
         div { class: "gallery-scrolled",
-            style: "position: relative; height: {HEIGHT}px; overflow: hidden;",
+            // A finger here is the box's to scroll, not the page's.
+            style: "position: relative; height: {HEIGHT}px; overflow: hidden; touch-action: none;",
+            onpointerdown: move |e: PointerEvent| dragging.set(Some(e.client_coordinates().y)),
+            onpointermove: move |e: PointerEvent| {
+                let Some(was) = *dragging.peek() else {
+                    return;
+                };
+                if e.held_buttons().is_empty() {
+                    dragging.set(None);
+                    return;
+                }
+                let y = e.client_coordinates().y;
+                dragging.set(Some(y));
+                let mut s = scroll.write();
+                s.y -= y - was;
+                s.clamp();
+            },
+            onpointerup: move |_| dragging.set(None),
+            onpointercancel: move |_| dragging.set(None),
             onwheel: move |e: WheelEvent| {
                 // The box's own: the page under it does not scroll too.
                 e.prevent_default();
