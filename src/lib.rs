@@ -100,7 +100,9 @@ pub use layer::{Toast, Tone};
 pub use menu::{Entry, Item};
 pub use selection::{Pick, Selection};
 pub use style::CSS;
-pub use theme::{Accent, Appearance, Density, Metrics, Palette, Theme};
+pub use theme::{
+    Accent, Appearance, Density, Metrics, Motion, MotionSetting, Palette, Shape, Theme,
+};
 pub use unit::{
     Clipboard, Focus, Insets, Keys, Kind, Unit, UnitRoot, next_id, use_focus, use_unit,
     use_unit_provider,
@@ -112,12 +114,12 @@ pub mod prelude {
         Accent, Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem,
         Breadcrumbs, Button, Callout, Card, Checkbox, Chips, Choice, CodeField, Column,
         ContextMenu, Density, Dialog, Disclosure, Divider, EmptyState, Entry, Field, Heading, Icon,
-        Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal, NavBar, Orientation,
-        Photo, PhotoViewer, Pick, Placement, Pressable, Progress, RadioGroup, Row, ScrollBar,
-        SearchField, Section, Segmented, Select, Selection, SheetAction, Slider, Sort, Spacer,
-        Stack, Stepper, Swatch, SwatchAction, Swatches, Switch, TabBar, Table, TableRow, Tabs,
-        Text, TextArea, TextField, Theme, Tile, TileGrid, Toast, ToggleButton, Tone, Tree, TreeRow,
-        Unit, UnitRoot, Variant, use_unit,
+        Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal, MotionSetting, NavBar,
+        Orientation, Photo, PhotoViewer, Pick, Placement, Pressable, Progress, RadioGroup, Row,
+        ScrollBar, SearchField, Section, Segmented, Select, Selection, SheetAction, Slider, Sort,
+        Spacer, Stack, Stepper, Swatch, SwatchAction, Swatches, Switch, TabBar, Table, TableRow,
+        Tabs, Text, TextArea, TextField, Theme, Tile, TileGrid, Toast, ToggleButton, Tone, Tree,
+        TreeRow, Unit, UnitRoot, Variant, use_unit,
     };
 }
 

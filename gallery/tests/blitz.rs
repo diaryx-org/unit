@@ -3291,3 +3291,135 @@ fn a_nav_bar_centres_its_title_and_gives_way_to_its_buttons() {
         }
     }
 }
+
+/// The gallery with motion on, as [`page`] is without it.
+#[allow(non_snake_case)]
+fn Moving(window: Window) -> Element {
+    rsx! {
+        unit_gallery::GallerySized { width: window.width, height: window.height, moving: true }
+    }
+}
+
+fn page_moving(width: u32, height: u32) -> DioxusDocument {
+    let vdom = VirtualDom::new_with_props(
+        Moving,
+        Window {
+            width: width as f64,
+            height: height as f64,
+        },
+    );
+    let mut doc = DioxusDocument::new(vdom, DocumentConfig::default());
+    doc.inner
+        .borrow_mut()
+        .set_viewport(Viewport::new(width, height, 1.0, ColorScheme::Light));
+    doc.initial_build();
+    settle(&mut doc);
+    doc
+}
+
+/// Poll the page and lay it out with the clock at `seconds`.
+fn at_time(doc: &mut DioxusDocument, seconds: f64) {
+    for _ in 0..3 {
+        Document::poll(doc, Some(Context::from_waker(Waker::noop())));
+        doc.inner.borrow_mut().resolve(seconds);
+    }
+}
+
+fn opacity(doc: &DioxusDocument, node: NodeId) -> f64 {
+    doc.inner
+        .borrow()
+        .resolved_style_value(node, "opacity")
+        .parse()
+        .unwrap_or(f64::NAN)
+}
+
+/// With motion on, a menu grows into place as Blitz's clock runs, and
+/// once closed is drawn going, then taken away when its motion is over.
+#[test]
+fn a_menu_comes_and_goes_in_the_themes_motion() {
+    let mut doc = page_moving(1200, 800);
+    let edit = find(&doc, "button", "Edit ▾");
+    click(&mut doc, edit);
+    let menu = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-menu")
+        .unwrap()
+        .unwrap();
+    at_time(&mut doc, 0.0);
+    let start = opacity(&doc, menu);
+    at_time(&mut doc, 0.06);
+    let during = opacity(&doc, menu);
+    at_time(&mut doc, 1.0);
+    let end = opacity(&doc, menu);
+    assert!(
+        start < during && during < end && end == 1.0,
+        "{start} → {during} → {end}"
+    );
+
+    // Closed, the menu is gone at once to whatever reads it, and a drawing
+    // of it goes.
+    let primary = find(&doc, "button", "Primary");
+    click(&mut doc, primary);
+    at_time(&mut doc, 1.0);
+    assert!(!displayed(&doc, menu), "the menu itself is closed");
+    let going = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-menu.unit-leaving")
+        .unwrap()
+        .unwrap();
+    assert!(displayed(&doc, going), "drawn going");
+    at_time(&mut doc, 1.06);
+    let fading = opacity(&doc, going);
+    at_time(&mut doc, 2.0);
+    let gone = opacity(&doc, going);
+    assert!(fading < 1.0 && gone == 0.0, "{fading} → {gone}");
+    // The host's sleep ends its time, and the drawing is taken away.
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    at_time(&mut doc, 2.0);
+    assert!(!displayed(&doc, going), "taken away");
+}
+
+/// With motion on, a dismissed toast sinks away and is then taken out; the
+/// toasts that read it are told at once that it is gone.
+#[test]
+fn a_dismissed_toast_sinks_away_then_goes() {
+    let mut doc = page_moving(1200, 800);
+    let toast = find(&doc, "button", "Toast");
+    click(&mut doc, toast);
+    at_time(&mut doc, 1.0);
+    let dismiss = {
+        let inner = doc.inner.borrow();
+        let all = inner
+            .query_selector_all(".unit-toast [aria-label=\"Dismiss\"]")
+            .unwrap();
+        *all.first().expect("a toast to dismiss")
+    };
+    click(&mut doc, dismiss);
+    at_time(&mut doc, 1.0);
+    let going = doc
+        .inner
+        .borrow()
+        .query_selector(".unit-toast.unit-leaving")
+        .unwrap()
+        .expect("drawn going");
+    assert_eq!(
+        doc.inner
+            .borrow()
+            .resolved_style_value(going, "pointer-events"),
+        "none"
+    );
+    at_time(&mut doc, 2.0);
+    assert_eq!(opacity(&doc, going), 0.0, "sunk away");
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    at_time(&mut doc, 2.0);
+    assert!(
+        doc.inner
+            .borrow()
+            .query_selector(".unit-toast")
+            .unwrap()
+            .is_none(),
+        "taken out"
+    );
+}

@@ -27,8 +27,23 @@ pub fn Gallery() -> Element {
     let appearance = use_signal(|| appearance);
     let density = use_signal(|| density);
     let theme = use_signal(chosen_theme);
+    let motion = use_signal(chosen_motion);
     rsx! {
-        Shown { appearance, density, theme, accent: Accent::System }
+        Shown { appearance, density, theme, motion, accent: Accent::System }
+    }
+}
+
+/// How the page moves: the environment's UNIT_MOTION (full, reduced), or a
+/// web page's `?motion=reduced`; the system's otherwise.
+fn chosen_motion() -> MotionSetting {
+    #[cfg(not(target_arch = "wasm32"))]
+    let asked = std::env::var("UNIT_MOTION").unwrap_or_default();
+    #[cfg(target_arch = "wasm32")]
+    let asked = web_query("motion");
+    match asked.as_str() {
+        "full" => MotionSetting::Full,
+        "reduced" => MotionSetting::Reduced,
+        _ => MotionSetting::System,
     }
 }
 
@@ -84,15 +99,24 @@ fn chosen() -> (Appearance, Density) {
 
 /// The page as [`Gallery`] draws it, told its window is `width` × `height`
 /// CSS pixels: what a window's host tells unit ([`Unit::set_viewport`]),
-/// for the tests, which lay it out with no window.
+/// for the tests, which lay it out with no window. Still unless `moving`:
+/// a test's clock stands at 0 unless it moves it, so whatever moved would
+/// stand where its motion began.
 #[component]
-pub fn GallerySized(width: f64, height: f64) -> Element {
+pub fn GallerySized(width: f64, height: f64, #[props(default)] moving: bool) -> Element {
     let (appearance, density) = chosen();
     let appearance = use_signal(|| appearance);
     let density = use_signal(|| density);
     let theme = use_signal(chosen_theme);
+    let motion = use_signal(move || {
+        if moving {
+            MotionSetting::Full
+        } else {
+            MotionSetting::Reduced
+        }
+    });
     rsx! {
-        Shown { appearance, density, theme, accent: Accent::Theme, size: (width, height) }
+        Shown { appearance, density, theme, motion, accent: Accent::Theme, size: (width, height) }
     }
 }
 
@@ -112,8 +136,10 @@ pub fn GalleryAt(
     let appearance = use_signal(|| appearance);
     let density = use_signal(|| density);
     let theme = use_signal(|| theme);
+    // Still: the audit reads every look as it is at rest.
+    let motion = use_signal(|| MotionSetting::Reduced);
     rsx! {
-        Shown { appearance, density, theme, accent: Accent::Theme, size }
+        Shown { appearance, density, theme, motion, accent: Accent::Theme, size }
     }
 }
 
@@ -123,15 +149,16 @@ fn Shown(
     density: Signal<Density>,
     /// Which of [`Theme::all`].
     theme: Signal<usize>,
+    motion: Signal<MotionSetting>,
     accent: Accent,
     size: Option<(f64, f64)>,
 ) -> Element {
     let shown = Theme::all().swap_remove(theme().min(Theme::all().len() - 1));
     rsx! {
-        UnitRoot { appearance: appearance(), density: density(), accent, theme: shown, class: "gallery",
+        UnitRoot { appearance: appearance(), density: density(), accent, theme: shown, motion: motion(), class: "gallery",
             style { {GALLERY_CSS} }
             Sized { size }
-            Page { appearance, density, theme }
+            Page { appearance, density, theme, motion }
             // The page's own element, outside any component, as a host's
             // editor is: unit's styles leave its box as the page drew it.
             div { class: "gallery-own" }
@@ -237,7 +264,12 @@ html, body { margin: 0; }
 "#;
 
 #[component]
-fn Page(appearance: Signal<Appearance>, density: Signal<Density>, theme: Signal<usize>) -> Element {
+fn Page(
+    appearance: Signal<Appearance>,
+    density: Signal<Density>,
+    theme: Signal<usize>,
+    motion: Signal<MotionSetting>,
+) -> Element {
     let unit = use_unit();
     #[cfg(not(target_arch = "wasm32"))]
     use_hook(move || {
@@ -431,6 +463,12 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>, theme: Signal<
                         unit.set_insets(if i == 0 { Insets::default() } else { phone });
                         unit.set_keyboard(if i == 2 { 336.0 } else { 0.0 });
                     },
+                }
+                Segmented {
+                    label: "Motion",
+                    options: vec!["System".into(), "Full".into(), "Reduced".into()],
+                    selected: Some(match motion() { MotionSetting::System => 0, MotionSetting::Full => 1, MotionSetting::Reduced => 2 }),
+                    onchange: move |i| motion.clone().set([MotionSetting::System, MotionSetting::Full, MotionSetting::Reduced][i]),
                 }
                 Segmented {
                     label: "Density",

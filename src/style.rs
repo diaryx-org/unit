@@ -5,7 +5,9 @@
 //!
 //! Written for what Blitz lays out as a browser does: flexbox, absolute
 //! positions by `left`/`top`/`right`/`bottom`, attribute selectors, `:hover`
-//! — not `inset`, `calc()`, transitions or animations. A menu's rows and
+//! — not `inset` or `calc()`. Transitions and keyframes Blitz runs as a
+//! browser does, on its own clock; every keyframe names both its ends,
+//! which Blitz's Stylo needs to draw the frames between. A menu's rows and
 //! separators have fixed heights, the ones `menu::Sizes` computes its
 //! geometry by, for each density.
 
@@ -208,7 +210,11 @@ pub const CSS: &str = r#"
 .unit-switch-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .unit-switch-track { display: flex; flex: none; width: 32px; height: 18px; padding: 2px;
                      background: var(--unit-border); border-radius: var(--unit-pill); }
-.unit-switch.on .unit-switch-track { justify-content: flex-end; background: var(--unit-accent); }
+.unit-switch.on .unit-switch-track { background: var(--unit-accent); }
+/* The knob slides across rather than jumping: the track's width less its
+   padding and the knob's, at each density. */
+.unit-switch.on .unit-switch-knob { transform: translateX(14px); }
+.unit-root[data-density="touch"] .unit-switch.on .unit-switch-knob { transform: translateX(20px); }
 .unit-switch-knob { width: 14px; height: 14px; border-radius: var(--unit-pill); background: #ffffff;
                     box-shadow: var(--unit-raised-shadow); }
 .unit-radios { display: flex; flex-direction: column; gap: 4px; }
@@ -595,6 +601,39 @@ pub const CSS: &str = r#"
 .unit-viewer-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 16px 14px;
                        text-align: center; color: var(--unit-text);
                        background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.6)); }
+
+/* Motion: every duration and curve is the theme's (`Motion`), and 0 where
+   the page asks for less motion or is drawn in a terminal's cells, so
+   nothing here moves there. Blitz runs these as a browser does.
+
+   A small change in place eases between its two looks. A menu's row lights
+   at once, as a system's does. */
+.unit-button, .unit-chip, .unit-tab, .unit-option, .unit-tree-row, .unit-row, .unit-segment-face,
+.unit-step, .unit-check-box, .unit-radio-ring, .unit-radio-dot, .unit-switch-track, .unit-input,
+.unit-code-cell, .unit-tile-face, .unit-tr, .unit-swatch, .unit-swatch-action, .unit-toggle {
+    transition: background-color var(--unit-motion-quick) var(--unit-ease),
+                color var(--unit-motion-quick) var(--unit-ease),
+                border-color var(--unit-motion-quick) var(--unit-ease),
+                box-shadow var(--unit-motion-quick) var(--unit-ease),
+                opacity var(--unit-motion-quick) var(--unit-ease); }
+.unit-switch-knob { transition: transform var(--unit-motion-quick) var(--unit-ease); }
+.unit-progress-fill { transition: width var(--unit-motion-enter) var(--unit-ease); }
+
+/* What appears grows into place from where it opened; a sheet and a toast
+   rise. Each is always in the page and shown by its display, which starts
+   its keyframes again each time it is shown. */
+.unit-menu { animation: unit-enter var(--unit-motion-enter) var(--unit-ease); transform-origin: top left; }
+.unit-dialog { animation: unit-enter var(--unit-motion-enter) var(--unit-ease); }
+.unit-backdrop.unit-scrim, .unit-modal-place { animation: unit-fade var(--unit-motion-enter) var(--unit-ease); }
+.unit-actions, .unit-toast, .unit-modal.unit-sheet { animation: unit-rise var(--unit-motion-enter) var(--unit-ease); }
+.unit-modal { animation: unit-enter var(--unit-motion-enter) var(--unit-ease); }
+
+/* What goes: a menu just closed and a toast dismissed, drawn going until
+   their motion ends, where no pointer reaches them. */
+.unit-menu.unit-leaving { animation: unit-leave var(--unit-motion-exit) var(--unit-ease-exit) forwards;
+                          pointer-events: none; }
+.unit-toast.unit-leaving { animation: unit-sink var(--unit-motion-exit) var(--unit-ease-exit) forwards;
+                           pointer-events: none; }
 "#;
 
 #[cfg(test)]

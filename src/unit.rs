@@ -18,12 +18,13 @@
 
 use std::cell::Cell;
 use std::rc::Rc;
+use std::time::Duration;
 
 use dioxus::html::{Key, Modifiers, NamedKey};
 use dioxus::prelude::*;
 
 use crate::layer::LayerState;
-use crate::theme::{Accent, Appearance, Density, SystemColours, Theme};
+use crate::theme::{Accent, Appearance, Density, MotionSetting, SystemColours, Theme};
 
 /// What the host answers for the page: the clipboard, for a dialog's field.
 pub trait Clipboard {
@@ -110,6 +111,8 @@ pub struct Unit {
     pub(crate) edges: Signal<(Insets, f64)>,
     /// The host's sleep, which times a long press (`hold.rs`).
     pub(crate) timer: CopyValue<Option<crate::components::hold::Sleep>>,
+    /// Whether the page moves, as its root says.
+    pub(crate) motion: CopyValue<MotionSetting>,
 }
 
 impl PartialEq for Unit {
@@ -155,6 +158,7 @@ pub fn use_unit_provider(keys: Keys, activates: bool) -> Unit {
         appearance: Signal::new(Appearance::System),
         edges: Signal::new((Insets::default(), 0.0)),
         timer: CopyValue::new(None),
+        motion: CopyValue::new(MotionSetting::System),
     });
     unit.keys.clone().set(keys);
     unit.activates.clone().set(activates);
@@ -365,6 +369,32 @@ impl Unit {
         }
     }
 
+    /// How long what goes takes to go, for what Rust holds on to while it
+    /// does (a menu, a toast): `None` where nothing moves, or where there is
+    /// no way to wait (no host's sleep, and not a browser), so it goes at
+    /// once.
+    pub(crate) fn exit_time(&self) -> Option<Duration> {
+        let can_wait = self.timer.peek().is_some() || cfg!(target_arch = "wasm32");
+        let ms = self
+            .theme
+            .peek()
+            .exit_ms(*self.density.peek(), *self.motion.peek());
+        (can_wait && ms > 0.0).then(|| Duration::from_millis(ms as u64))
+    }
+
+    /// Do `then` once `time` has passed: by the host's sleep, or in a
+    /// browser by its own timer.
+    pub(crate) fn after(&self, time: Duration, then: impl FnOnce() + 'static) {
+        let sleep = self.timer.peek().clone();
+        dioxus::core::spawn_forever(async move {
+            match sleep {
+                Some(sleep) => sleep(time).await,
+                None => browser_sleep(time).await,
+            }
+            then();
+        });
+    }
+
     /// The page's stylesheet: `theme`'s properties and every component's
     /// styles. [`UnitRoot`] puts it in the page, unless told not to.
     pub fn stylesheet(theme: &Theme) -> String {
@@ -503,6 +533,10 @@ pub fn UnitRoot(
     activates: bool,
     /// The theme; [`Theme::default`] unless given.
     theme: Option<Theme>,
+    /// Whether the page moves: as the system asks, unless the host knows
+    /// better ([`MotionSetting`]).
+    #[props(default)]
+    motion: MotionSetting,
     /// Whether the theme's stylesheet goes in the page, in a `<style>`. A
     /// web page rendered on a server serves [`Unit::stylesheet`] as a file
     /// of its own instead, which a browser caches, and passes `false`.
@@ -513,6 +547,9 @@ pub fn UnitRoot(
 ) -> Element {
     let unit = use_unit_provider(keys, activates);
     unit.density.clone().set(density);
+    if *unit.motion.peek() != motion {
+        unit.motion.clone().set(motion);
+    }
     let system = use_system_colours();
     let mut theme = theme.unwrap_or_default();
     if accent == Accent::System
@@ -532,6 +569,7 @@ pub fn UnitRoot(
             class: "unit-root {class}",
             "data-appearance": appearance.attr(),
             "data-density": density.attr(),
+            "data-motion": motion.attr(),
             // A browser sends keys to the focused element, and to the body
             // with none: a press inside the page focuses the root, so its
             // keys reach it here. Blitz focuses nothing on a press but a
@@ -550,3 +588,28 @@ pub fn UnitRoot(
         }
     }
 }
+
+/// A browser's timer (`setTimeout`), for what waits with no sleep from the
+/// host. Nothing waits anywhere else: [`Unit::exit_time`] says so first.
+#[cfg(target_arch = "wasm32")]
+async fn browser_sleep(time: Duration) {
+    use wasm_bindgen::JsCast;
+    let promise = js_sys::Promise::new(&mut |resolve, _| {
+        let global = js_sys::global();
+        let set = js_sys::Reflect::get(&global, &"setTimeout".into())
+            .ok()
+            .and_then(|f| f.dyn_into::<js_sys::Function>().ok());
+        match set {
+            Some(set) => {
+                let _ = set.call2(&global, &resolve, &(time.as_millis() as f64).into());
+            }
+            None => {
+                let _ = resolve.call0(&wasm_bindgen::JsValue::NULL);
+            }
+        }
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn browser_sleep(_time: Duration) {}

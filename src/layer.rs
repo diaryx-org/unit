@@ -115,6 +115,13 @@ pub(crate) struct LayerState {
     actions: Option<(ActionSheet, Choose)>,
     /// Each toast, its id and its action's handler, oldest first.
     toasts: Vec<(u64, Toast, Option<Action>)>,
+    /// A menu just closed, drawn going (`unit-leaving`) until its motion
+    /// ends, and which closing it was: a drawing only, which nothing reads
+    /// and no pointer reaches.
+    leaving: Option<(Vec<Level>, u64)>,
+    /// The toasts going, by id: drawn going until their motion ends, and
+    /// then taken away.
+    leaving_toasts: Vec<u64>,
     /// The page's size, which a menu is kept inside.
     pub viewport: (f64, f64),
 }
@@ -171,6 +178,8 @@ impl Unit {
         let clear = (safe.top, safe.bottom.max(keyboard));
         let menu = Menu::open_clear(entries, at, above, viewport, clear, sizes);
         let mut w = l.write();
+        // A new menu is drawn alone, not over the last one going.
+        w.leaving = None;
         w.menu = Some((menu, Rc::new(move |i| (pick.borrow_mut())(i))));
         w.owner = (owner != 0).then_some(owner);
     }
@@ -189,7 +198,7 @@ impl Unit {
         let done = RefCell::new(done);
         let mut l = self.layer;
         let mut w = l.write();
-        w.menu = None;
+        self.let_menu_go(&mut w);
         w.dialog = Some((dialog, Rc::new(move |a| (done.borrow_mut())(a))));
     }
 
@@ -199,7 +208,7 @@ impl Unit {
         let choose = RefCell::new(choose);
         let mut l = self.layer;
         let mut w = l.write();
-        w.menu = None;
+        self.let_menu_go(&mut w);
         w.actions = Some((sheet, Rc::new(move |a| (choose.borrow_mut())(a))));
     }
 
@@ -231,11 +240,31 @@ impl Unit {
         }
     }
 
+    /// Close the open menu, choosing nothing from it, and give back what it
+    /// would have chosen with: it goes in its own motion where the page
+    /// moves, as a drawing that nothing reads, and is gone at once where it
+    /// does not.
+    fn let_menu_go(&self, w: &mut LayerState) -> Option<Pick> {
+        let (menu, pick) = w.menu.take()?;
+        if let Some(time) = self.exit_time() {
+            let token = next_id();
+            w.leaving = Some((menu.levels, token));
+            let unit = *self;
+            self.after(time, move || {
+                let mut l = unit.layer;
+                if l.peek().leaving.as_ref().is_some_and(|(_, t)| *t == token) {
+                    l.write().leaving = None;
+                }
+            });
+        }
+        Some(pick)
+    }
+
     /// Close whatever is open, choosing nothing.
     pub fn close(&self) {
         let mut l = self.layer;
         if l.peek().menu.is_some() {
-            l.write().menu = None;
+            self.let_menu_go(&mut l.write());
         } else if l.peek().actions.is_some() {
             self.choose(None);
         } else if l.peek().dialog.is_some() {
@@ -273,11 +302,27 @@ impl Unit {
         id
     }
 
-    /// Take the toast `id` away.
+    /// Take the toast `id` away: in its own motion where the page moves,
+    /// and at once where it does not.
     pub fn dismiss(&self, id: u64) {
         let mut l = self.layer;
-        if l.peek().toasts.iter().any(|(t, ..)| *t == id) {
-            l.write().toasts.retain(|(t, ..)| *t != id);
+        let there = l.peek().toasts.iter().any(|(t, ..)| *t == id);
+        if !there || l.peek().leaving_toasts.contains(&id) {
+            return;
+        }
+        let gone = move |unit: Unit| {
+            let mut l = unit.layer;
+            let mut w = l.write();
+            w.toasts.retain(|(t, ..)| *t != id);
+            w.leaving_toasts.retain(|t| *t != id);
+        };
+        match self.exit_time() {
+            Some(time) => {
+                l.write().leaving_toasts.push(id);
+                let unit = *self;
+                self.after(time, move || gone(unit));
+            }
+            None => gone(*self),
         }
     }
 
@@ -374,11 +419,11 @@ impl Unit {
             Outcome::Ignored => false,
             Outcome::Handled => true,
             Outcome::Close => {
-                l.write().menu = None;
+                self.let_menu_go(&mut l.write());
                 true
             }
             Outcome::Pick(id) => {
-                let pick = l.write().menu.take().map(|(_, p)| p);
+                let pick = self.let_menu_go(&mut l.write());
                 if let Some(p) = pick {
                     p(id);
                 }
@@ -410,11 +455,18 @@ fn LayerView(unit: Unit) -> Element {
         .collect();
     let dialog = l.dialog.as_ref().map(|(d, _)| d.clone());
     let actions = l.actions.as_ref().map(|(a, _)| a.clone());
-    let toasts: Vec<(u64, Toast)> = l
+    let leaving: Vec<Option<Level>> = (0..LEVELS)
+        .map(|i| {
+            l.leaving
+                .as_ref()
+                .and_then(|(levels, _)| levels.get(i).cloned())
+        })
+        .collect();
+    let toasts: Vec<(u64, Toast, bool)> = l
         .toasts
         .iter()
         .take(TOASTS)
-        .map(|(id, t, _)| (*id, t.clone()))
+        .map(|(id, t, _)| (*id, t.clone(), l.leaving_toasts.contains(id)))
         .collect();
     drop(l);
     let (safe, keyboard) = unit.edges();
@@ -458,7 +510,7 @@ fn LayerView(unit: Unit) -> Element {
                     e.stop_propagation();
                     let mut l = unit.layer;
                     if l.peek().menu.is_some() {
-                        l.write().menu = None;
+                        unit.let_menu_go(&mut l.write());
                     } else if l.peek().actions.is_some() {
                         unit.choose(None);
                     } else if l.peek().dialog.is_some() {
@@ -469,20 +521,33 @@ fn LayerView(unit: Unit) -> Element {
             for (depth, level) in levels.into_iter().enumerate() {
                 MenuLevel { key: "{depth}", unit, depth, level }
             }
+            // The menu just closed, going: after the live levels, so that
+            // whatever looks for a menu finds the one open first.
+            for (depth, level) in leaving.into_iter().enumerate() {
+                MenuLevel { key: "leaving-{depth}", unit, depth, level, leaving: true }
+            }
             DialogView { unit, dialog, top: safe.top, bottom: safe.bottom.max(keyboard) }
             ActionsView { unit, sheet: actions, bottom: safe.bottom }
             div { class: "unit-toasts", role: "status", "aria-live": "polite",
                 style: "bottom: {toasts_bottom}px",
-                for (id, t) in toasts {
-                    ToastView { key: "{id}", unit, id, toast: t }
+                for (id, t, going) in toasts {
+                    ToastView { key: "{id}", unit, id, toast: t, leaving: going }
                 }
             }
         }
     }
 }
 
+/// One level of the open menu, or, `leaving`, of the menu just closed: a
+/// drawing going in its own motion that nothing reads and no pointer
+/// reaches.
 #[component]
-fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
+fn MenuLevel(
+    unit: Unit,
+    depth: usize,
+    level: Option<Level>,
+    #[props(default)] leaving: bool,
+) -> Element {
     // One template whether the level is open or not: Blitz does not lay out
     // an absolutely positioned element a later frame inserts, so this one is
     // only ever restyled. Its rows are in a box of their own, which scrolls
@@ -514,9 +579,14 @@ fn MenuLevel(unit: Unit, depth: usize, level: Option<Level>) -> Element {
         ),
         None => ("display: none".to_string(), None),
     };
+    let (class, role) = if leaving {
+        ("unit-menu unit-leaving", "presentation")
+    } else {
+        ("unit-menu", "menu")
+    };
     rsx! {
-        div { class: "unit-menu", role: "menu", style,
-            "aria-hidden": if level.is_none() { "true" } else { "false" },
+        div { class, role, style,
+            "aria-hidden": if level.is_none() || leaving { "true" } else { "false" },
             onpointerdown: move |e: PointerEvent| {
                 e.prevent_default();
                 e.stop_propagation();
@@ -891,7 +961,7 @@ fn field_view(f: &Field, label: &str) -> Element {
 }
 
 #[component]
-fn ToastView(unit: Unit, id: u64, toast: Toast) -> Element {
+fn ToastView(unit: Unit, id: u64, toast: Toast, #[props(default)] leaving: bool) -> Element {
     let act = move |e: MouseEvent| {
         e.stop_propagation();
         let action = unit
@@ -907,7 +977,8 @@ fn ToastView(unit: Unit, id: u64, toast: Toast) -> Element {
         }
     };
     rsx! {
-        div { class: "unit-toast{toast.tone.class()}",
+        div { class: if leaving { "unit-toast unit-leaving{toast.tone.class()}" } else { "unit-toast{toast.tone.class()}" },
+            "aria-hidden": leaving.then_some("true"),
             onpointerdown: move |e: PointerEvent| {
                 e.stop_propagation();
             },
