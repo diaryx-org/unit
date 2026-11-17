@@ -127,7 +127,9 @@ pub fn Modal(
         drag.set(None);
     }
 
-    let viewport = unit.layer.read().viewport;
+    // The page's size alone, as a memo: the layer changes with every step
+    // of the pointer over a menu, and this is not drawn again for that.
+    let viewport = use_memo(move || unit.layer.read().viewport)();
     let sheet = match placement {
         Placement::Center => false,
         Placement::Sheet => sheet_suits(viewport, *unit.density.peek()),

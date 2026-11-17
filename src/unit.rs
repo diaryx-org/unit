@@ -410,6 +410,10 @@ pub struct Focus {
     kind: Kind,
     unit: Unit,
     keys: CopyValue<Option<KeyFn>>,
+    /// Whether this control has the keys. A memo, so that a control is
+    /// drawn again when it gains or loses them, and not every control on
+    /// the page each time they move: a press anywhere moves them.
+    has: Memo<bool>,
 }
 
 /// A control that can have the keys: `keys` is called with each key while it
@@ -417,11 +421,14 @@ pub struct Focus {
 /// handler sees the control's latest props.
 pub fn use_focus(kind: Kind, keys: impl Fn(&Key, Modifiers) -> bool + 'static) -> Focus {
     let unit = use_unit();
+    let id = use_hook(next_id);
+    let has = use_memo(move || *unit.focused.read() == Some(id));
     let f = use_hook(|| Focus {
-        id: next_id(),
+        id,
         kind,
         unit,
         keys: CopyValue::new(None),
+        has,
     });
     f.keys.clone().set(Some(Rc::new(keys)));
     // A control taken out of the page gives up the keys: its handler is
@@ -434,7 +441,7 @@ impl Focus {
     /// Whether this control has the keys — read, so the control redraws its
     /// ring when that changes.
     pub fn is_focused(&self) -> bool {
-        self.unit.is_focused(self.id)
+        *self.has.read()
     }
 
     fn focused(&self, dom: bool) -> Focused {
