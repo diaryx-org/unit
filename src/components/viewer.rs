@@ -283,7 +283,9 @@ pub fn PhotoViewer(
     // The stage: the window inside its safe area, if the host said how
     // large the window is.
     let (safe, _) = unit.edges();
-    let viewport = unit.layer.read().viewport;
+    // The page's size alone, as a memo: the layer changes with every step
+    // of the pointer over a menu, and this is not drawn again for that.
+    let viewport = use_memo(move || unit.layer.read().viewport)();
     let stage = (
         viewport.0 - safe.left - safe.right,
         viewport.1 - safe.top - safe.bottom,

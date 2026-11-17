@@ -127,7 +127,12 @@ pub fn MenuButton(
         false
     });
     opener.owner.clone().set(focus.id);
-    let expanded = unit.layer.read().menu_owner() == Some(focus.id);
+    // Whether its menu is open, as a memo: the layer changes with every
+    // step of the pointer over an open menu, and a button whose menu did
+    // not open or close is not drawn again for it.
+    let id = focus.id;
+    let expanded = use_memo(move || unit.layer.read().menu_owner() == Some(id));
+    let expanded = expanded();
     let entries2 = entries.clone();
     rsx! {
         button {
