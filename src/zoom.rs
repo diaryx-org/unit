@@ -820,6 +820,9 @@ pub fn shrunk(frame: (f64, f64, f64, f64), scale: f64) -> (f64, f64, f64, f64) {
 /// place. `t` is how much of the time has passed; what it gives, how much
 /// of the way.
 fn settle(t: f64) -> f64 {
+    if t <= 0.0 || t >= 1.0 {
+        return t.clamp(0.0, 1.0);
+    }
     // A cubic Bézier from (0, 0) to (1, 1) through (0.2, 0) and (0, 1):
     // find the `s` along it whose x is `t`, and give its y.
     let x = |s: f64| 3.0 * (1.0 - s) * (1.0 - s) * s * 0.2 + s * s * s;
@@ -1074,12 +1077,16 @@ mod tests {
         let mut f = Flight::opening((40.0, 600.0, 80.0, 80.0), to, 300.0);
         assert_eq!(f.frame(), (40.0, 600.0, 80.0, 80.0), "where it was shown");
         assert_eq!(f.fade(), 0.0);
-        assert!(f.step(150.0));
+        // Frames of 50ms: a frame longer than 100ms counts as 100.
+        for _ in 0..3 {
+            assert!(f.step(50.0));
+        }
         let (x, y, w, _) = f.frame();
         assert!(w > 80.0 + 0.5 * (400.0 - 80.0), "quick at first: {w}");
         assert!(x < 40.0 && y < 600.0 && y > 250.0, "{x}, {y}");
         assert!(f.fade() > 0.5 && f.fade() < 1.0, "{}", f.fade());
-        assert!(!f.step(150.0), "there in its time");
+        assert!(f.step(100.0) && f.step(25.0));
+        assert!(!f.step(25.0), "there in its time");
         assert_eq!(f.frame(), to);
         assert_eq!(f.fade(), 1.0);
         assert!(!f.closes());
