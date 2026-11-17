@@ -200,7 +200,7 @@ fn LongText(at: At) -> Element {
     let options: Vec<String> = vec![LONG.into(), WORD.into()];
     rsx! {
         UnitRoot { appearance: at.appearance, density: at.density,
-                   theme: unit::Theme::all().swap_remove(at.theme),
+                   theme: unit::Theme::all().swap_remove(at.theme), motion: unit::MotionSetting::Reduced,
             Stack { gap: 12.0,
                 Heading { level: 1, "{LONG}" }
                 Heading { level: 1, "{WORD}" }

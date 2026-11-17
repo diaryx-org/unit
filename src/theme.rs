@@ -462,6 +462,121 @@ impl Default for Shape {
     }
 }
 
+/// How a theme's pieces move: how long a change takes, and along what
+/// curve. Durations are in milliseconds. A page that asks for less motion
+/// ([`MotionSetting::Reduced`], or the system's `prefers-reduced-motion`),
+/// and a terminal's cells, take none of it: every duration is 0.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Motion {
+    /// A small change in place: a hover, a press, a switch's knob, a
+    /// checkbox filling.
+    pub quick: f64,
+    /// What appears: a menu, a dialog, a sheet, a toast.
+    pub enter: f64,
+    /// What goes: quicker than what comes, as a system's menus are.
+    pub exit: f64,
+    /// The curve of a change and of what appears, as CSS: a
+    /// `cubic-bezier()`, or a spring drawn as `linear()`.
+    pub ease: &'static str,
+    /// The curve of what goes.
+    pub ease_exit: &'static str,
+    /// How large what appears starts, and what goes ends: 1 fades alone.
+    pub grow: f64,
+    /// How far, in pixels, what rises from the bottom (a sheet, a toast)
+    /// starts below where it ends.
+    pub rise: f64,
+}
+
+impl Motion {
+    /// unit's own: quick, and settling without a bounce.
+    pub const DEFAULT: Motion = Motion {
+        quick: 120.0,
+        enter: 160.0,
+        exit: 120.0,
+        ease: "cubic-bezier(0.2, 0, 0, 1)",
+        ease_exit: "cubic-bezier(0.4, 0, 1, 1)",
+        grow: 0.97,
+        rise: 12.0,
+    };
+
+    /// [`Theme::soft`]'s: a little longer, on a spring that passes its mark
+    /// and comes back, as a phone's sheets do.
+    pub const SOFT: Motion = Motion {
+        quick: 160.0,
+        enter: 320.0,
+        exit: 160.0,
+        ease: "linear(0, 0.13 3.6%, 0.44 9.2%, 0.73 15.4%, 0.92 22%, 1.02 29.3%, 1.045 35.8%, 1.04 42.7%, 1.016 53.5%, 0.999 67%, 1)",
+        ease_exit: "cubic-bezier(0.4, 0, 1, 1)",
+        grow: 0.94,
+        rise: 24.0,
+    };
+
+    /// [`Theme::sharp`]'s: short, straight, and a fade with no growing.
+    pub const SHARP: Motion = Motion {
+        quick: 80.0,
+        enter: 100.0,
+        exit: 80.0,
+        ease: "linear",
+        ease_exit: "linear",
+        grow: 1.0,
+        rise: 0.0,
+    };
+
+    fn entries(&self) -> [(&'static str, String); 5] {
+        let ms = |v: f64| format!("{v}ms");
+        [
+            ("motion-quick", ms(self.quick)),
+            ("motion-enter", ms(self.enter)),
+            ("motion-exit", ms(self.exit)),
+            ("ease", self.ease.to_string()),
+            ("ease-exit", self.ease_exit.to_string()),
+        ]
+    }
+
+    /// The keyframes what appears and what goes are drawn by, with this
+    /// motion's growing and rising written into them.
+    fn keyframes(&self) -> String {
+        let (g, r) = (self.grow, self.rise);
+        format!(
+            "@keyframes unit-enter {{ from {{ opacity: 0; transform: scale({g}); }} to {{ opacity: 1; transform: scale(1); }} }}\n\
+             @keyframes unit-rise {{ from {{ opacity: 0; transform: translateY({r}px); }} to {{ opacity: 1; transform: translateY(0px); }} }}\n\
+             @keyframes unit-fade {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}\n\
+             @keyframes unit-leave {{ from {{ opacity: 1; transform: scale(1); }} to {{ opacity: 0; transform: scale({g}); }} }}\n\
+             @keyframes unit-sink {{ from {{ opacity: 1; transform: translateY(0px); }} to {{ opacity: 0; transform: translateY({r}px); }} }}\n"
+        )
+    }
+}
+
+impl Default for Motion {
+    fn default() -> Self {
+        Motion::DEFAULT
+    }
+}
+
+/// Whether a page moves: as the system asks (`prefers-reduced-motion`,
+/// where the renderer reads it), always, or as little as it can. A host
+/// that knows the system's setting where a renderer does not (Blitz, on a
+/// phone) says it with [`MotionSetting::Full`] or
+/// [`MotionSetting::Reduced`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MotionSetting {
+    #[default]
+    System,
+    Full,
+    Reduced,
+}
+
+impl MotionSetting {
+    /// The root's `data-motion`.
+    pub fn attr(self) -> &'static str {
+        match self {
+            MotionSetting::System => "system",
+            MotionSetting::Full => "full",
+            MotionSetting::Reduced => "reduced",
+        }
+    }
+}
+
 /// Which appearance a page shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Appearance {
@@ -528,6 +643,8 @@ pub struct Theme {
     pub heading_font: &'static str,
     /// The edges, pills and shadows.
     pub shape: Shape,
+    /// How long things take to change, and along what curve.
+    pub motion: Motion,
 }
 
 /// The system's text face, on each platform.
@@ -545,6 +662,7 @@ impl Default for Theme {
             font: SYSTEM_FONT,
             heading_font: SYSTEM_FONT,
             shape: Shape::DEFAULT,
+            motion: Motion::DEFAULT,
         }
     }
 }
@@ -563,6 +681,7 @@ impl Theme {
             regular: Metrics::REGULAR.rounded(8.0, 12.0, 6.0),
             touch: Metrics::TOUCH.rounded(12.0, 18.0, 10.0),
             shape: Shape::SOFT,
+            motion: Motion::SOFT,
             ..Theme::default()
         }
     }
@@ -577,7 +696,19 @@ impl Theme {
             regular: Metrics::REGULAR.rounded(0.0, 0.0, 0.0),
             touch: Metrics::TOUCH.rounded(0.0, 0.0, 0.0),
             shape: Shape::SHARP,
+            motion: Motion::SHARP,
             ..Theme::default()
+        }
+    }
+
+    /// How long `density` and `setting` let a change take, in milliseconds,
+    /// for what Rust times rather than CSS: 0 where nothing moves. The
+    /// system's own setting is not known here, and is taken as motion.
+    pub fn exit_ms(&self, density: Density, setting: MotionSetting) -> f64 {
+        if setting == MotionSetting::Reduced || density == Density::Cell {
+            0.0
+        } else {
+            self.motion.exit
         }
     }
 
@@ -616,6 +747,9 @@ impl Theme {
         for (name, value) in self.shape.entries() {
             let _ = writeln!(s, "  --unit-{name}: {value};");
         }
+        for (name, value) in self.motion.entries() {
+            let _ = writeln!(s, "  --unit-{name}: {value};");
+        }
         palette(&mut s, &self.light);
         metrics(&mut s, &self.regular);
         s.push_str("}\n");
@@ -638,6 +772,14 @@ impl Theme {
             let _ = writeln!(s, "  --unit-{shadow}-shadow: none;");
         }
         s.push_str("}\n");
+        // Less motion, and a terminal's cells: nothing takes any time.
+        let still = "  --unit-motion-quick: 0ms;\n  --unit-motion-enter: 0ms;\n  --unit-motion-exit: 0ms;\n";
+        let _ = write!(
+            s,
+            ".unit-root[data-motion=\"reduced\"], .unit-root[data-density=\"cell\"] {{\n{still}}}\n\
+             @media (prefers-reduced-motion: reduce) {{\n.unit-root[data-motion=\"system\"] {{\n{still}}}\n}}\n"
+        );
+        s.push_str(&self.motion.keyframes());
         s
     }
 }
@@ -713,6 +855,28 @@ mod tests {
         // Cells round nothing, in any theme.
         let cell = &soft[soft.find("[data-density=\"cell\"]").unwrap()..];
         assert!(cell.contains("--unit-pill: 0px;") && cell.contains("--unit-float-shadow: none;"));
+    }
+
+    /// Each theme moves in its own way, and none moves where less motion is
+    /// asked for or in a terminal's cells.
+    #[test]
+    fn a_theme_says_how_it_moves_and_stillness_wins() {
+        let soft = Theme::soft().css();
+        assert!(soft.contains("--unit-motion-enter: 320ms;"), "{soft}");
+        assert!(soft.contains("--unit-ease: linear(0,"), "{soft}");
+        assert!(soft.contains("transform: scale(0.94)"), "{soft}");
+        let sharp = Theme::sharp().css();
+        assert!(sharp.contains("--unit-ease: linear;"), "{sharp}");
+        let still = &soft[soft.find("[data-motion=\"reduced\"]").unwrap()..];
+        assert!(
+            still.starts_with("[data-motion=\"reduced\"], .unit-root[data-density=\"cell\"] {")
+        );
+        assert!(still.contains("--unit-motion-enter: 0ms;"));
+        assert!(soft.contains("@media (prefers-reduced-motion: reduce)"));
+        let t = Theme::soft();
+        assert_eq!(t.exit_ms(Density::Regular, MotionSetting::System), 160.0);
+        assert_eq!(t.exit_ms(Density::Touch, MotionSetting::Reduced), 0.0);
+        assert_eq!(t.exit_ms(Density::Cell, MotionSetting::Full), 0.0);
     }
 
     #[test]
