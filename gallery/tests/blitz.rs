@@ -2013,7 +2013,7 @@ fn a_collections_menu_is_about_its_selection() {
     assert!(selected(&doc, letters));
     assert!(!selected(&doc, option_named(&doc, "Notes.md")));
     assert!(menu_open(&doc));
-    let trash = find(&doc, ".unit-item", "Move to Trash");
+    let trash = find(&doc, ".unit-cell", "Trash");
     click(&mut doc, trash);
     assert_eq!(said(&doc), "Move 1 item to the Trash.");
     // On one of several chosen, it keeps them all.
@@ -2021,7 +2021,7 @@ fn a_collections_menu_is_about_its_selection() {
     click_with(&mut doc, plans, Modifiers::META);
     right_click(&mut doc, plans);
     assert_eq!(chosen(&doc), "2 of 7 chosen.");
-    let open = find(&doc, ".unit-item", "Open");
+    let open = find(&doc, ".unit-cell", "Open");
     click(&mut doc, open);
     assert_eq!(said(&doc), "Open 2 items.");
     // The Menu key opens it too, its first item lit as a key's menu is.
@@ -2031,6 +2031,89 @@ fn a_collections_menu_is_about_its_selection() {
     assert!(menu_open(&doc));
     key(&mut doc, Key::Named(NamedKey::Enter));
     assert_eq!(said(&doc), "Open 1 item.");
+}
+
+/// A palette's items stand side by side in one row of the menu, inside
+/// it, each an icon over its label, read as a group of menu items; the
+/// arrows go along it and Return picks.
+#[test]
+fn a_palette_lays_its_items_side_by_side_in_the_menu() {
+    for finger in [false, true] {
+        let mut doc = page(1200, 800);
+        if finger {
+            let touch = find(&doc, ".unit-segment", "Touch");
+            tap(&mut doc, touch);
+        }
+        let letters = option_named(&doc, "Letters.md");
+        right_click(&mut doc, letters);
+        assert!(menu_open(&doc));
+        let cells: Vec<NodeId> = ["Open", "Rename", "Duplicate", "Trash"]
+            .iter()
+            .map(|l| find(&doc, ".unit-cell", l))
+            .collect();
+        let level = doc
+            .inner
+            .borrow()
+            .query_selector(".unit-menu")
+            .unwrap()
+            .unwrap();
+        let (lx, ly, lw, lh) = rect(&doc, level);
+        let boxes: Vec<_> = cells.iter().map(|&c| rect(&doc, c)).collect();
+        for (i, &(x, y, w, h)) in boxes.iter().enumerate() {
+            assert!(w > 0.0 && h > 0.0, "cell {i} is drawn");
+            assert!(
+                x >= lx && x + w <= lx + lw + 0.5,
+                "cell {i} inside the menu"
+            );
+            assert!(
+                y >= ly && y + h <= ly + lh + 0.5,
+                "cell {i} inside the menu"
+            );
+            assert_eq!(y, boxes[0].1, "one row");
+            if i > 0 {
+                assert!(x >= boxes[i - 1].0 + boxes[i - 1].2, "side by side");
+            }
+            assert!(
+                icon_under(&doc, cells[i]).1.starts_with("unit-svg"),
+                "an icon in cell {i}"
+            );
+        }
+        assert!(class_of(&doc, cells[3]).contains("danger"));
+        let nodes = tree(&doc);
+        assert!(
+            with_role(&nodes, Role::MenuItem)
+                .iter()
+                .any(|n| n.label() == Some("Duplicate")),
+            "a cell is read as a menu item"
+        );
+        // The pointer picks a cell.
+        click(&mut doc, cells[2]);
+        assert_eq!(said(&doc), "Duplicate 1 item.");
+        assert!(!menu_open(&doc));
+        // From the keys: the Menu key lights the palette's first cell, and
+        // the arrows go along it.
+        click(&mut doc, letters);
+        key(&mut doc, Key::Named(NamedKey::ContextMenu));
+        assert!(menu_open(&doc));
+        // A new opening draws its rows anew.
+        let cells: Vec<NodeId> = ["Open", "Rename", "Duplicate", "Trash"]
+            .iter()
+            .map(|l| find(&doc, ".unit-cell", l))
+            .collect();
+        assert!(
+            class_of(&doc, cells[0]).contains("hot"),
+            "the first cell lit"
+        );
+        key(&mut doc, Key::Named(NamedKey::ArrowRight));
+        key(&mut doc, Key::Named(NamedKey::ArrowRight));
+        key(&mut doc, Key::Named(NamedKey::ArrowRight));
+        assert!(
+            class_of(&doc, cells[3]).contains("hot"),
+            "along the palette"
+        );
+        key(&mut doc, Key::Named(NamedKey::Enter));
+        assert_eq!(said(&doc), "Move 1 item to the Trash.");
+    }
 }
 
 #[test]

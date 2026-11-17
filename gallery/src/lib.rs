@@ -17,6 +17,8 @@ const DELETE: usize = 12;
 const OPEN: usize = 20;
 const RENAME: usize = 21;
 const TRASH: usize = 22;
+const COPY_FILE: usize = 23;
+const SHARE_FILE: usize = 24;
 
 /// The page, at the appearance and density the page itself chooses.
 #[allow(non_snake_case)]
@@ -24,9 +26,38 @@ pub fn Gallery() -> Element {
     let (appearance, density) = chosen();
     let appearance = use_signal(|| appearance);
     let density = use_signal(|| density);
+    let theme = use_signal(chosen_theme);
     rsx! {
-        Shown { appearance, density, accent: Accent::System }
+        Shown { appearance, density, theme, accent: Accent::System }
     }
+}
+
+/// Which of unit's themes the page starts in: the environment's
+/// UNIT_THEME (unit, soft, sharp), or a web page's `?theme=soft`.
+fn chosen_theme() -> usize {
+    #[cfg(not(target_arch = "wasm32"))]
+    let asked = std::env::var("UNIT_THEME").unwrap_or_default();
+    #[cfg(target_arch = "wasm32")]
+    let asked = web_query("theme");
+    Theme::all()
+        .iter()
+        .position(|t| t.name.eq_ignore_ascii_case(&asked))
+        .unwrap_or(0)
+}
+
+/// A query parameter of the page's address, on the web.
+#[cfg(target_arch = "wasm32")]
+fn web_query(name: &str) -> String {
+    let search = js_sys::eval("location.search")
+        .ok()
+        .and_then(|v| v.as_string())
+        .unwrap_or_default();
+    search
+        .trim_start_matches('?')
+        .split('&')
+        .find_map(|kv| kv.strip_prefix(name)?.strip_prefix('='))
+        .unwrap_or_default()
+        .to_string()
 }
 
 /// The appearance and density the environment asks for: a window can start
@@ -59,8 +90,9 @@ pub fn GallerySized(width: f64, height: f64) -> Element {
     let (appearance, density) = chosen();
     let appearance = use_signal(|| appearance);
     let density = use_signal(|| density);
+    let theme = use_signal(chosen_theme);
     rsx! {
-        Shown { appearance, density, accent: Accent::Theme, size: (width, height) }
+        Shown { appearance, density, theme, accent: Accent::Theme, size: (width, height) }
     }
 }
 
@@ -73,11 +105,15 @@ pub fn GalleryAt(
     density: Density,
     /// The window's size, as a host would tell unit.
     size: Option<(f64, f64)>,
+    /// Which of [`Theme::all`]: unit's own unless given.
+    #[props(default)]
+    theme: usize,
 ) -> Element {
     let appearance = use_signal(|| appearance);
     let density = use_signal(|| density);
+    let theme = use_signal(|| theme);
     rsx! {
-        Shown { appearance, density, accent: Accent::Theme, size }
+        Shown { appearance, density, theme, accent: Accent::Theme, size }
     }
 }
 
@@ -85,14 +121,17 @@ pub fn GalleryAt(
 fn Shown(
     appearance: Signal<Appearance>,
     density: Signal<Density>,
+    /// Which of [`Theme::all`].
+    theme: Signal<usize>,
     accent: Accent,
     size: Option<(f64, f64)>,
 ) -> Element {
+    let shown = Theme::all().swap_remove(theme().min(Theme::all().len() - 1));
     rsx! {
-        UnitRoot { appearance: appearance(), density: density(), accent, class: "gallery",
+        UnitRoot { appearance: appearance(), density: density(), accent, theme: shown, class: "gallery",
             style { {GALLERY_CSS} }
             Sized { size }
-            Page { appearance, density }
+            Page { appearance, density, theme }
             // The page's own element, outside any component, as a host's
             // editor is: unit's styles leave its box as the page drew it.
             div { class: "gallery-own" }
@@ -198,7 +237,7 @@ html, body { margin: 0; }
 "#;
 
 #[component]
-fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
+fn Page(appearance: Signal<Appearance>, density: Signal<Density>, theme: Signal<usize>) -> Element {
     let unit = use_unit();
     #[cfg(not(target_arch = "wasm32"))]
     use_hook(move || {
@@ -299,18 +338,21 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
     let shown: Vec<String> = files.iter().map(|f| f.name.clone()).collect();
     let tiles: Vec<Tile> = files.iter().map(File::tile).collect();
     let rows: Vec<TableRow> = files.iter().map(File::row).collect();
+    // A file's menu, condensed: what is done most in a palette at its
+    // top, the rest in rows under it.
     let file_menu = vec![
         Entry::header(match chosen().len() {
             1 => "1 file".to_string(),
             n => format!("{n} files"),
         }),
-        Item::new(OPEN, "Open").into(),
-        Item::new(RENAME, "Rename…").into(),
+        Entry::palette(vec![
+            Item::new(OPEN, "Open").icon(paths::ARROW_UP_RIGHT),
+            Item::new(RENAME, "Rename").icon(paths::PENCIL),
+            Item::new(COPY_FILE, "Duplicate").icon(paths::COPY),
+            Item::new(TRASH, "Trash").icon(paths::TRASH).destructive(),
+        ]),
         Entry::Separator,
-        Item::new(TRASH, "Move to Trash")
-            .icon(paths::TRASH)
-            .destructive()
-            .into(),
+        Item::new(SHARE_FILE, "Share…").icon(paths::SHARE).into(),
     ];
     let on_file = move |id: usize| {
         let n = chosen.peek().len();
@@ -322,6 +364,8 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
         said.set(match id {
             OPEN => format!("Open {what}."),
             RENAME => format!("Rename {what}."),
+            COPY_FILE => format!("Duplicate {what}."),
+            SHARE_FILE => format!("Share {what}."),
             _ => format!("Move {what} to the Trash."),
         });
     };
@@ -365,6 +409,12 @@ fn Page(appearance: Signal<Appearance>, density: Signal<Density>) -> Element {
             Stack { axis: Axis::Horizontal, align: Align::Center, wrap: true,
                 Heading { level: 1, "unit" }
                 Spacer {}
+                Segmented {
+                    label: "Theme",
+                    options: Theme::all().iter().map(|t| t.name.to_string()).collect::<Vec<String>>(),
+                    selected: Some(theme()),
+                    onchange: move |i| theme.clone().set(i),
+                }
                 Segmented {
                     label: "Appearance",
                     options: vec!["System".into(), "Light".into(), "Dark".into()],

@@ -120,6 +120,12 @@ pub mod paths {
     pub const SEARCH: &str = "M21 21l-4.34-4.34M3 11a8 8 0 1 0 16 0a8 8 0 1 0 -16 0";
     /// Lucide's `trash`.
     pub const TRASH: &str = "M10 11v6M14 11v6M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2";
+    /// Lucide's `copy`: two sheets, one over the other.
+    pub const COPY: &str = "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2zM4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2";
+    /// Lucide's `pencil`: rename, edit.
+    pub const PENCIL: &str = "M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5zM15 5l4 4";
+    /// Lucide's `shield`: kept safe.
+    pub const SHIELD: &str = "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z";
     /// Lucide's `share`.
     pub const SHARE: &str = "M12 2v13M16 6l-4-4-4 4M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8";
     /// Lucide's `chevron-up`.
@@ -196,6 +202,9 @@ pub mod paths {
         ("SEARCH", SEARCH),
         ("TRASH", TRASH),
         ("SHARE", SHARE),
+        ("COPY", COPY),
+        ("SHIELD", SHIELD),
+        ("PENCIL", PENCIL),
         ("CHEVRON_UP", CHEVRON_UP),
         ("CHEVRON_UP_DOWN", CHEVRON_UP_DOWN),
         ("ARROW_UP", ARROW_UP),
