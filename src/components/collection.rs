@@ -22,6 +22,8 @@
 //! their `size`, and reads how many fit a row from its own width as the
 //! renderer reports it.
 
+use std::rc::Rc;
+
 use dioxus::html::Modifiers;
 use dioxus::prelude::*;
 
@@ -31,6 +33,7 @@ use crate::menu::Entry;
 use crate::selection::{Did, Keyed, Pick, Selection, Shape};
 use crate::theme::Density;
 use crate::unit::{Kind, Unit, use_focus, use_unit};
+use crate::zoom::Spot;
 
 /// How far apart a grid's tiles are, and its padding, in CSS pixels.
 const GAP: f64 = 8.0;
@@ -135,6 +138,11 @@ struct Chooser {
     selection: Selection,
     onselect: EventHandler<Selection>,
     onactivate: Option<EventHandler<String>>,
+    /// In place of `onactivate`: given the key and where its picture is in
+    /// the window, a grid's `onopen`.
+    onopen: Option<EventHandler<(String, Option<Spot>)>>,
+    /// Each tile's picture, as it was mounted: where it is, for `onopen`.
+    faces: Option<CopyValue<Faces>>,
     multiple: bool,
     toggles: bool,
     /// A press alone opens what it lands on, as well as choosing it.
@@ -175,6 +183,25 @@ impl Chooser {
     }
 
     fn activate(&self, key: &str) {
+        if let Some(open) = self.onopen {
+            let key = key.to_string();
+            let face = self.faces.and_then(|f| f.peek().get(&key));
+            let Some(face) = face else {
+                open.call((key, None));
+                return;
+            };
+            // The renderer says where the picture is when asked, which it
+            // answers after this turn.
+            dioxus::core::spawn_forever(async move {
+                let spot = face
+                    .get_client_rect()
+                    .await
+                    .ok()
+                    .map(|r| Spot::rect(r.origin.x, r.origin.y, r.size.width, r.size.height));
+                open.call((key, spot));
+            });
+            return;
+        }
         if let Some(a) = self.onactivate {
             a.call(key.to_string());
         }
@@ -244,6 +271,31 @@ impl Chooser {
 struct Sightings {
     order: Vec<String>,
     seen: Vec<Sighting>,
+}
+
+/// Each tile's picture as the renderer mounted it, by its key: what a grid
+/// asks where a tile is on the screen as it opens it (`onopen`).
+#[derive(Default)]
+struct Faces(Vec<(String, Rc<MountedData>)>);
+
+impl Faces {
+    fn get(&self, key: &str) -> Option<Rc<MountedData>> {
+        self.0
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, m)| m.clone())
+    }
+
+    fn mounted(&mut self, key: &str, face: Rc<MountedData>) {
+        self.0.retain(|(k, _)| k != key);
+        self.0.push((key.to_string(), face));
+    }
+
+    /// The tile with `face` is gone; a new one of the same key may have
+    /// mounted already, and stays.
+    fn dropped(&mut self, face: &Rc<MountedData>) {
+        self.0.retain(|(_, m)| !Rc::ptr_eq(m, face));
+    }
 }
 
 /// One tile the pointer found: its section and its place in it, and where
@@ -316,6 +368,11 @@ impl Sightings {
 ///
 /// `onselect` is given each new selection, `onactivate` the key of a tile
 /// opened, `onaction` the key of a tile whose corner button was pressed.
+/// `onopen`, in place of `onactivate`, is given the key of a tile opened
+/// with where its picture is in the window, by a press or a key alike: the
+/// [`Spot`] a photo viewer flies it out of ([`crate::Photo::from`]). It is
+/// `None` where the renderer cannot say, and is given a moment after the
+/// press, once the renderer has said.
 /// `multiple: false` keeps one tile chosen at most; `toggles` makes every
 /// press put a tile in or out; `opens` makes a press alone (a click, a tap)
 /// open the tile, as a photo library's does, where a folder's opens by a
@@ -332,6 +389,7 @@ pub fn TileGrid(
     selection: Selection,
     onselect: EventHandler<Selection>,
     onactivate: Option<EventHandler<String>>,
+    onopen: Option<EventHandler<(String, Option<Spot>)>>,
     onaction: Option<EventHandler<String>>,
     label: Option<String>,
     #[props(default = true)] multiple: bool,
@@ -359,6 +417,7 @@ pub fn TileGrid(
     // How many tiles a row holds, where the renderer reports the width.
     let mut measured = use_signal(|| None::<usize>);
     let sightings = use_hook(|| CopyValue::new(Sightings::default()));
+    let faces = use_hook(|| CopyValue::new(Faces::default()));
 
     let order: Vec<String> = tiles.iter().map(|t| t.key.clone()).collect();
     if sightings.peek().order != order {
@@ -388,6 +447,8 @@ pub fn TileGrid(
         selection: selection.clone(),
         onselect,
         onactivate,
+        onopen,
+        faces: Some(faces),
         multiple,
         toggles,
         opens,
@@ -485,6 +546,7 @@ pub fn TileGrid(
                     fill,
                     text,
                     sightings,
+                    faces,
                     chooser: chooser.clone(),
                     onaction,
                 }
@@ -507,11 +569,19 @@ fn TileView(
     fill: bool,
     text: f64,
     sightings: CopyValue<Sightings>,
+    faces: CopyValue<Faces>,
     chooser: Chooser,
     onaction: Option<EventHandler<String>>,
 ) -> Element {
     let unit = use_unit();
     let key = tile.key.clone();
+    // Its picture, as mounted: where it is when it is opened.
+    let face = use_hook(|| CopyValue::new(None::<Rc<MountedData>>));
+    use_drop(move || {
+        if let Some(m) = face.peek().clone() {
+            faces.clone().write().dropped(&m);
+        }
+    });
     let held = {
         let (chooser, key) = (chooser.clone(), key.clone());
         crate::components::hold::use_hold(move |at| chooser.menu(unit, &key, at))
@@ -540,7 +610,7 @@ fn TileView(
     };
     // Its own size, or its cell's where the tiles stretch, the picture
     // square either way.
-    let (style, face) = if fill {
+    let (style, face_style) = if fill {
         (String::new(), "aspect-ratio: 1 / 1".to_string())
     } else {
         (
@@ -604,7 +674,15 @@ fn TileView(
                     }
                 }
             },
-            div { class: "unit-tile-face", style: "{face}",
+            div { class: "unit-tile-face", style: "{face_style}",
+                onmounted: {
+                    let key = key.clone();
+                    move |e: MountedEvent| {
+                        let m = e.data();
+                        faces.clone().write().mounted(&key, m.clone());
+                        face.clone().set(Some(m));
+                    }
+                },
                 if let Some(src) = &tile.image {
                     img { class: "unit-tile-image", src: "{src}", alt: "", "aria-hidden": "true" }
                 } else {
@@ -766,6 +844,8 @@ pub fn Table(
         selection: selection.clone(),
         onselect,
         onactivate,
+        onopen: None,
+        faces: None,
         multiple,
         toggles,
         opens: false,

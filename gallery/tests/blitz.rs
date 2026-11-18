@@ -3439,47 +3439,65 @@ fn until_closed(doc: &mut DioxusDocument) -> Option<(f64, f64, f64, f64)> {
     panic!("the viewer never closed")
 }
 
-/// With motion on, a photo opened by a tap flies out of where it was
-/// tapped to fill the window, and closed, by its button or a drag down,
-/// flies back into it before the viewer is gone. Opened by a button, with
-/// no spot, it grows a little where it rests as it fades in.
+/// The picture of the photo tile named `name`: its box in the window.
+fn tile_face(doc: &DioxusDocument, name: &str) -> (f64, f64, f64, f64) {
+    let tile = option_named(doc, name);
+    let inner = doc.inner.borrow();
+    let faces = inner.query_selector_all(".unit-tile-face").unwrap();
+    let face = faces
+        .into_iter()
+        .find(|&f| inner.get_node(f).unwrap().parent == Some(tile))
+        .expect("a tile's picture");
+    drop(inner);
+    rect(doc, face)
+}
+
+/// With motion on, a photo opened from its tile, by a tap or a key, flies
+/// out of the tile's picture to fill the window, and closed, by its button
+/// or a drag down, flies back into it before the viewer is gone. Opened by
+/// a button, with no spot, it grows a little where it rests as it fades in.
 #[test]
-fn a_photo_flies_out_of_where_it_was_tapped_and_back_into_it() {
+fn a_photo_flies_out_of_its_tile_and_back_into_it() {
     let mut doc = page_moving(1200, 800);
-    let photo = option_named(&doc, "Noon on the hill");
-    let (x, y, w, h) = rect(&doc, photo);
-    let spot = (x + w / 2.0, y + h / 2.0);
+    let face = tile_face(&doc, "Noon on the hill");
     let middle = |(x, y, w, h): (f64, f64, f64, f64)| (x + w / 2.0, y + h / 2.0);
     let close_to = |a: (f64, f64), b: (f64, f64), by: f64| (a.0 - b.0).hypot(a.1 - b.1) < by;
+    let like_face = |f: (f64, f64, f64, f64)| {
+        close_to(middle(f), middle(face), 12.0) && f.2 < face.2 * 1.5 && f.3 < face.3 * 1.5
+    };
+    let photo = option_named(&doc, "Noon on the hill");
     click(&mut doc, photo);
+    settle(&mut doc);
     assert!(viewer(&doc).is_some(), "open");
     let first = photo_frame(&doc);
-    assert!(first.2 < FITS.2 / 2.0, "small, as it begins: {first:?}");
     assert!(
-        close_to(middle(first), spot, 300.0),
-        "near where it was tapped: {first:?}, {spot:?}"
+        like_face(first),
+        "the tile's picture, as it begins: {first:?}, {face:?}"
     );
     rest(&mut doc);
     assert!(near(photo_frame(&doc), FITS), "{:?}", photo_frame(&doc));
     let style = attr(&doc, viewer(&doc).unwrap(), "style").unwrap();
     assert!(style.contains("rgba(0, 0, 0, 1)"), "{style}");
 
-    // Closed by its button, it goes back into the spot, then is gone.
+    // Closed by its button, it goes back into the tile, then is gone.
     let close = labelled(&doc, ".unit-viewer button", "Close");
     click(&mut doc, close);
     assert!(viewer(&doc).is_some(), "drawn going first");
     let last = until_closed(&mut doc).expect("drawn going");
-    assert!(last.2 < FITS.2 / 2.0, "shrunk: {last:?}");
-    assert!(close_to(middle(last), spot, 150.0), "{last:?}, {spot:?}");
+    assert!(like_face(last), "{last:?}, {face:?}");
 
-    // Dragged down far and let go, it flies back into the spot rather
-    // than on down.
-    let photo = option_named(&doc, "Noon on the hill");
-    click(&mut doc, photo);
+    // Opened by Return, on the tile the keys are on, it flies out of that
+    // tile as well; dragged down far and let go, it flies back into it
+    // rather than on down.
+    key(&mut doc, Key::Named(NamedKey::Enter));
+    settle(&mut doc);
+    assert!(viewer(&doc).is_some(), "Return opens it");
+    let first = photo_frame(&doc);
+    assert!(like_face(first), "{first:?}, {face:?}");
     rest(&mut doc);
     drag_down(&mut doc, (600.0, 300.0), 200.0, 4, 16, 0);
     let last = until_closed(&mut doc).expect("drawn going");
-    assert!(close_to(middle(last), spot, 150.0), "{last:?}, {spot:?}");
+    assert!(like_face(last), "{last:?}, {face:?}");
 
     // Opened by a button, it has no spot: it grows where it rests.
     open_photos(&mut doc);
