@@ -107,6 +107,7 @@ pub use unit::{
     Clipboard, Focus, Insets, Keys, Kind, Unit, UnitRoot, next_id, use_focus, use_unit,
     use_unit_provider,
 };
+pub use zoom::Spot;
 
 /// Everything a page uses, at once.
 pub mod prelude {
@@ -117,9 +118,9 @@ pub mod prelude {
         Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal, MotionSetting, NavBar,
         Orientation, Photo, PhotoViewer, Pick, Placement, Pressable, Progress, RadioGroup, Row,
         ScrollBar, SearchField, Section, Segmented, Select, Selection, SheetAction, Slider, Sort,
-        Spacer, Stack, Stepper, Swatch, SwatchAction, Swatches, Switch, TabBar, Table, TableRow,
-        Tabs, Text, TextArea, TextField, Theme, Tile, TileGrid, Toast, ToggleButton, Tone, Tree,
-        TreeRow, Unit, UnitRoot, Variant, use_unit,
+        Spacer, Spot, Stack, Stepper, Swatch, SwatchAction, Swatches, Switch, TabBar, Table,
+        TableRow, Tabs, Text, TextArea, TextField, Theme, Tile, TileGrid, Toast, ToggleButton,
+        Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
     };
 }
 

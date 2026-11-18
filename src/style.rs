@@ -587,6 +587,10 @@ pub const CSS: &str = r#"
 .unit-viewer-page { position: absolute; top: 0; bottom: 0; }
 .unit-viewer-photo { position: absolute; }
 .unit-viewer-photo .unit-viewer-image { display: block; width: 100%; height: 100%; }
+/* Flying out of its thumbnail or back into it, the photo fills the box it
+   is in, cropped as a thumbnail is, until its box is its own shape. */
+.unit-viewer-photo.unit-flying { overflow: hidden; }
+.unit-viewer-photo.unit-flying .unit-viewer-image { object-fit: cover; }
 .unit-viewer-image.unit-viewer-whole { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
                                        object-fit: contain; }
 .unit-viewer-bar { position: absolute; left: 0; top: 0; right: 0; display: flex; align-items: center;
