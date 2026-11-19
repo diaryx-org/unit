@@ -1481,6 +1481,49 @@ fn a_password_is_shown_by_its_eye_and_hidden_again() {
 }
 
 #[test]
+fn a_file_button_opens_the_picker_and_hears_the_files_chosen() {
+    let mut doc = page(1200, 800);
+    let input = labelled(&doc, "input", "Choose Pictures…");
+    assert_eq!(attr(&doc, input, "type").as_deref(), Some("file"));
+    assert_eq!(attr(&doc, input, "accept").as_deref(), Some("image/*"));
+    // The face is drawn as a button's, out of assistive tech's way; the
+    // input, over it, is what is pressed and read.
+    let face = find(&doc, ".unit-file-button > .unit-button", "Choose Pictures…");
+    assert_eq!(attr(&doc, face, "aria-hidden").as_deref(), Some("true"));
+    let (fx, fy, fw, fh) = rect(&doc, face);
+    let (ix, iy, iw, ih) = rect(&doc, input);
+    assert!(
+        (ix - fx).abs() < 0.5
+            && (iy - fy).abs() < 0.5
+            && (iw - fw).abs() < 0.5
+            && (ih - fh).abs() < 0.5,
+        "the input covers the face: {:?} over {:?}",
+        (ix, iy, iw, ih),
+        (fx, fy, fw, fh)
+    );
+    // Pressed here, with no system to show a picker, the press is answered
+    // as a picker dismissed.
+    click(&mut doc, input);
+    assert_eq!(said(&doc), "Chose nothing.");
+    // The system's answer, as a window gives it to the page.
+    let files = vec![
+        blitz_traits::files::ChosenFile::from_bytes("a.png", vec![1, 2, 3].into(), 0),
+        blitz_traits::files::ChosenFile::from_bytes("b.jpg", vec![4].into(), 0),
+        blitz_traits::files::ChosenFile::from_bytes("notes.txt", vec![5].into(), 0),
+    ];
+    doc.handle_ui_event(UiEvent::FilesChosen {
+        target: input,
+        files: Some(files),
+    });
+    settle(&mut doc);
+    assert_eq!(
+        said(&doc),
+        "Chose a.png, b.jpg.",
+        "what accept does not take is left out"
+    );
+}
+
+#[test]
 fn a_brief_toast_goes_by_itself() {
     let mut doc = page(1200, 800);
     let show = find(&doc, "button", "Brief toast");
@@ -1677,8 +1720,9 @@ fn tab_reaches_a_pressable_and_return_presses_it() {
     let other = find(&doc, "button", "Default");
     click(&mut doc, other);
     assert_eq!(said(&doc), "Default pressed.");
-    // Primary, Ghost, Delete, Add, Share, Bold: Disabled and Italic passed by.
-    for _ in 0..7 {
+    // Primary, Ghost, Delete, Add, Choose Pictures… (its file input), Share,
+    // Bold: Disabled and Italic passed by.
+    for _ in 0..8 {
         key(&mut doc, Key::Named(NamedKey::Tab));
     }
     assert_eq!(doc.inner.borrow().get_focussed_node_id(), Some(tile));

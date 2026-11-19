@@ -32,6 +32,8 @@ dioxus = { version = "0.8.0-alpha.3", default-features = false, features = [
 # the renderer patched from the fork (the root manifest's [patch]).
 dioxus-native = { version = "0.8.0-alpha.3", optional = true, default-features = false, features = [
     "net", "svg", "system-fonts", "vello-hybrid", "accessibility",
+    # The system's picker for a file input (unit's FileButton).
+    "file-dialog",
 ] }
 dioxus-web = { version = "=0.8.0-alpha.3", optional = true }
 
