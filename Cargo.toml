@@ -82,6 +82,10 @@ anyrender_vello_hybrid = { git = "https://github.com/diaryx-org/blitz", branch =
 glifo = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
 vello_gpu = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
 vello_gpu_shaders = { git = "https://github.com/diaryx-org/blitz", branch = "leaf" }
+# dioxus-native-dom, which turns Blitz's events into Dioxus's, from the same
+# fork: leaf's events (a file input's change and cancel) do not compile with
+# the published one, and its files() is the files chosen (PATCH.md there).
+dioxus-native-dom = { git = "https://github.com/diaryx-org/blitz", branch = "leaf", version = "0.8.0-alpha.3" }
 
 [profile.dev]
 debug = "line-tables-only"

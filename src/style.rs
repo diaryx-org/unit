@@ -189,6 +189,19 @@ pub const CSS: &str = r#"
 .unit-ink-accent-text { color: var(--unit-accent-text); }
 .unit-ink-danger { color: var(--unit-danger); }
 .unit-button[disabled] { color: var(--unit-dim); box-shadow: none; }
+.unit-file-button { position: relative; display: inline-flex; vertical-align: middle; }
+.unit-file-button > .unit-button { pointer-events: none; }
+.unit-file-button:hover > .unit-button:where(:not(.unit-face-disabled)) { background: var(--unit-control-hover); }
+.unit-file-button:hover > .unit-button.unit-primary:where(:not(.unit-face-disabled)) { background: var(--unit-accent); opacity: 0.86; }
+.unit-file-button:hover > .unit-button.unit-danger:where(:not(.unit-face-disabled)) { background: var(--unit-danger); opacity: 0.86; }
+.unit-file-button:hover > .unit-button.unit-ghost:where(:not(.unit-face-disabled)) { background: var(--unit-control-hover); }
+.unit-button.unit-face-disabled { color: var(--unit-dim); box-shadow: none; }
+/* The renderer's own file input, unseen over the face: a press lands on it.
+   Blitz draws its own parts inside it, which are hidden. */
+.unit-file-input { position: absolute; left: 0; top: 0; right: 0; bottom: 0; width: 100%; height: 100%;
+                   margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 0; }
+.unit-file-input:disabled { cursor: default; }
+.unit-file-input > * { display: none; }
 /* A toggle is often one glyph, B or I: never narrower than it is tall. */
 .unit-toggle { min-width: var(--unit-control-height); }
 .unit-toggle.on { background: var(--unit-selection); border-color: var(--unit-accent); }

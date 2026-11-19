@@ -27,10 +27,10 @@ unit = { git = "https://github.com/diaryx-org/unit", branch = "main" }
 
 | | |
 |---|---|
-| Buttons | `Button` (default, primary, ghost, danger), `ToggleButton`, each with an `icon`; `Pressable`, a page's own row or tile that Tab reaches and Return and Space press |
+| Buttons | `Button` (default, primary, ghost, danger), `ToggleButton`, each with an `icon`; `Pressable`, a page's own row or tile that Tab reaches and Return and Space press; `FileButton`, the system's file picker (an `accept`, `multiple`, a `directory`), a browser's or, on Blitz, the platform's |
 | Icons | `Icon`: a path on a 24-unit grid stroked in `currentColor`, the text's or an `Ink` of the theme's; `icon::paths` |
 | Choices | `Checkbox`, `Switch`, `RadioGroup`, `Segmented`, `Slider`, `Chips` (each with a colour's dot and a count, if it has them; or `single`, a radio group drawn as pills) |
-| Text | `TextField` (text, search, email, URL, password, number; with an `action` at its end, pressed by Return too; a password `revealable` by an eye, and drawn as bullets on Blitz too with diaryx-org/blitz's `feat/password-input`), `TextArea`, `CodeField` (a one-time code: a cell for each digit, one field to assistive tech, a whole code pasted or filled in at once) |
+| Text | `TextField` (text, search, email, URL, password, number; with an `action` at its end, pressed by Return too; a password `revealable` by an eye, and drawn as bullets on Blitz too), `TextArea`, `CodeField` (a one-time code: a cell for each digit, one field to assistive tech, a whole code pasted or filled in at once) |
 | Menus | `MenuButton`, `Select`, `ContextMenu` (the secondary button, or a finger held); items with shortcuts, ticks, icons, separators, submenus, and destructive ones; a `palette`, a few items side by side in one row (Copy, Share, Delete; or Reflow, Pages, Source, ticked where they stand), which keeps a long menu short |
 | Lists | `Section` (rows under a caption), `Row` (icon, title, subtitle, a note under it, value, a chevron or a tick, a control at the right, set in by a `depth`) |
 | Navigation | `Tabs`, `ListBox` (arrows, Home, End, typeahead), `Disclosure`, `NavBar` (back, forward, a title to press), `TabBar` (with a button of its own at the end), `Tree` and `TreeRow` |

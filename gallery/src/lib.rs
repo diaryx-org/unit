@@ -500,6 +500,14 @@ fn Page(
                         Button { variant: Variant::Danger, onpress: move |_| said.set("Delete pressed.".into()), "Delete" }
                         Button { disabled: true, onpress: move |_| said.set("Disabled pressed!".into()), "Disabled" }
                         Button { icon: paths::PLUS, onpress: move |_| said.set("Add pressed.".into()), "Add" }
+                        // The system's picker, by a press or Return and Space.
+                        FileButton { label: "Choose Pictures…", icon: paths::PHOTO, accept: "image/*",
+                                     multiple: true,
+                                     onchoose: move |files: Vec<dioxus::html::FileData>| {
+                                         let names: Vec<String> = files.iter().map(|f| f.name()).collect();
+                                         said.set(format!("Chose {}.", names.join(", ")));
+                                     },
+                                     oncancel: move |_| said.set("Chose nothing.".into()) }
                         Button { icon: paths::SHARE, label: "Share", variant: Variant::Ghost, class: "unit-icon",
                                  onpress: move |_| said.set("Share pressed.".into()) }
                         ToggleButton { pressed: bold(), label: "Bold", onchange: move |v| bold.set(v), b { "B" } }

@@ -81,6 +81,7 @@ pub use components::choice::{
 };
 pub use components::code_field::CodeField;
 pub use components::collection::{Column, Sort, Table, TableRow, Tile, TileGrid};
+pub use components::file_button::FileButton;
 pub use components::hold::{Hold, LongPress, use_hold};
 pub use components::layout::{
     Align, Axis, Badge, Callout, Card, Divider, EmptyState, Field, Heading, Progress, Spacer,
@@ -114,13 +115,13 @@ pub mod prelude {
     pub use crate::{
         Accent, Accessory, ActionSheet, Align, Answer, Appearance, Axis, Badge, BarItem,
         Breadcrumbs, Button, Callout, Card, Checkbox, Chips, Choice, CodeField, Column,
-        ContextMenu, Density, Dialog, Disclosure, Divider, EmptyState, Entry, Field, Heading, Icon,
-        Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal, MotionSetting, NavBar,
-        Orientation, Photo, PhotoViewer, Pick, Placement, Pressable, Progress, RadioGroup, Row,
-        ScrollBar, SearchField, Section, Segmented, Select, Selection, SheetAction, Slider, Sort,
-        Spacer, Spot, Stack, Stepper, Swatch, SwatchAction, Swatches, Switch, TabBar, Table,
-        TableRow, Tabs, Text, TextArea, TextField, Theme, Tile, TileGrid, Toast, ToggleButton,
-        Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
+        ContextMenu, Density, Dialog, Disclosure, Divider, EmptyState, Entry, Field, FileButton,
+        Heading, Icon, Ink, InputKind, Item, Keys, ListBox, LongPress, MenuButton, Modal,
+        MotionSetting, NavBar, Orientation, Photo, PhotoViewer, Pick, Placement, Pressable,
+        Progress, RadioGroup, Row, ScrollBar, SearchField, Section, Segmented, Select, Selection,
+        SheetAction, Slider, Sort, Spacer, Spot, Stack, Stepper, Swatch, SwatchAction, Swatches,
+        Switch, TabBar, Table, TableRow, Tabs, Text, TextArea, TextField, Theme, Tile, TileGrid,
+        Toast, ToggleButton, Tone, Tree, TreeRow, Unit, UnitRoot, Variant, use_unit,
     };
 }
 
@@ -272,6 +273,39 @@ mod tests {
             "{html}"
         );
         assert!(html.contains("aria-pressed=\"false\""), "{html}");
+    }
+
+    #[test]
+    fn a_file_button_is_a_file_input_over_a_buttons_face() {
+        fn Page() -> Element {
+            rsx! {
+                UnitRoot {
+                    FileButton { label: "Open Database…", accept: ".kdbx", onchoose: |_| {} }
+                    FileButton { label: "Choose a Folder", directory: true, multiple: true,
+                                 disabled: true, onchoose: |_| {} }
+                }
+            }
+        }
+        let html = render(Page);
+        for needle in [
+            "type=\"file\"",
+            "accept=\".kdbx\"",
+            "aria-label=\"Open Database…\"",
+            "webkitdirectory=\"true\"",
+            "class=\"unit-file-input\"",
+        ] {
+            assert!(html.contains(needle), "{needle} missing in {html}");
+        }
+        // Each face drawn as a button, not one: out of Tab's and assistive
+        // tech's way.
+        assert_eq!(
+            html.matches("<span aria-hidden=\"true\" class=\"unit-button")
+                .count(),
+            2,
+            "{html}"
+        );
+        assert!(html.contains("unit-face-disabled"), "{html}");
+        assert_eq!(html.matches("webkitdirectory").count(), 1, "{html}");
     }
 
     #[test]
