@@ -254,6 +254,27 @@ mod tests {
     }
 
     #[test]
+    fn a_password_field_can_be_revealed_by_its_eye() {
+        fn Page() -> Element {
+            rsx! {
+                UnitRoot {
+                    TextField { value: "", oninput: |_| {}, label: "Password",
+                                kind: InputKind::Password, revealable: true }
+                    TextField { value: "", oninput: |_| {}, label: "Other", revealable: true }
+                }
+            }
+        }
+        let html = render(Page);
+        assert!(html.contains("type=\"password\""), "{html}");
+        assert_eq!(
+            html.matches("aria-label=\"Show password\"").count(),
+            1,
+            "{html}"
+        );
+        assert!(html.contains("aria-pressed=\"false\""), "{html}");
+    }
+
+    #[test]
     fn a_page_can_leave_the_stylesheet_to_a_file_of_its_own() {
         fn Page() -> Element {
             rsx! { UnitRoot { stylesheet: false, "x" } }

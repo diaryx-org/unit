@@ -1441,6 +1441,46 @@ fn a_fields_action_waits_for_its_text_and_is_pressed_by_return_too() {
 }
 
 #[test]
+fn a_password_is_shown_by_its_eye_and_hidden_again() {
+    let mut doc = page(1200, 800);
+    let field = labelled(&doc, "input", "Password");
+    assert_eq!(attr(&doc, field, "type").as_deref(), Some("password"));
+    click(&mut doc, field);
+    type_text(&mut doc, "hunter2");
+    let eye = labelled(&doc, ".unit-field-action button", "Show password");
+    assert_eq!(attr(&doc, eye, "aria-pressed").as_deref(), Some("false"));
+    click(&mut doc, eye);
+    let field = labelled(&doc, "input", "Password");
+    assert_eq!(
+        attr(&doc, field, "type").as_deref(),
+        Some("text"),
+        "shown as text"
+    );
+    let eye = labelled(&doc, ".unit-field-action button", "Hide password");
+    assert_eq!(attr(&doc, eye, "aria-pressed").as_deref(), Some("true"));
+    click(&mut doc, eye);
+    let field = labelled(&doc, "input", "Password");
+    assert_eq!(
+        attr(&doc, field, "type").as_deref(),
+        Some("password"),
+        "hidden again"
+    );
+    // The field kept its text throughout.
+    click(&mut doc, field);
+    key(&mut doc, Key::Named(NamedKey::End));
+    type_text(&mut doc, "!");
+    let said = {
+        let inner = doc.inner.borrow();
+        let all = inner.query_selector_all(".unit-card .unit-text").unwrap();
+        all.iter()
+            .map(|&n| inner.get_node(n).unwrap().text_content())
+            .find(|t| t.contains("Your password"))
+            .unwrap()
+    };
+    assert!(said.contains("8 characters"), "{said}");
+}
+
+#[test]
 fn a_brief_toast_goes_by_itself() {
     let mut doc = page(1200, 800);
     let show = find(&doc, "button", "Brief toast");

@@ -8,7 +8,7 @@
 
 use dioxus::prelude::*;
 
-use crate::components::button::{Button, Variant};
+use crate::components::button::{Button, ToggleButton, Variant};
 use crate::icon::{Icon, Ink, paths};
 use crate::unit::{Kind, next_id, use_focus};
 
@@ -46,6 +46,11 @@ impl InputKind {
 /// it while the text would not do: an empty name, an address not yet
 /// whole.
 ///
+/// A [`InputKind::Password`] field is drawn as bullets, by a browser and by
+/// Blitz alike. With `revealable`, an eye at its end shows the password as
+/// text, and hides it again: the field stays the same field, its text and
+/// caret kept, only its `type` changing.
+///
 /// `name`, `autocomplete`, `required`, `minlength` and `maxlength` are the
 /// input's own attributes: a browser keeps to the length, and fills and
 /// saves the field from a password manager by its `autocomplete`. Blitz does
@@ -69,6 +74,9 @@ pub fn TextField(
     /// The action pressed, or Return in the field, given the text.
     onaction: Option<EventHandler<String>>,
     #[props(default)] action_disabled: bool,
+    /// A password's eye at the field's end, which shows it and hides it.
+    #[props(default)]
+    revealable: bool,
     /// The field's name in a form.
     name: Option<String>,
     /// What a browser may fill it with: `email`, `current-password`.
@@ -79,6 +87,13 @@ pub fn TextField(
 ) -> Element {
     let focus = use_focus(Kind::Text, |_, _| false);
     let id = use_hook(next_id);
+    let mut shown = use_signal(|| false);
+    let reveals = revealable && kind == InputKind::Password;
+    let kind_attr = if reveals && shown() {
+        "text"
+    } else {
+        kind.attr()
+    };
     let inline_class = if inline { " unit-inline" } else { "" };
     let act = (!disabled && !action_disabled)
         .then_some(onaction)
@@ -88,7 +103,7 @@ pub fn TextField(
         input {
             class: "unit-input{inline_class}{focus.class()}",
             id: "unit-{id}",
-            r#type: kind.attr(),
+            r#type: kind_attr,
             value: "{value}",
             placeholder: "{placeholder}",
             disabled,
@@ -120,12 +135,21 @@ pub fn TextField(
             if let Some(l) = label.as_ref().filter(|_| !inline) {
                 label { class: "unit-field-label", r#for: "unit-{id}", "{l}" }
             }
-            if let Some(a) = action {
+            if reveals || action.is_some() {
                 div { class: "unit-field-action",
                     {input}
-                    Button { variant: Variant::Ghost, disabled: disabled || action_disabled,
-                        onpress: move |_| if let Some(f) = onaction { f.call(value.clone()) },
-                        "{a}"
+                    if reveals {
+                        ToggleButton { variant: Variant::Ghost, pressed: shown(), disabled,
+                            icon: if shown() { paths::EYE_OFF } else { paths::EYE },
+                            label: if shown() { "Hide password" } else { "Show password" },
+                            onchange: move |on| shown.set(on),
+                        }
+                    }
+                    if let Some(a) = action {
+                        Button { variant: Variant::Ghost, disabled: disabled || action_disabled,
+                            onpress: move |_| if let Some(f) = onaction { f.call(value.clone()) },
+                            "{a}"
+                        }
                     }
                 }
             } else {
