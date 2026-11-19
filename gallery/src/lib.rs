@@ -289,6 +289,7 @@ fn Page(
     let mut volume = use_signal(|| 0.4f64);
     let mut stepped = use_signal(|| 3.0f64);
     let mut name = use_signal(String::new);
+    let mut secret = use_signal(String::new);
     let mut reader = use_signal(String::new);
     let mut notes = use_signal(String::new);
     let mut code = use_signal(String::new);
@@ -581,8 +582,11 @@ fn Page(
                 Card { title: "Text",
                     TextField { label: "Name", value: name(), placeholder: "Your name",
                                 oninput: move |v| name.set(v) }
+                    TextField { label: "Password", kind: InputKind::Password, revealable: true,
+                                value: secret(), autocomplete: "new-password",
+                                oninput: move |v| secret.set(v) }
                     TextArea { label: "Notes", value: notes(), rows: 3, oninput: move |v| notes.set(v) }
-                    Text { dim: true, "Hello, {name}." }
+                    Text { dim: true, "Hello, {name}. Your password is {secret().chars().count()} characters long." }
                 }
                 Card { title: "Sign in",
                     Text { dim: true, "The code sent to ana@example.com. 123456 is right." }

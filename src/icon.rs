@@ -166,6 +166,8 @@ pub mod paths {
     pub const SPARKLE: &str = "M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z";
     /// Lucide's `shuffle`.
     pub const SHUFFLE: &str = "M18 14l4 4-4 4M18 2l4 4-4 4M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22M2 6h1.972a4 4 0 0 1 3.6 2.2M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45";
+    /// Lucide's `eye`. Seen: shown as it is.
+    pub const EYE: &str = "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z";
     /// Lucide's `eye-off`. Not seen: hidden from someone.
     pub const EYE_OFF: &str = "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49M14.084 14.158a3 3 0 0 1-4.242-4.242M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143M2 2l20 20";
     /// Lucide's `keyboard-off`. Puts the keyboard away.
@@ -224,6 +226,7 @@ pub mod paths {
         ("BOLT", BOLT),
         ("SPARKLE", SPARKLE),
         ("SHUFFLE", SHUFFLE),
+        ("EYE", EYE),
         ("EYE_OFF", EYE_OFF),
         ("KEYBOARD_DOWN", KEYBOARD_DOWN),
         ("PLAY", PLAY),
