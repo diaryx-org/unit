@@ -84,6 +84,10 @@ pub fn TextField(
     #[props(default)] required: bool,
     minlength: Option<u32>,
     maxlength: Option<u32>,
+    /// Whether the field has the keys when the page opens, as a browser's
+    /// `autofocus`: a dialog's one field.
+    #[props(default)]
+    autofocus: bool,
 ) -> Element {
     let focus = use_focus(Kind::Text, |_, _| false);
     let id = use_hook(next_id);
@@ -113,6 +117,7 @@ pub fn TextField(
             "aria-required": required.then_some("true"),
             minlength: minlength.map(|n| n.to_string()),
             maxlength: maxlength.map(|n| n.to_string()),
+            autofocus: autofocus.then_some("true"),
             "aria-label": label.clone(),
             onpointerdown: move |_| focus.press(),
             onfocus: move |_| focus.dom_focus(),
@@ -219,6 +224,10 @@ pub fn SearchField(
     label: String,
     #[props(default = "Search".to_string())] placeholder: String,
     onsubmit: Option<EventHandler<String>>,
+    /// Whether the field has the keys when the page opens, as a browser's
+    /// `autofocus`: a launcher's search.
+    #[props(default)]
+    autofocus: bool,
     #[props(default)] class: String,
 ) -> Element {
     let focus = use_focus(Kind::Text, |_, _| false);
@@ -233,6 +242,7 @@ pub fn SearchField(
                 r#type: "search",
                 value: "{value}",
                 placeholder: "{placeholder}",
+                autofocus: autofocus.then_some("true"),
                 "aria-label": "{label}",
                 onpointerdown: move |_| focus.press(),
                 onfocus: move |_| focus.dom_focus(),

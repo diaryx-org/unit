@@ -27,7 +27,7 @@ use dioxus::prelude::*;
 
 use crate::actions::{ActionSheet, SheetAction};
 use crate::dialog::{Answer, Dialog, Field, FieldKey};
-use crate::icon::{Icon, Ink};
+use crate::icon::{Icon, Ink, paths};
 use crate::menu::{Entry, Level, Menu, Outcome, Sizes};
 use crate::unit::{Keys, Unit, next_id};
 
@@ -662,7 +662,6 @@ fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, lit: Option<usi
             }
         },
         Entry::Item(item) => {
-            let tick = if item.checked { "✓" } else { "" };
             let shortcut = item.shortcut.clone().unwrap_or_default();
             let role = if item.checkable {
                 "menuitemcheckbox"
@@ -681,7 +680,9 @@ fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, lit: Option<usi
                     "aria-disabled": (!item.enabled).then_some("true"),
                     "aria-label": "{item.label}",
                     onpointermove: hover, onpointerup: release,
-                    span { class: "unit-tick", "aria-hidden": "true", "{tick}" }
+                    span { class: "unit-tick", "aria-hidden": "true",
+                        if item.checked { Icon { d: paths::CHECK, size: 14.0 } }
+                    }
                     if let Some(d) = item.icon {
                         Icon { d, ink, size: 16.0 }
                     }
@@ -697,7 +698,9 @@ fn entry_view(unit: Unit, depth: usize, i: usize, entry: &Entry, lit: Option<usi
                 onpointermove: hover, onpointerup: release,
                 span { class: "unit-tick" }
                 span { class: "unit-label", "{label}" }
-                span { class: "unit-key", "aria-hidden": "true", "▸" }
+                span { class: "unit-key", "aria-hidden": "true",
+                    Icon { d: paths::CHEVRON_RIGHT, size: 14.0 }
+                }
             }
         },
         Entry::Palette(_) => unreachable!("drawn by palette_view"),
@@ -992,7 +995,7 @@ fn ToastView(unit: Unit, id: u64, toast: Toast, #[props(default)] leaving: bool)
                     e.stop_propagation();
                     unit.dismiss(id);
                 },
-                "✕"
+                Icon { d: paths::CLOSE, size: 16.0 }
             }
         }
     }

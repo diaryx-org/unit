@@ -261,7 +261,7 @@ fn a_submenu_opens_beside_its_item() {
     let mut doc = page(1200, 800);
     let edit = find(&doc, "button", "Edit ▾");
     click(&mut doc, edit);
-    let heading = find(&doc, ".unit-item", "Heading▸");
+    let heading = find(&doc, ".unit-item", "Heading");
     let (hx, hy, hw, hh) = rect(&doc, heading);
     doc.handle_ui_event(UiEvent::PointerMove(pointer(
         BlitzPointerId::Mouse,

@@ -44,6 +44,8 @@ pub const CSS: &str = r#"
 .unit-label { flex: 1; }
 .unit-key { flex: none; padding-left: 18px; color: var(--unit-dim); }
 .unit-item.hot .unit-key { color: var(--unit-accent-text); }
+/* A tick and a submenu's arrow are icons in a column of their own: no gap after them. */
+.unit-tick .unit-svg, .unit-key .unit-svg { margin-right: 0; }
 .unit-sep { height: 9px; padding: 4px 10px; }
 .unit-item.unit-header { color: var(--unit-dim); font-size: 0.85em; font-weight: 600; }
 .unit-rule { height: 1px; background: var(--unit-separator); }
