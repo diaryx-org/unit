@@ -14,7 +14,7 @@ use dioxus::prelude::*;
 use crate::components::button::{Variant, is_press};
 use crate::components::choice::{Orientation, arrow_step};
 use crate::components::hold::use_hold;
-use crate::icon::Icon;
+use crate::icon::{Icon, paths};
 use crate::menu::{Entry, Item};
 use crate::unit::{Kind, Unit, use_focus, use_unit};
 
@@ -262,7 +262,9 @@ pub fn Select(
     rsx! {
         MenuButton { class: "unit-select", entries, onpick, height, label: name, disabled,
             span { class: "unit-select-label", "{shown}" }
-            span { class: "unit-select-arrows", "aria-hidden": "true", "▾" }
+            span { class: "unit-select-arrows", "aria-hidden": "true",
+                Icon { d: paths::CHEVRON_DOWN, size: 14.0 }
+            }
         }
     }
 }

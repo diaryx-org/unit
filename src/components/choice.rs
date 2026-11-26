@@ -9,6 +9,7 @@
 use dioxus::html::{Key, Modifiers, NamedKey};
 use dioxus::prelude::*;
 
+use crate::icon::{Icon, paths};
 use crate::unit::{Kind, next_id, use_focus};
 
 fn is_space(key: &Key) -> bool {
@@ -49,7 +50,7 @@ pub fn Checkbox(
                 }
             },
             span { class: "unit-check-box", "aria-hidden": "true",
-                if checked { "✓" }
+                if checked { Icon { d: paths::CHECK, size: 12.0 } }
             }
             span { class: "unit-check-label", {children} }
         }

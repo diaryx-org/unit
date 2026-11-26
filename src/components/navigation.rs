@@ -183,7 +183,7 @@ pub fn Disclosure(title: String, #[props(default)] open: bool, children: Element
                     shown.toggle();
                 },
                 span { class: "unit-disclosure-arrow", "aria-hidden": "true",
-                    if is_open { "▾" } else { "▸" }
+                    Icon { d: if is_open { paths::CHEVRON_DOWN } else { paths::CHEVRON_RIGHT }, size: 14.0 }
                 }
                 "{title}"
             }
